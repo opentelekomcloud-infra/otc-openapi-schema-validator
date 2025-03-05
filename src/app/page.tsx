@@ -3,7 +3,9 @@
 import React, {useState, useRef, useEffect, SyntheticEvent} from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
-import type {EditorView} from "@codemirror/view";
+import type { EditorView } from "@codemirror/view";
+// import jsyaml from "js-yaml";
+import RulesetsSelector from "@/components/RulesetsSelector";
 
 const HomePage = () => {
     const [code, setCode] = useState("// Start coding...");
@@ -20,10 +22,8 @@ const HomePage = () => {
 
     // Callback to capture the CodeMirror editor instance
     const handleEditorCreated = (editorView: EditorView) => {
-        // Save the internal scrollable element in a ref
         // @ts-expect-error arguing on possible null
         scrollRef.current = editorView.scrollDOM;
-        // Attach the scroll event listener to the editor's scrollable DOM
         // @ts-expect-error arguing on possible null
         scrollRef.current.addEventListener("scroll", handleScroll);
     };
@@ -99,10 +99,11 @@ const HomePage = () => {
                         </button>
                     )}
                 </div>
-
-                {/* Right Panel - Empty for Now */}
-                <div className="w-1/2 p-4 bg-white flex items-center justify-center">
-                    <p className="text-gray-500">Right Panel</p>
+                {/* Right Panel - RulesetsFetcher and/or additional rules selection UI */}
+                <div className="w-1/2 p-4 bg-white overflow-auto">
+                    <RulesetsSelector />
+                    {/* You can add your additional rules selection UI here,
+              which could use the fetched structure from RulesetsFetcher */}
                 </div>
             </div>
         </div>
