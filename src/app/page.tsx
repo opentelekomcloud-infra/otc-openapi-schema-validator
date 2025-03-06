@@ -98,18 +98,19 @@ const HomePage = () => {
         });
     };
 
-    // When a diagnostic item is clicked, scroll to its position in the editor.
     const handleDiagnosticClick = (from: number) => {
-        if (editorViewRef.current) {
-            const coords = editorViewRef.current.coordsAtPos(from);
-            if (coords && scrollRef.current) {
-                scrollRef.current.scrollTo({
-                    top: coords.top,
-                    behavior: "smooth",
-                });
-            }
+        if (editorViewRef.current && scrollRef.current) {
             editorViewRef.current.dispatch({
                 selection: { anchor: from },
+                scrollIntoView: false,
+            });
+            requestAnimationFrame(() => {
+                const coords = editorViewRef.current!.coordsAtPos(from);
+                const containerRect = scrollRef.current!.getBoundingClientRect();
+                // @ts-ignore
+                const offsetWithinContainer = coords.top - containerRect.top;
+                const newScrollTop = scrollRef.current!.scrollTop + offsetWithinContainer - 20;
+                scrollRef.current!.scrollTo({ top: newScrollTop, behavior: "smooth" });
             });
         }
     };
