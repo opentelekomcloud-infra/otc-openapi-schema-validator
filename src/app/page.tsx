@@ -16,7 +16,7 @@ interface Diagnostic {
 }
 
 const HomePage = () => {
-    const [code, setCode] = useState("// Start coding...");
+    const [code, setCode] = useState("// Start writing or load a file...");
     const [showScrollButton, setShowScrollButton] = useState(false);
     const scrollRef = useRef<HTMLElement | null>(null);
     const editorViewRef = useRef<EditorView | null>(null);
@@ -117,6 +117,41 @@ const HomePage = () => {
                         onChange={handleFileUpload}
                     />
                 </label>
+                <div className="flex space-x-4">
+                    <div className="flex items-center">
+            <span
+                className="rounded-full mr-1"
+                style={{
+                    width: "10px",
+                    height: "10px",
+                    backgroundColor: "white",
+                    border: "1px solid black",
+                }}
+            ></span>
+                        <span>Hint</span>
+                    </div>
+                    <div className="flex items-center">
+            <span
+                className="rounded-full mr-1 border border-black"
+                style={{width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)"}}
+            ></span>
+                        <span>Info</span>
+                    </div>
+                    <div className="flex items-center">
+            <span
+                className="rounded-full mr-1 border border-black"
+                style={{width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)"}}
+            ></span>
+                        <span>Warning</span>
+                    </div>
+                    <div className="flex items-center">
+            <span
+                className="rounded-full mr-1 border border-black"
+                style={{width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)"}}
+            ></span>
+                        <span>Error</span>
+                    </div>
+                </div>
             </div>
 
             <div className="flex flex-1">
@@ -144,7 +179,7 @@ const HomePage = () => {
                             onClick={scrollToTop}
                             className="absolute bottom-10 right-10 bg-blue-500 text-white p-2 rounded shadow-md hover:bg-blue-600 transition"
                         >
-                            ↑ Top
+                        ↑ Top
                         </button>
                     )}
                 </div>
@@ -153,7 +188,7 @@ const HomePage = () => {
                 <div className="w-1/2 p-4 bg-white overflow-auto">
                     <RulesetsSelector onSelectionChange={handleSelectionChange} />
                     <div className="mt-4 p-4 border">
-                        <h3 className="font-bold mb-2">Lint Issues (Sorted by Severity)</h3>
+                        <h3 className="font-bold mb-2">Lint Issues</h3>
                         {/* Severity Filter Dropdown */}
                         <div className="mb-2">
                             <label className="mr-2 font-semibold">Filter by Severity:</label>

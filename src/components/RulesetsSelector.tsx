@@ -7,36 +7,35 @@ type RulesetsStructure = {
     [rulesetName: string]: string[];
 };
 
-type Rule = {
+export type Rule = {
     id: string;
     title: string;
-    [key: string]: any;
+    message: string;
+    option: string;
+    given: string;
+    element: string;
+    then: {
+        function: string;
+        functionParams?: any;
+    };
+    severity: string;
 };
 
-
-type RulesetsSelectorProps = {
+type RulesetsSelectorWithRulesProps = {
     onSelectionChange?: (selectedFileRules: Record<string, Rule[]>) => void;
 };
 
-const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
-    // Overall rulesets structure fetched from API.
+const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorWithRulesProps) => {
     const [rulesets, setRulesets] = useState<RulesetsStructure>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
 
-    // Panel 1: Selected ruleset
     const [selectedRuleset, setSelectedRuleset] = useState<string>("");
-
-    // Panel 2: Selected files from the ruleset
     const [selectedFiles, setSelectedFiles] = useState<string[]>([]);
-
-    // Panel 3: Map of file -> array of rules (fetched and parsed)
     const [fileRulesMap, setFileRulesMap] = useState<Record<string, Rule[]>>({});
-
-    // Panel 3: Selected rules from each file (now storing full rule objects)
     const [selectedFileRules, setSelectedFileRules] = useState<Record<string, Rule[]>>({});
 
-    // Fetch the rulesets structure
+    // Fetch the rulesets structure from API.
     useEffect(() => {
         async function fetchRulesets() {
             try {
@@ -55,21 +54,38 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
         fetchRulesets();
     }, []);
 
-    // Clear downstream selections when ruleset changes
+    // When a new ruleset is selected, auto-check all files.
     useEffect(() => {
-        setSelectedFiles([]);
+        if (selectedRuleset && rulesets[selectedRuleset]) {
+            setSelectedFiles(rulesets[selectedRuleset]);
+        } else {
+            setSelectedFiles([]);
+        }
+        // Clear file rules maps and selected rules.
         setFileRulesMap({});
         setSelectedFileRules({});
-    }, [selectedRuleset]);
+    }, [selectedRuleset, rulesets]);
 
-    // Effect to notify parent about selectedFileRules changes
+    // When fileRulesMap is updated, auto-check rules with option "Mandatory".
+    useEffect(() => {
+        const newSelected: Record<string, Rule[]> = {};
+        Object.keys(fileRulesMap).forEach((file) => {
+            const mandatoryRules = fileRulesMap[file].filter(
+                rule => rule.option.toLowerCase() === "mandatory"
+            );
+            newSelected[file] = mandatoryRules;
+        });
+        setSelectedFileRules(newSelected);
+    }, [fileRulesMap]);
+
+    // Notify parent about selected rules whenever selectedFileRules changes.
     useEffect(() => {
         if (onSelectionChange) {
             onSelectionChange(selectedFileRules);
         }
     }, [selectedFileRules, onSelectionChange]);
 
-    // Fetch YAML rules for a selected file if not already fetched
+    // Fetch YAML rules for each selected file if not already fetched.
     useEffect(() => {
         async function fetchFileRules(file: string) {
             try {
@@ -81,7 +97,6 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                 const text = await res.text();
                 const data = yaml.load(text) as any;
                 if (data && data.rules && Array.isArray(data.rules)) {
-                    // Store the full rule objects
                     const rules: Rule[] = data.rules.map((rule: any) => rule);
                     setFileRulesMap(prev => ({ ...prev, [file]: rules }));
                 }
@@ -96,7 +111,6 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
             }
         });
 
-        // Remove stale entries if files are no longer selected
         setFileRulesMap(prev => {
             const newMap: Record<string, Rule[]> = {};
             selectedFiles.forEach(file => {
@@ -107,7 +121,6 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
             return newMap;
         });
 
-        // Clean up selected rules for files no longer selected
         setSelectedFileRules(prev => {
             const newSelected: Record<string, Rule[]> = {};
             selectedFiles.forEach(file => {
@@ -119,7 +132,6 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
         });
     }, [selectedFiles, selectedRuleset]);
 
-    // Handlers for UI events
     const handleRulesetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedRuleset(e.target.value);
     };
@@ -132,7 +144,6 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
         }
     };
 
-    // Now toggling the rule will add/remove the full rule object.
     const handleRuleToggle = (file: string, rule: Rule) => {
         setSelectedFileRules(prev => {
             const current = prev[file] || [];
@@ -150,7 +161,7 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
     const rulesetNames = Object.keys(rulesets);
 
     return (
-        <div className="p-4">
+        <div>
             <div className="grid grid-cols-3 gap-4">
                 {/* Panel 1: Ruleset Dropdown */}
                 <div>
@@ -185,12 +196,10 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                                                 id={`file-${file}`}
                                                 checked={selectedFiles.includes(file)}
                                                 onChange={() => handleFileToggle(file)}
-                                                className={"break-words"}
                                             />
                                             <label
                                                 htmlFor={`file-${file}`}
-                                                className="ml-2 block whitespace-normal break-all"
-                                            >
+                                                className="ml-2 block whitespace-normal break-all">
                                                 {file}
                                             </label>
                                         </div>
@@ -211,26 +220,38 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                                     <div key={file} className="mb-4 block whitespace-normal break-all">
                                         <h4 className="font-semibold mb-1">{file}</h4>
                                         {fileRulesMap[file] ? (
-                                            fileRulesMap[file].map(rule => (
-                                                <div key={rule.id} className="flex items-center mb-1">
-                                                    <input
-                                                        type="checkbox"
-                                                        id={`rule-${file}-${rule.id}`}
-                                                        checked={
-                                                            (selectedFileRules[file] || []).some(
-                                                                r => r.id === rule.id
-                                                            )
-                                                        }
-                                                        onChange={() => handleRuleToggle(file, rule)}
-                                                    />
-                                                    <label
-                                                        htmlFor={`rule-${file}-${rule.id}`}
-                                                        className="ml-2 block whitespace-normal break-all"
-                                                    >
-                                                        {rule.id} {rule.title}
-                                                    </label>
-                                                </div>
-                                            ))
+                                            fileRulesMap[file].map(rule => {
+                                                let ruleColor = "";
+                                                switch (rule.severity) {
+                                                    case "hint":
+                                                        ruleColor = "text-white border border-black"; // white with border
+                                                        break;
+                                                    case "info":
+                                                        ruleColor = "text-blue-600";
+                                                        break;
+                                                    case "warning":
+                                                        ruleColor = "text-yellow-600";
+                                                        break;
+                                                    case "error":
+                                                        ruleColor = "text-red-600";
+                                                        break;
+                                                    default:
+                                                        ruleColor = "text-gray-600";
+                                                }
+                                                return (
+                                                    <div key={rule.id} className="flex items-center mb-1">
+                                                        <input
+                                                            type="checkbox"
+                                                            id={`rule-${file}-${rule.id}`}
+                                                            checked={(selectedFileRules[file] || []).some(r => r.id === rule.id)}
+                                                            onChange={() => handleRuleToggle(file, rule)}
+                                                        />
+                                                        <label htmlFor={`rule-${file}-${rule.id}`} className={`ml-2 ${ruleColor} break-words`}>
+                                                            {rule.id} {rule.title}
+                                                        </label>
+                                                    </div>
+                                                );
+                                            })
                                         ) : (
                                             <p className="text-gray-400">Loading rules...</p>
                                         )}

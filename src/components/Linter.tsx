@@ -1,4 +1,4 @@
-import { Diagnostic, linter } from "@codemirror/lint";
+import { Diagnostic } from "@codemirror/lint";
 import yaml from "js-yaml";
 import { httpsCheckServers } from "@/functions/httpsCheckServers";
 
@@ -13,7 +13,7 @@ export function openApiLinter(selectedRules: any) {
 
         try {
             const spec = yaml.load(content);
-            // @ts-ignore
+            // @ts-expect-error err
             Object.values(selectedRules).forEach((rules: any[]) => {
                 rules.forEach(rule => {
                     if (rule.then && rule.then.function) {

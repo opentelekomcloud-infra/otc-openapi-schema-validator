@@ -1,6 +1,21 @@
 rules:
   - id: "1.2.2"
-    title: "Test Rule"
-    description: "Only Test."
-    option: "Mandatory"
-    note: "Test."
+    title: "Test Requirements"
+    message: "Test"
+    option: "Optional"
+    given: "bla"
+    then: {
+      function: "checkTest",
+      functionParams: {}
+    }
+    severity: "warning"
+  - id: "1.2.3"
+    title: "Test Requirements 2"
+    message: "Test 2"
+    option: "Optional"
+    given: "bla"
+    then: {
+      function: "checkTest2",
+      functionParams: {}
+    }
+    severity: "info"
