@@ -1,37 +1,64 @@
 'use client';
 
-import React, {useState, useRef, useEffect, SyntheticEvent} from "react";
+import React, { useState, useRef, useEffect, SyntheticEvent, useMemo } from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
-import type { EditorView } from "@codemirror/view";
+import { EditorView } from "@codemirror/view";
+import { linter, lintGutter } from "@codemirror/lint";
+import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
+
+// Define a type for CodeMirror diagnostics (you can adjust as needed)
+interface Diagnostic {
+    from: number;
+    to: number;
+    severity: string;
+    message: string;
+}
 
 const HomePage = () => {
     const [code, setCode] = useState("// Start coding...");
     const [showScrollButton, setShowScrollButton] = useState(false);
-    const scrollRef = useRef(null);
+    const scrollRef = useRef<HTMLElement | null>(null);
+    const editorViewRef = useRef<EditorView | null>(null);
+    const [selectedRules, setSelectedRules] = useState<Record<string, any>>({});
+    const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+    // Use a ref to keep track of the last diagnostics so we don't update unnecessarily.
+    const prevDiagsRef = useRef<Diagnostic[]>([]);
 
-    // Scroll event handler for CodeMirror's scrollDOM
+    // Memoize the update listener extension so it only changes when selectedRules changes.
+    const diagnosticsListenerExtension = useMemo(
+        () =>
+            EditorView.updateListener.of((update) => {
+                // Call our linter function with the current view and selected rules.
+                const newDiags = openApiLinter(selectedRules)(update.view);
+                // Only update state if diagnostics have changed.
+                if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
+                    prevDiagsRef.current = newDiags;
+                    setDiagnostics(newDiags);
+                }
+            }),
+        [selectedRules]
+    );
+
+    // Callback to capture the CodeMirror editor instance.
+    const handleEditorCreated = (editorView: EditorView) => {
+        editorViewRef.current = editorView;
+        scrollRef.current = editorView.scrollDOM;
+        scrollRef.current.addEventListener("scroll", handleScroll);
+    };
+
+    // Scroll event handler for CodeMirror's scrollDOM.
     const handleScroll = () => {
         if (scrollRef.current) {
-            // @ts-expect-error arguing on possible null
             setShowScrollButton(scrollRef.current.scrollTop > 50);
         }
     };
 
-    // Callback to capture the CodeMirror editor instance
-    const handleEditorCreated = (editorView: EditorView) => {
-        // @ts-expect-error arguing on possible null
-        scrollRef.current = editorView.scrollDOM;
-        // @ts-expect-error arguing on possible null
-        scrollRef.current.addEventListener("scroll", handleScroll);
-    };
-
-    // Cleanup on unmount
+    // Cleanup scroll listener on unmount.
     useEffect(() => {
         return () => {
             if (scrollRef.current) {
-                // @ts-expect-error arguing on possible null
                 scrollRef.current.removeEventListener("scroll", handleScroll);
             }
         };
@@ -39,30 +66,52 @@ const HomePage = () => {
 
     const scrollToTop = () => {
         if (scrollRef.current) {
-            // @ts-expect-error arguing on possible null
             scrollRef.current.scrollTo({ top: 0, behavior: "smooth" });
         }
     };
 
     const handleFileUpload = (event: SyntheticEvent) => {
-        console.log(event)
-        // @ts-expect-error arguing on files
-        const file = event.target.files[0];
-        if (file && (file.name.endsWith(".yaml") || file.name.endsWith(".yml"))) {
-            const reader = new FileReader();
-            // @ts-expect-error arguing on possible null
-            reader.onload = (e) => setCode(e.target.result);
-            reader.readAsText(file);
-        } else {
-            alert("Please upload a valid .yaml or .yml file.");
+        const target = event.target as HTMLInputElement;
+        if (target.files && target.files[0]) {
+            const file = target.files[0];
+            if (file.name.endsWith(".yaml") || file.name.endsWith(".yml")) {
+                const reader = new FileReader();
+                reader.onload = (e) => setCode(e.target?.result as string);
+                reader.readAsText(file);
+            } else {
+                alert("Please upload a valid .yaml or .yml file.");
+            }
         }
     };
 
-    const [selectedRules, setSelectedRules] = useState<Record<string, string[]>>({});
-
-    const handleSelectionChange = (newSelection: Record<string, string[]>) => {
+    const handleSelectionChange = (newSelection: Record<string, any>) => {
         setSelectedRules(newSelection);
         console.log("Selected file rules updated:", newSelection);
+    };
+
+    // A helper function to sort diagnostics by severity.
+    // (Assuming "error" is more severe than "warning".)
+    const sortDiagnostics = (diags: Diagnostic[]) => {
+        return diags.slice().sort((a, b) => {
+            if (a.severity === b.severity) return 0;
+            return a.severity === "error" ? -1 : 1;
+        });
+    };
+
+    // When a diagnostic item is clicked, scroll to its position in the editor.
+    const handleDiagnosticClick = (from: number) => {
+        if (editorViewRef.current) {
+            const coords = editorViewRef.current.coordsAtPos(from);
+            if (coords && scrollRef.current) {
+                scrollRef.current.scrollTo({
+                    top: coords.top,
+                    behavior: "smooth",
+                });
+            }
+            editorViewRef.current.dispatch({
+                selection: { anchor: from },
+            });
+        }
     };
 
     return (
@@ -86,14 +135,18 @@ const HomePage = () => {
                     <CodeMirror
                         value={code}
                         height="100vh"
-                        extensions={[yaml()]}
+                        extensions={[
+                            yaml(),
+                            linter(openApiLinter(selectedRules)),
+                            lintGutter(),
+                            diagnosticsListenerExtension,
+                        ]}
                         onChange={(value) => setCode(value)}
                         theme="dark"
                         basicSetup={{
                             lineNumbers: true,
                             foldGutter: true,
                         }}
-                        // Use the callback to capture the editor instance
                         onCreateEditor={handleEditorCreated}
                     />
                     {showScrollButton && (
@@ -105,13 +158,36 @@ const HomePage = () => {
                         </button>
                     )}
                 </div>
-                {/* Right Panel - RulesetsFetcher and/or additional rules selection UI */}
+
+                {/* Right Panel - Rules Selection and Lint Issues List */}
                 <div className="w-1/2 p-4 bg-white overflow-auto">
                     <RulesetsSelector onSelectionChange={handleSelectionChange} />
-                    {/* You can now use selectedRules state in this main page */}
                     <div className="mt-4 p-4 border">
                         <h3 className="font-bold">Main Page - Selected File Rules</h3>
                         <pre>{JSON.stringify(selectedRules, null, 2)}</pre>
+                    </div>
+                    <div className="mt-4 p-4 border">
+                        <h3 className="font-bold mb-2">Lint Issues (Sorted by Severity)</h3>
+                        {diagnostics.length === 0 ? (
+                            <p className="text-gray-500">No lint issues.</p>
+                        ) : (
+                            <ul className="list-disc pl-4">
+                                {sortDiagnostics(diagnostics).map((diag, index) => {
+                                    const lineNumber = editorViewRef.current
+                                        ? editorViewRef.current.state.doc.lineAt(diag.from).number
+                                        : "N/A";
+                                    return (
+                                        <li
+                                            key={index}
+                                            onClick={() => handleDiagnosticClick(diag.from)}
+                                            className="cursor-pointer hover:underline mb-1"
+                                        >
+                                            [Line {lineNumber}] {diag.message} ({diag.severity})
+                                        </li>
+                                    );
+                                })}
+                            </ul>
+                        )}
                     </div>
                 </div>
             </div>

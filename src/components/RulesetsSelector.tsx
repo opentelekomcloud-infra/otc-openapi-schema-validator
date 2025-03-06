@@ -15,7 +15,7 @@ type Rule = {
 
 
 type RulesetsSelectorProps = {
-    onSelectionChange?: (selectedFileRules: Record<string, string[]>) => void;
+    onSelectionChange?: (selectedFileRules: Record<string, Rule[]>) => void;
 };
 
 const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {

@@ -1,23 +1,12 @@
 rules:
   - id: "1.2.1.1"
     title: "Transmission Protocol Requirements"
-    description: "All tenant-oriented APIs must use the HTTPS protocol."
+    message: "All tenant-oriented APIs must use the HTTPS protocol."
     option: "Mandatory"
-    note: "To ensure that tenants can use APIs more securely, cloud services must use HTTPS through secure channels."
-
-  - id: "1.2.1.2"
-    title: "Content-Type"
-    description: "Set the media type and encoding format."
-    option: "Mandatory if body is available"
-    details:
-      description: "Media type of the HTTP request body. The default media type is application/json and the encoding format is UTF-8."
-      example: "Content-Type: application/json; charset=UTF-8"
-      note: "The default media type is application/json. The following table lists the media types of other services. You are not advised to add other media types that are not listed in the following table. If the service has special requirements, submit the requirements to the API TMG for approval."
-    mediaTypes:
-      - category: "File upload/download"
-        scenario: "File upload and download interfaces directly transfer file content."
-        mediaType: "application/octet-stream"
-      - category: "Mixed Multipart Type"
-        scenario: "Interfaces that pass mixed multipart content (text, form, and binary files)."
-        mediaType: "multipart/form-data"
-    encodingNote: "The default encoding format is charset=UTF-8. RFC-7231 supports multiple styles (e.g., charset=UTF-8, charset=utf-8, charset=\"utf-8\"). When parsing the value, the backend must support these styles and be case-sensitive."
+    given: "servers"
+    element: "url"
+    then: {
+      function: "httpsCheckServers",
+      functionParams: {}
+    }
+    severity: "error" # "hint" | "info" | "warning" | "error"
