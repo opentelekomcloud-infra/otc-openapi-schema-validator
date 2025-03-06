@@ -1,0 +1,6 @@
+rules:
+  - id: "1.2.2"
+    title: "Test Rule"
+    description: "Only Test."
+    option: "Mandatory"
+    note: "Test."

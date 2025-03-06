@@ -4,7 +4,6 @@ import React, {useState, useRef, useEffect, SyntheticEvent} from "react";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
 import type { EditorView } from "@codemirror/view";
-// import jsyaml from "js-yaml";
 import RulesetsSelector from "@/components/RulesetsSelector";
 
 const HomePage = () => {
@@ -59,6 +58,13 @@ const HomePage = () => {
         }
     };
 
+    const [selectedRules, setSelectedRules] = useState<Record<string, string[]>>({});
+
+    const handleSelectionChange = (newSelection: Record<string, string[]>) => {
+        setSelectedRules(newSelection);
+        console.log("Selected file rules updated:", newSelection);
+    };
+
     return (
         <div className="flex h-screen flex-col">
             {/* Upload Button */}
@@ -101,9 +107,12 @@ const HomePage = () => {
                 </div>
                 {/* Right Panel - RulesetsFetcher and/or additional rules selection UI */}
                 <div className="w-1/2 p-4 bg-white overflow-auto">
-                    <RulesetsSelector />
-                    {/* You can add your additional rules selection UI here,
-              which could use the fetched structure from RulesetsFetcher */}
+                    <RulesetsSelector onSelectionChange={handleSelectionChange} />
+                    {/* You can now use selectedRules state in this main page */}
+                    <div className="mt-4 p-4 border">
+                        <h3 className="font-bold">Main Page - Selected File Rules</h3>
+                        <pre>{JSON.stringify(selectedRules, null, 2)}</pre>
+                    </div>
                 </div>
             </div>
         </div>

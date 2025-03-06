@@ -10,7 +10,7 @@ export default async function handler(
     req: NextApiRequest,
     res: NextApiResponse<RulesetsStructure | { error: string }>
 ) {
-    const rulesetsDir = path.join(process.cwd(), "rulesets");
+    const rulesetsDir = path.join(process.cwd(), "/public/rulesets");
     const result: RulesetsStructure = {};
 
     try {
