@@ -8,7 +8,6 @@ import { linter, lintGutter } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 
-// Define a type for CodeMirror diagnostics (you can adjust as needed)
 interface Diagnostic {
     from: number;
     to: number;
@@ -23,16 +22,16 @@ const HomePage = () => {
     const editorViewRef = useRef<EditorView | null>(null);
     const [selectedRules, setSelectedRules] = useState<Record<string, any>>({});
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
-    // Use a ref to keep track of the last diagnostics so we don't update unnecessarily.
     const prevDiagsRef = useRef<Diagnostic[]>([]);
+    const [severityFilter, setSeverityFilter] = useState<string>("all");
+    const filteredDiagnostics = diagnostics.filter((diag) =>
+        severityFilter === "all" ? true : diag.severity === severityFilter
+    );
 
-    // Memoize the update listener extension so it only changes when selectedRules changes.
     const diagnosticsListenerExtension = useMemo(
         () =>
             EditorView.updateListener.of((update) => {
-                // Call our linter function with the current view and selected rules.
                 const newDiags = openApiLinter(selectedRules)(update.view);
-                // Only update state if diagnostics have changed.
                 if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
                     prevDiagsRef.current = newDiags;
                     setDiagnostics(newDiags);
@@ -41,7 +40,6 @@ const HomePage = () => {
         [selectedRules]
     );
 
-    // Callback to capture the CodeMirror editor instance.
     const handleEditorCreated = (editorView: EditorView) => {
         editorViewRef.current = editorView;
         scrollRef.current = editorView.scrollDOM;
@@ -89,15 +87,6 @@ const HomePage = () => {
         console.log("Selected file rules updated:", newSelection);
     };
 
-    // A helper function to sort diagnostics by severity.
-    // (Assuming "error" is more severe than "warning".)
-    const sortDiagnostics = (diags: Diagnostic[]) => {
-        return diags.slice().sort((a, b) => {
-            if (a.severity === b.severity) return 0;
-            return a.severity === "error" ? -1 : 1;
-        });
-    };
-
     const handleDiagnosticClick = (from: number) => {
         if (editorViewRef.current && scrollRef.current) {
             editorViewRef.current.dispatch({
@@ -107,7 +96,7 @@ const HomePage = () => {
             requestAnimationFrame(() => {
                 const coords = editorViewRef.current!.coordsAtPos(from);
                 const containerRect = scrollRef.current!.getBoundingClientRect();
-                // @ts-ignore
+                // @ts-expect-error coords possible null
                 const offsetWithinContainer = coords.top - containerRect.top;
                 const newScrollTop = scrollRef.current!.scrollTop + offsetWithinContainer - 20;
                 scrollRef.current!.scrollTo({ top: newScrollTop, behavior: "smooth" });
@@ -164,30 +153,69 @@ const HomePage = () => {
                 <div className="w-1/2 p-4 bg-white overflow-auto">
                     <RulesetsSelector onSelectionChange={handleSelectionChange} />
                     <div className="mt-4 p-4 border">
-                        <h3 className="font-bold">Main Page - Selected File Rules</h3>
-                        <pre>{JSON.stringify(selectedRules, null, 2)}</pre>
-                    </div>
-                    <div className="mt-4 p-4 border">
                         <h3 className="font-bold mb-2">Lint Issues (Sorted by Severity)</h3>
-                        {diagnostics.length === 0 ? (
+                        {/* Severity Filter Dropdown */}
+                        <div className="mb-2">
+                            <label className="mr-2 font-semibold">Filter by Severity:</label>
+                            <select
+                                className="border p-1"
+                                value={severityFilter}
+                                onChange={(e) => setSeverityFilter(e.target.value)}
+                            >
+                                <option value="all">All</option>
+                                <option value="hint">Hint</option>
+                                <option value="info">Info</option>
+                                <option value="warning">Warning</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                        {filteredDiagnostics.length === 0 ? (
                             <p className="text-gray-500">No lint issues.</p>
                         ) : (
-                            <ul className="list-disc pl-4">
-                                {sortDiagnostics(diagnostics).map((diag, index) => {
+                            <table className="w-full border-collapse">
+                                <thead>
+                                <tr>
+                                    <th className="border px-2 py-1">Line #</th>
+                                    <th className="border px-2 py-1">Summary</th>
+                                    <th className="border px-2 py-1">Severity</th>
+                                </tr>
+                                </thead>
+                                <tbody>
+                                {filteredDiagnostics.map((diag, index) => {
                                     const lineNumber = editorViewRef.current
                                         ? editorViewRef.current.state.doc.lineAt(diag.from).number
                                         : "N/A";
+                                    let severityBg = "";
+                                    switch (diag.severity) {
+                                        case "hint":
+                                            severityBg = "bg-white";
+                                            break;
+                                        case "info":
+                                            severityBg = "bg-blue-200";
+                                            break;
+                                        case "warning":
+                                            severityBg = "bg-yellow-200";
+                                            break;
+                                        case "error":
+                                            severityBg = "bg-red-200";
+                                            break;
+                                        default:
+                                            severityBg = "bg-gray-200";
+                                    }
                                     return (
-                                        <li
+                                        <tr
                                             key={index}
                                             onClick={() => handleDiagnosticClick(diag.from)}
-                                            className="cursor-pointer hover:underline mb-1"
+                                            className={`cursor-pointer hover:underline ${severityBg}`}
                                         >
-                                            [Line {lineNumber}] {diag.message} ({diag.severity})
-                                        </li>
+                                            <td className="border px-2 py-1 text-center">{lineNumber}</td>
+                                            <td className="border px-2 py-1">{diag.message}</td>
+                                            <td className="border px-2 py-1 text-center">{diag.severity}</td>
+                                        </tr>
                                     );
                                 })}
-                            </ul>
+                                </tbody>
+                            </table>
                         )}
                     </div>
                 </div>
