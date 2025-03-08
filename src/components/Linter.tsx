@@ -1,9 +1,11 @@
 import { Diagnostic } from "@codemirror/lint";
 import yaml from "js-yaml";
 import { httpsCheckServers } from "@/functions/httpsCheckServers";
+import { mediaTypeCheck } from "@/functions/mediaTypeCheck";
 
 const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] } = {
     httpsCheckServers,
+    mediaTypeCheck
 };
 
 export function openApiLinter(selectedRules: any) {

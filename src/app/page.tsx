@@ -187,7 +187,7 @@ const HomePage = () => {
                 {/* Right Panel - Rules Selection and Lint Issues List */}
                 <div className="w-1/2 p-4 bg-white overflow-auto">
                     <RulesetsSelector onSelectionChange={handleSelectionChange} />
-                    <div className="mt-4 p-4 border">
+                    <div className="mt-4 p-4 border block whitespace-normal break-all">
                         <h3 className="font-bold mb-2">Lint Issues</h3>
                         {/* Severity Filter Dropdown */}
                         <div className="mb-2">
@@ -210,9 +210,9 @@ const HomePage = () => {
                             <table className="w-full border-collapse">
                                 <thead>
                                 <tr>
-                                    <th className="border px-2 py-1">Line #</th>
-                                    <th className="border px-2 py-1">Summary</th>
-                                    <th className="border px-2 py-1">Severity</th>
+                                    <th className="border px-2 py-1 w-1/6">#</th>
+                                    <th className="border px-2 py-1 w-4/6">Summary</th>
+                                    <th className="border px-2 py-1 w-1/6">Severity</th>
                                 </tr>
                                 </thead>
                                 <tbody>
