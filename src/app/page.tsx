@@ -82,6 +82,16 @@ const HomePage = () => {
         }
     };
 
+    const handleSave = () => {
+        const blob = new Blob([code], { type: "text/yaml" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "modified.yaml"; // You can modify the filename as needed.
+        a.click();
+        URL.revokeObjectURL(url);
+    };
+
     const handleSelectionChange = (newSelection: Record<string, any>) => {
         setSelectedRules(newSelection);
         console.log("Selected file rules updated:", newSelection);
@@ -106,17 +116,25 @@ const HomePage = () => {
 
     return (
         <div className="flex h-screen flex-col">
-            {/* Upload Button */}
-            <div className="p-4 bg-gray-200 flex justify-between">
-                <label className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer">
-                    Load YAML File
-                    <input
-                        type="file"
-                        accept=".yaml,.yml"
-                        className="hidden"
-                        onChange={handleFileUpload}
-                    />
-                </label>
+            {/* Header with Upload, Save Button and Severity Legend */}
+            <header className="p-4 bg-gray-200 flex justify-between items-center">
+                <div className="flex space-x-4 items-center">
+                    <label className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer">
+                        Load YAML File
+                        <input
+                            type="file"
+                            accept=".yaml,.yml"
+                            className="hidden"
+                            onChange={handleFileUpload}
+                        />
+                    </label>
+                    <button
+                        onClick={handleSave}
+                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                    >
+                        Save
+                    </button>
+                </div>
                 <div className="flex space-x-4">
                     <div className="flex items-center">
             <span
@@ -133,30 +151,30 @@ const HomePage = () => {
                     <div className="flex items-center">
             <span
                 className="rounded-full mr-1 border border-black"
-                style={{width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)"}}
+                style={{ width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)" }}
             ></span>
                         <span>Info</span>
                     </div>
                     <div className="flex items-center">
             <span
                 className="rounded-full mr-1 border border-black"
-                style={{width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)"}}
+                style={{ width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)" }}
             ></span>
                         <span>Warning</span>
                     </div>
                     <div className="flex items-center">
             <span
                 className="rounded-full mr-1 border border-black"
-                style={{width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)"}}
+                style={{ width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)" }}
             ></span>
                         <span>Error</span>
                     </div>
                 </div>
-            </div>
+            </header>
 
-            <div className="flex flex-1">
+            <div className="flex h-screen">
                 {/* Left Panel - Code Editor */}
-                <div className="relative w-1/2 border-r border-gray-300 p-4 bg-gray-100">
+                <div className="relative w-1/2 border-r border-gray-300 bg-gray-100 h-full flex flex-col">
                     <CodeMirror
                         value={code}
                         height="100vh"
@@ -185,7 +203,7 @@ const HomePage = () => {
                 </div>
 
                 {/* Right Panel - Rules Selection and Lint Issues List */}
-                <div className="w-1/2 p-4 bg-white overflow-auto">
+                <div className="w-1/2 p-4 bg-white overflow-auto h-full">
                     <RulesetsSelector onSelectionChange={handleSelectionChange} />
                     <div className="mt-4 p-4 border block whitespace-normal break-all">
                         <h3 className="font-bold mb-2">Lint Issues</h3>
@@ -255,6 +273,10 @@ const HomePage = () => {
                     </div>
                 </div>
             </div>
+            {/* Footer */}
+            <footer className="bg-gray-200 p-4 text-center">
+                © 2025 EcoSystems. All rights reserved.
+            </footer>
         </div>
     );
 };
