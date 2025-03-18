@@ -10,8 +10,8 @@ function getLineBoundaries(content: string, index: number): { from: number; to: 
 
 export function mediaTypeCheck(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
-    const allowedMediaTypes = ["application/json", "application/octet-stream", "multipart/form-data"];
-    const methodsToCheck = rule.then.functionParams;
+    const allowedMediaTypes = rule.call.functionParams.headers;
+    const methodsToCheck = rule.call.functionParams.methods;
 
     if (!spec || !spec.paths) {
         return diagnostics;

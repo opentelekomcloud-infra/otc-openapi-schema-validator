@@ -12,7 +12,7 @@ export type Rule = {
     title: string;
     message: string;
     option: string;
-    given: string;
+    location: string;
     element: string;
     then: {
         function: string;

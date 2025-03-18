@@ -3,24 +3,27 @@ rules:
     title: "Transmission Protocol Requirements"
     message: "All tenant-oriented APIs must use the HTTPS protocol."
     option: Mandatory
-    given: servers
+    location: servers
     element: url
-    then: {
+    call: {
       function: httpsCheckServers,
       functionParams: {}
     }
-    severity: "error" # "hint" | "info" | "warning" | "error"
+    severity: "error" # "hint" | "info" | "warning" | "error" -> it might change to blocker - high - medium - low (example)
 
   - id: "1.2.1.2"
     title: "Content-Type: Set the media type"
     message: "The default media type must be application/json, application/octet-stream or multipart/form-data if the body is available."
     option: Mandatory
-    given: paths
+    location: paths
     element:
       - requestBody
       - responses
-    then: {
+    call: {
       function: mediaTypeCheck,
-      functionParams: ["get", "head", "post", "put", "delete", "patch"]
+      functionParams: {
+        "headers": ["application/json", "application/octet-stream", "multipart/form-data"],
+        "methods": ["get", "head", "post", "put", "delete", "patch"]
+      }
     }
     severity: "error"

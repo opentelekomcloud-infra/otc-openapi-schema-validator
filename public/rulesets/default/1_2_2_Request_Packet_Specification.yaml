@@ -3,9 +3,9 @@ rules:
     title: "Transmission Protocol Requirements"
     message: "The request header must be designed according to the requirements described in the attribute description."
     option: Mandatory
-    given: servers
+    location: servers
     element: url
-    then: {
+    call: {
       function: httpsCheckServers,
       functionParams: {}
     }

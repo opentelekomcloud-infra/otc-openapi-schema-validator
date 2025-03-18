@@ -18,8 +18,8 @@ export function openApiLinter(selectedRules: any) {
             // @ts-expect-error err
             Object.values(selectedRules).forEach((rules: any[]) => {
                 rules.forEach(rule => {
-                    if (rule.then && rule.then.function) {
-                        const funcName = rule.then.function;
+                    if (rule.call && rule.call.function) {
+                        const funcName = rule.call.function;
                         const ruleFunc = functionsMap[funcName];
                         if (typeof ruleFunc === "function") {
                             const ruleDiagnostics = ruleFunc(spec, content, rule);

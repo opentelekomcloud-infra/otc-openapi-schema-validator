@@ -2,7 +2,7 @@ import { Diagnostic } from "@codemirror/lint";
 
 export function httpsCheckServers(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
-    const items = spec && spec[rule.given];
+    const items = spec && spec[rule.location];
     if (Array.isArray(items)) {
         items.forEach((item: any) => {
             const value = item[rule.element];
