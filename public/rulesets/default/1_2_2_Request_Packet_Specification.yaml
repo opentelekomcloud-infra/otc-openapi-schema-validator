@@ -1,0 +1,12 @@
+rules:
+  - id: "1.2.2.1"
+    title: "Transmission Protocol Requirements"
+    message: "The request header must be designed according to the requirements described in the attribute description."
+    option: Mandatory
+    location: servers
+    element: url
+    call: {
+      function: httpsCheckServers,
+      functionParams: {}
+    }
+    severity: "warning"
