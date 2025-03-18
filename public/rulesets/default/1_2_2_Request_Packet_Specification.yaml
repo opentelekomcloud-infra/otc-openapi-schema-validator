@@ -9,4 +9,4 @@ rules:
       function: httpsCheckServers,
       functionParams: {}
     }
-    severity: "error" # "hint" | "info" | "warning" | "error"
+    severity: "warning"

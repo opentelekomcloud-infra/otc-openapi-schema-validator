@@ -41,7 +41,7 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorWithRulesProps)
             try {
                 const res = await fetch("/api/rulesets");
                 if (!res.ok) {
-                    throw new Error("Failed to fetch rulesets");
+                    console.error("Failed to fetch rulesets");
                 }
                 const data: RulesetsStructure = await res.json();
                 setRulesets(data);
