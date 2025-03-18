@@ -117,7 +117,7 @@ const HomePage = () => {
     return (
         <div className="flex h-screen flex-col">
             {/* Header with Upload, Save Button and Severity Legend */}
-            <header className="p-4 bg-gray-200 flex justify-between items-center">
+            <header className="p-4 bg-gray-200 flex justify-between items-center shadow-lg">
                 <div className="flex space-x-4 items-center">
                     <label className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer">
                         Load YAML File
