@@ -1,15 +1,16 @@
-name: check
+name: CI
 on:
   push:
     branches:
       - main
   pull_request:
+    types: [opened, synchronize]
 
 permissions:
   contents: read
 
 jobs:
-  check:
+  lint:
     name: linter
     runs-on: ubuntu-latest
     steps:
@@ -26,3 +27,15 @@ jobs:
 
       - name: Run Next Lint
         run: npm run lint
+
+  check:
+    name: check
+    if: >
+      always()
+    needs: [lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Decide whether the needed jobs succeeded or failed
+        uses: re-actors/alls-green@release/v1
+        with:
+          jobs: ${{ toJSON(needs) }}
