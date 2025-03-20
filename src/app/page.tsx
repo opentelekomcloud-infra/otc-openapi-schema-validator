@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect, SyntheticEvent, useMemo } from "react";
+import Image from "next/image";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
@@ -164,8 +165,10 @@ const HomePage = () => {
                         title="Select a YAML file to load"
                         className="inline-flex items-center text-white px-0 py-2 rounded cursor-pointer"
                     >
-                        <img
+                        <Image
                             src="/images/open-folder.png"
+                            width={32}
+                            height={32}
                             alt="Load YAML File"
                             className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
                         />
@@ -180,8 +183,10 @@ const HomePage = () => {
                         title="Save modified"
                         className="inline-flex items-center text-white px-0 py-2 rounded cursor-pointer"
                     >
-                        <img
+                        <Image
                             src="/images/save.png"
+                            width={32}
+                            height={32}
                             alt="Save YAML File"
                             className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
                         />
@@ -192,8 +197,10 @@ const HomePage = () => {
                         title="Export lint issues"
                         className="inline-flex items-center text-white px-4 py-2 rounded cursor-pointer"
                     >
-                        <img
+                        <Image
                             src="/images/export.png"
+                            width={32}
+                            height={32}
                             alt="Export Issues"
                             className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
                         />
