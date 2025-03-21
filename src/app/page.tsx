@@ -11,12 +11,14 @@ import { autoTable } from 'jspdf-autotable'
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { fetchManualRulesFromAPI } from "@/components/ManualChecksSelector";
+import {convertMarkdownToPlainText} from "@/utils/utils";
 
 interface Diagnostic {
     from: number;
     to: number;
     severity: string;
     message: string;
+    source?: string;
 }
 
 const HomePage = () => {
@@ -99,16 +101,18 @@ const HomePage = () => {
 
     const handleExport = async () => {
         const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
+
+        // --- Found Issues ---
         doc.setFontSize(16);
-        doc.text("Lint Issues Report", 14, 20);
-        const tableColumn = ["Line #", "Summary", "Severity"];
+        doc.text("Automated Compliance Validation report", 14, 20);
+        const tableColumn = ["Line #", "Summary", "Severity", "Rule ID"];
         const tableRows: (string | number)[][] = [];
 
         diagnostics.forEach((diag) => {
             const lineNumber = editorViewRef.current
                 ? editorViewRef.current.state.doc.lineAt(diag.from).number
                 : "N/A";
-            tableRows.push([lineNumber, diag.message, diag.severity]);
+            tableRows.push([lineNumber, diag.message, diag.severity, diag.source || ""]);
         });
 
         autoTable(doc,{
@@ -128,13 +132,13 @@ const HomePage = () => {
         // --- Manual Rules ---
         const allManualRules = await fetchManualRulesFromAPI()
         doc.setFontSize(16);
-        doc.text("Manual Rules Report", 14, afterLintY + 15);
+        doc.text("Manual Checklist", 14, afterLintY + 15);
 
         const manualTableColumn = ["ID", "Title", "Summary", "Severity"];
         const manualTableRows: (string | number)[][] = allManualRules.map((rule) => [
             rule.id,
             rule.title,
-            rule.message,
+            convertMarkdownToPlainText(rule.message),
             rule.option,
         ]);
 
@@ -289,7 +293,7 @@ const HomePage = () => {
                 <div className="w-1/2 p-4 bg-white overflow-auto h-full">
                     <RulesetsSelector onSelectionChange={handleSelectionChange}/>
                     <div className="mt-4 p-4 border block whitespace-normal break-all">
-                        <h3 className="font-bold mb-2">Manual checks</h3>
+                        <h3 className="font-bold mb-2">Manual Checklist</h3>
                         <ManualChecksSelector/>
                     </div>
                     <div className="mt-4 p-4 border block whitespace-normal break-all">

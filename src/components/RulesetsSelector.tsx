@@ -1,11 +1,9 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
+import { RulesetsStructure } from "@/utils/extract";
 import yaml from "js-yaml";
 
-type RulesetsStructure = {
-    [rulesetName: string]: string[];
-};
 
 export type Rule = {
     id: string;
