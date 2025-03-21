@@ -1,7 +1,7 @@
 'use client';
 
-import React, { useState, useEffect } from "react";
-import { RulesetsStructure } from "@/utils/extract";
+import React, {useEffect, useState} from "react";
+import {RulesetsStructure} from "@/utils/extract";
 import yaml from "js-yaml";
 
 
@@ -68,10 +68,9 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorWithRulesProps)
     useEffect(() => {
         const newSelected: Record<string, Rule[]> = {};
         Object.keys(fileRulesMap).forEach((file) => {
-            const mandatoryRules = fileRulesMap[file].filter(
+            newSelected[file] = fileRulesMap[file].filter(
                 rule => rule.option.toLowerCase() === "mandatory"
             );
-            newSelected[file] = mandatoryRules;
         });
         setSelectedFileRules(newSelected);
     }, [fileRulesMap]);
