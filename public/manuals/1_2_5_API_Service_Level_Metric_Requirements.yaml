@@ -1,0 +1,39 @@
+rules:
+  - id: "1.2.5.1"
+    title: "Response time requirement"
+    message: |
+      **The response time for an API call does not exceed 3s.**
+      
+      - **(1)** The time of 3s (referring to the peer vendor) does not include the network consumption from the user end to the server.
+      Specifies the response time for the gateway to invoke the API backend service after an API request arrives at the gateway.
+      Start from the time when the gateway sends a request to the backend to the time when the gateway receives a result from the backend.
+      
+      - **(2)** It is recommended that each API provided by the service provide a baseline time consumption in typical scenarios.
+    option: Mandatory
+
+  - id: "1.2.5.2"
+    title: "Availability requirements"
+    message: |
+      **Each API must design an availability value.**
+      
+      - **(1)** API Unavailability Definition: If a user receives a response indicating a server error for a request,      
+      (HTTP code 500 InternalError, HTTP code 503 ServiceUnavailable).
+      If the server error is reported after three retry attempts, the system is unavailable for 1 minute.
+
+      - **(2)** Definition of API availability: For a user in a billing period, the API availability is calculated as follows:
+      100% – Unavailability time/Total service time.
+      
+      - **(3)** The availability of different services varies according to the external commitment.
+      The API availability value is defined based on the service attributes of the service.
+      For details, see the service commitment.
+    option: Recommend
+
+  - id: "1.2.5.3"
+    title: "Throughput requirements"
+    message: |
+      **The number of requests that can be processed by the interface per unit time must be considered during API design.**
+      
+      - **(1)** In the API design phase, consider the processing capability of the API in a unit time.
+      This indicator represents the maximum capability that the service can bear. Refer to the domain benchmark.
+      (AWS SQS: 14000 times/instance/second; Alibaba ONS: 15000 times/instance/second).
+    option: Recommend

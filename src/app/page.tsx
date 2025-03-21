@@ -10,6 +10,7 @@ import { jsPDF } from 'jspdf'
 import { autoTable } from 'jspdf-autotable'
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
+import ManualChecksSelector, { fetchManualRulesFromAPI } from "@/components/ManualChecksSelector";
 
 interface Diagnostic {
     from: number;
@@ -27,6 +28,7 @@ const HomePage = () => {
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
     const prevDiagsRef = useRef<Diagnostic[]>([]);
     const [severityFilter, setSeverityFilter] = useState<string>("all");
+
     const filteredDiagnostics = diagnostics.filter((diag) =>
         severityFilter === "all" ? true : diag.severity === severityFilter
     );
@@ -85,7 +87,7 @@ const HomePage = () => {
         }
     };
 
-    const handleSave = () => {
+    const handleSave = async () => {
         const blob = new Blob([code], { type: "text/yaml" });
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
@@ -95,8 +97,8 @@ const HomePage = () => {
         URL.revokeObjectURL(url);
     };
 
-    const handleExport = () => {
-        const doc = new jsPDF();
+    const handleExport = async () => {
+        const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
         doc.setFontSize(16);
         doc.text("Lint Issues Report", 14, 20);
         const tableColumn = ["Line #", "Summary", "Severity"];
@@ -108,6 +110,7 @@ const HomePage = () => {
                 : "N/A";
             tableRows.push([lineNumber, diag.message, diag.severity]);
         });
+
         autoTable(doc,{
             head: [tableColumn],
             body: tableRows,
@@ -118,25 +121,39 @@ const HomePage = () => {
                 fillColor: [226, 0, 116],
                 fontSize: 12,
             },
-            footStyles: {
+        });
+
+        const afterLintY = doc.lastAutoTable?.finalY || 40;
+
+        // --- Manual Rules ---
+        const allManualRules = await fetchManualRulesFromAPI()
+        doc.setFontSize(16);
+        doc.text("Manual Rules Report", 14, afterLintY + 15);
+
+        const manualTableColumn = ["ID", "Title", "Summary", "Severity"];
+        const manualTableRows: (string | number)[][] = allManualRules.map((rule) => [
+            rule.id,
+            rule.title,
+            rule.message,
+            rule.option,
+        ]);
+
+        autoTable(doc, {
+            head: [manualTableColumn],
+            body: manualTableRows,
+            startY: afterLintY + 20,
+            styles: { fontSize: 10, cellPadding: 3 },
+            headStyles: {
                 fillColor: [226, 0, 116],
                 fontSize: 12,
             },
-            bodyStyles: {
-                fillColor: [226, 226, 226],
-                textColor: 0,
-            },
-            alternateRowStyles: {
-                fillColor: [102, 102, 102],
-                textColor: 0,
-            },
         });
-        doc.save("lint-issues.pdf");
+
+        doc.save("lint-report.pdf");
     };
 
     const handleSelectionChange = (newSelection: Record<string, any>) => {
         setSelectedRules(newSelection);
-        console.log("Selected file rules updated:", newSelection);
     };
 
     const handleDiagnosticClick = (from: number) => {
@@ -268,10 +285,13 @@ const HomePage = () => {
                         </button>
                     )}
                 </div>
-
                 {/* Right Panel - Rules Selection and Lint Issues List */}
                 <div className="w-1/2 p-4 bg-white overflow-auto h-full">
-                    <RulesetsSelector onSelectionChange={handleSelectionChange} />
+                    <RulesetsSelector onSelectionChange={handleSelectionChange}/>
+                    <div className="mt-4 p-4 border block whitespace-normal break-all">
+                        <h3 className="font-bold mb-2">Manual checks</h3>
+                        <ManualChecksSelector/>
+                    </div>
                     <div className="mt-4 p-4 border block whitespace-normal break-all">
                         <h3 className="font-bold mb-2">Lint Issues</h3>
                         {/* Severity Filter Dropdown */}
