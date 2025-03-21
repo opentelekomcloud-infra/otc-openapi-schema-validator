@@ -1,10 +1,13 @@
 'use client';
 
 import React, { useState, useRef, useEffect, SyntheticEvent, useMemo } from "react";
+import Image from "next/image";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
 import { linter, lintGutter } from "@codemirror/lint";
+import { jsPDF } from 'jspdf'
+import { autoTable } from 'jspdf-autotable'
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 
@@ -87,9 +90,48 @@ const HomePage = () => {
         const url = URL.createObjectURL(blob);
         const a = document.createElement("a");
         a.href = url;
-        a.download = "modified.yaml"; // You can modify the filename as needed.
+        a.download = "modified.yaml";
         a.click();
         URL.revokeObjectURL(url);
+    };
+
+    const handleExport = () => {
+        const doc = new jsPDF();
+        doc.setFontSize(16);
+        doc.text("Lint Issues Report", 14, 20);
+        const tableColumn = ["Line #", "Summary", "Severity"];
+        const tableRows: (string | number)[][] = [];
+
+        diagnostics.forEach((diag) => {
+            const lineNumber = editorViewRef.current
+                ? editorViewRef.current.state.doc.lineAt(diag.from).number
+                : "N/A";
+            tableRows.push([lineNumber, diag.message, diag.severity]);
+        });
+        autoTable(doc,{
+            head: [tableColumn],
+            body: tableRows,
+            startY: 30,
+            styles: { fontSize: 10, cellPadding: 3 },
+            margin: { top: 37 },
+            headStyles: {
+                fillColor: [226, 0, 116],
+                fontSize: 12,
+            },
+            footStyles: {
+                fillColor: [226, 0, 116],
+                fontSize: 12,
+            },
+            bodyStyles: {
+                fillColor: [226, 226, 226],
+                textColor: 0,
+            },
+            alternateRowStyles: {
+                fillColor: [102, 102, 102],
+                textColor: 0,
+            },
+        });
+        doc.save("lint-issues.pdf");
     };
 
     const handleSelectionChange = (newSelection: Record<string, any>) => {
@@ -117,10 +159,19 @@ const HomePage = () => {
     return (
         <div className="flex h-screen flex-col">
             {/* Header with Upload, Save Button and Severity Legend */}
-            <header className="p-4 bg-gray-200 flex justify-between items-center shadow-lg">
-                <div className="flex space-x-4 items-center">
-                    <label className="bg-blue-500 text-white px-4 py-2 rounded cursor-pointer">
-                        Load YAML File
+            <header className="p-2 bg-gray-200 flex justify-between items-center shadow-lg">
+                <div className="flex space-x-2 items-center">
+                    <label
+                        title="Select a YAML file to load"
+                        className="inline-flex items-center text-white px-0 py-2 rounded cursor-pointer"
+                    >
+                        <Image
+                            src="/images/open-folder.png"
+                            width={32}
+                            height={32}
+                            alt="Load YAML File"
+                            className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
+                        />
                         <input
                             type="file"
                             accept=".yaml,.yml"
@@ -128,44 +179,60 @@ const HomePage = () => {
                             onChange={handleFileUpload}
                         />
                     </label>
-                    <button
-                        onClick={handleSave}
-                        className="bg-green-500 text-white px-4 py-2 rounded hover:bg-green-600"
+                    <label
+                        title="Save modified"
+                        className="inline-flex items-center text-white px-0 py-2 rounded cursor-pointer"
                     >
-                        Save
-                    </button>
+                        <Image
+                            src="/images/save.png"
+                            width={32}
+                            height={32}
+                            alt="Save YAML File"
+                            className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
+                        />
+                        <button onClick={handleSave} className="inline-flex"></button>
+                    </label>
+                    <div className="h-8 border-l border-gray mx-2"></div>
+                    <label
+                        title="Export lint issues"
+                        className="inline-flex items-center text-white px-4 py-2 rounded cursor-pointer"
+                    >
+                        <Image
+                            src="/images/export.png"
+                            width={32}
+                            height={32}
+                            alt="Export Issues"
+                            className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
+                        />
+                        <button onClick={handleExport} className="inline-flex"></button>
+                    </label>
                 </div>
                 <div className="flex space-x-4">
                     <div className="flex items-center">
             <span
                 className="rounded-full mr-1"
-                style={{
-                    width: "10px",
-                    height: "10px",
-                    backgroundColor: "white",
-                    border: "1px solid black",
-                }}
+                style={{width: "10px", height: "10px", backgroundColor: "white"}}
             ></span>
                         <span>Hint</span>
                     </div>
                     <div className="flex items-center">
             <span
-                className="rounded-full mr-1 border border-black"
-                style={{ width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)" }}
+                className="rounded-full mr-1"
+                style={{width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)"}}
             ></span>
                         <span>Info</span>
                     </div>
                     <div className="flex items-center">
             <span
-                className="rounded-full mr-1 border border-black"
-                style={{ width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)" }}
+                className="rounded-full mr-1"
+                style={{width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)"}}
             ></span>
                         <span>Warning</span>
                     </div>
                     <div className="flex items-center">
             <span
-                className="rounded-full mr-1 border border-black"
-                style={{ width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)" }}
+                className="rounded-full mr-1"
+                style={{width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)"}}
             ></span>
                         <span>Error</span>
                     </div>
