@@ -11,7 +11,7 @@ import { autoTable } from 'jspdf-autotable'
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { fetchManualRulesFromAPI } from "@/components/ManualChecksSelector";
-import {convertMarkdownToPlainText} from "@/utils/utils";
+import {convertImageFromLinkToBase64, convertMarkdownToPlainText} from "@/utils/utils";
 
 interface Diagnostic {
     from: number;
@@ -101,10 +101,10 @@ const HomePage = () => {
 
     const handleExport = async () => {
         const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
-
+        const base64String = await convertImageFromLinkToBase64("/images/logo.png");
         // --- Found Issues ---
         doc.setFontSize(16);
-        doc.text("Automated Compliance Validation report", 14, 20);
+        doc.text("Automated Compliance Validation report", 14, 40);
         const tableColumn = ["Line #", "Summary", "Severity", "Rule ID"];
         const tableRows: (string | number)[][] = [];
 
@@ -116,11 +116,20 @@ const HomePage = () => {
         });
 
         autoTable(doc,{
+            willDrawPage: function (data) {
+                // Header
+                doc.setFontSize(20)
+                doc.setTextColor(40)
+                if (base64String) {
+                    doc.addImage(base64String as string, 'JPEG', data.settings.margin.left, 15, 15, 7)
+                }
+                doc.text('Open Telekom Cloud', data.settings.margin.left + 20, 21)
+            },
             head: [tableColumn],
             body: tableRows,
-            startY: 30,
+            startY: 50,
             styles: { fontSize: 10, cellPadding: 3 },
-            margin: { top: 37 },
+            margin: { top: 30 },
             headStyles: {
                 fillColor: [226, 0, 116],
                 fontSize: 12,
@@ -141,7 +150,6 @@ const HomePage = () => {
             convertMarkdownToPlainText(rule.message),
             rule.option,
         ]);
-
         autoTable(doc, {
             head: [manualTableColumn],
             body: manualTableRows,
@@ -151,6 +159,19 @@ const HomePage = () => {
                 fillColor: [226, 0, 116],
                 fontSize: 12,
             },
+            // Footer
+            didDrawPage: function (data) {
+                const pageCount = (doc as any).internal.getNumberOfPages();
+                // For each page, print the page number and the total pages
+                for (let i = 1; i <= pageCount; i++) {
+                    doc.setFontSize(10);
+                    doc.setPage(i);
+                    const pageSize = doc.internal.pageSize;
+                    const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
+                    doc.text('© 2025 T-Systems International GmbH. All rights reserved.', doc.internal.pageSize.getWidth() / 2, pageHeight - 10);
+                    doc.text('Page ' + String(i) + ' of ' + String(pageCount), data.settings.margin.left, pageHeight - 10);
+                }
+            }
         });
 
         doc.save("lint-report.pdf");
