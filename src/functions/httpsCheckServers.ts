@@ -16,6 +16,7 @@ export function httpsCheckServers(spec: any, content: string, rule: any): Diagno
                     to: end,
                     severity: rule.severity,
                     message: rule.message,
+                    source: rule.id,
                 });
             }
         });

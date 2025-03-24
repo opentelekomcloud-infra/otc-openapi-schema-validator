@@ -37,6 +37,7 @@ export function mediaTypeCheck(spec: any, content: string, rule: any): Diagnosti
                             to,
                             severity: rule.severity,
                             message: `Operation ${method.toUpperCase()} at path ${pathKey}: requestBody is present but is empty or missing a 'content' element.`,
+                            source: rule.id,
                         });
                     } else {
                         const mediaKeys = Object.keys(reqContent);
@@ -48,6 +49,7 @@ export function mediaTypeCheck(spec: any, content: string, rule: any): Diagnosti
                                 to,
                                 severity: rule.severity,
                                 message: `Operation ${method.toUpperCase()} at path ${pathKey}: requestBody 'content' does not include an allowed media type. Allowed types: ${allowedMediaTypes.join(", ")}.`,
+                                source: rule.id,
                             });
                         }
                     }
@@ -66,6 +68,7 @@ export function mediaTypeCheck(spec: any, content: string, rule: any): Diagnosti
                                     to,
                                     severity: rule.severity,
                                     message: `Operation ${method.toUpperCase()} at path ${pathKey}: response ${responseKey} is missing 'content' or it is empty.`,
+                                    source: rule.id,
                                 });
                             } else {
                                 const mediaKeys = Object.keys(response.content);
@@ -77,6 +80,7 @@ export function mediaTypeCheck(spec: any, content: string, rule: any): Diagnosti
                                         to,
                                         severity: rule.severity,
                                         message: `Operation ${method.toUpperCase()} at path ${pathKey}: response ${responseKey} 'content' does not include an allowed media type. Allowed types: ${allowedMediaTypes.join(", ")}.`,
+                                        source: rule.id,
                                     });
                                 }
                             }

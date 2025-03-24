@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import yaml from "js-yaml";
-import { RulesetsStructure } from "@/utils/utils";
+import { RulesetsStructure } from "@/utils/extract";
 import ReactMarkdown from "react-markdown";
 
 export type ManualRule = {

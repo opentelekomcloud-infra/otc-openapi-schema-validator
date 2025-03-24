@@ -1,6 +1,6 @@
 import path from "path";
 import type {NextApiRequest, NextApiResponse} from "next";
-import {extractManualRules, RulesetsStructure} from "@/utils/utils";
+import {extractManualRules, RulesetsStructure} from "@/utils/extract";
 
 export default async function handler(
     req: NextApiRequest,
