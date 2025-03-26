@@ -30,6 +30,7 @@ const HomePage = () => {
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
     const prevDiagsRef = useRef<Diagnostic[]>([]);
     const [severityFilter, setSeverityFilter] = useState<string>("all");
+    const [manualsIsOpen, setManualsIsOpen] = useState(true);
 
     const filteredDiagnostics = diagnostics.filter((diag) =>
         severityFilter === "all" ? true : diag.severity === severityFilter
@@ -314,8 +315,13 @@ const HomePage = () => {
                 <div className="w-1/2 p-4 bg-white overflow-auto h-full">
                     <RulesetsSelector onSelectionChange={handleSelectionChange}/>
                     <div className="mt-4 p-4 border block whitespace-normal break-all">
-                        <h3 className="font-bold mb-2">Manual Checklist</h3>
-                        <ManualChecksSelector/>
+                        <h3
+                            className="font-bold mb-2"
+                            onClick={() => setManualsIsOpen(!manualsIsOpen)}
+                        >Manual Checklist {manualsIsOpen ? '▲' : '▼'} </h3>
+                        {manualsIsOpen && (
+                            <ManualChecksSelector/>
+                        )}
                     </div>
                     <div className="mt-4 p-4 border block whitespace-normal break-all">
                         <h3 className="font-bold mb-2">Lint Issues</h3>
