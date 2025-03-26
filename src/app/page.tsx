@@ -346,9 +346,10 @@ const HomePage = () => {
                             <table className="w-full border-collapse">
                                 <thead>
                                 <tr>
-                                    <th className="border px-2 py-1 w-1/6">#</th>
-                                    <th className="border px-2 py-1 w-4/6">Summary</th>
-                                    <th className="border px-2 py-1 w-1/6">Severity</th>
+                                    <th className="border px-2 py-1 w-1/8">#</th>
+                                    <th className="border px-2 py-1 w-1/8">ID</th>
+                                    <th className="border px-2 py-1 w-5/8">Summary</th>
+                                    <th className="border px-2 py-1 w-1/8">Severity</th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -380,6 +381,7 @@ const HomePage = () => {
                                             className={`cursor-pointer hover:underline ${severityBg}`}
                                         >
                                             <td className="border px-2 py-1 text-center">{lineNumber}</td>
+                                            <td className="border px-2 py-1">{diag.source}</td>
                                             <td className="border px-2 py-1">{diag.message}</td>
                                             <td className="border px-2 py-1 text-center">{diag.severity}</td>
                                         </tr>
