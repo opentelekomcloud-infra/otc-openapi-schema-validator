@@ -123,12 +123,13 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({ onManualRul
             <tbody>
             {manualRules.map((rule, index) => (
                 <tr key={index} className="odd:bg-blue-200 even:bg-blue-100">
-                    <td className="border px-2 py-1">{rule.id}</td>
-                    <td className="border px-2 py-1">{rule.title}</td>
-                    <td className="border px-2 py-1">
+                    <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{rule.id}</td>
+                    <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{rule.title}</td>
+                    <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>
                         <ReactMarkdown>{rule.message}</ReactMarkdown>
                     </td>
-                    <td className="border px-2 py-1">{rule.option}</td>
+                    <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}
+                    >{rule.option}</td>
                 </tr>
             ))}
             </tbody>
