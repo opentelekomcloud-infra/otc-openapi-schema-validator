@@ -349,7 +349,7 @@ const HomePage = () => {
                                     <th className="border px-2 py-1 w-1/8">#</th>
                                     <th className="border px-2 py-1 w-1/8">ID</th>
                                     <th className="border px-2 py-1 w-5/8">Summary</th>
-                                    <th className="border px-2 py-1 w-1/8">Severity</th>
+                                    <th className="border px-2 py-1 w-1/8" style={{ wordBreak: "normal", overflowWrap: "normal" }}>Severity</th>
                                 </tr>
                                 </thead>
                                 <tbody>
@@ -380,10 +380,10 @@ const HomePage = () => {
                                             onClick={() => handleDiagnosticClick(diag.from)}
                                             className={`cursor-pointer hover:underline ${severityBg}`}
                                         >
-                                            <td className="border px-2 py-1 text-center">{lineNumber}</td>
-                                            <td className="border px-2 py-1">{diag.source}</td>
-                                            <td className="border px-2 py-1">{diag.message}</td>
-                                            <td className="border px-2 py-1 text-center">{diag.severity}</td>
+                                            <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{lineNumber}</td>
+                                            <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.source}</td>
+                                            <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.message}</td>
+                                            <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.severity}</td>
                                         </tr>
                                     );
                                 })}
