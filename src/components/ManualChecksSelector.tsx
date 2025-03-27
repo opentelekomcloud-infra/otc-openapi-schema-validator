@@ -38,6 +38,7 @@ export async function fetchManualRulesFromAPI(): Promise<ManualRule[]> {
                     const text = await res.text();
                     const data = yaml.load(text) as any;
                     if (data && data.rules && Array.isArray(data.rules)) {
+                        // Extend each rule with verified default (false)
                         const newRules = data.rules.map((rule: any) => ({
                             ...rule,
                             verified: false,
@@ -55,13 +56,35 @@ export async function fetchManualRulesFromAPI(): Promise<ManualRule[]> {
     return allManualRules;
 }
 
-const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({ onManualRulesChange }) => {
+const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
+                                                                       onManualRulesChange,
+                                                                   }) => {
     const [rulesets, setRulesets] = useState<RulesetsStructure>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
 
-    // Fetch rulesets structure
+    // On mount, load stored manual rules from localStorage (if any)
+    useEffect(() => {
+        const storedRules = localStorage.getItem("manualRules");
+        if (storedRules) {
+            try {
+                setManualRules(JSON.parse(storedRules));
+            } catch (err) {
+                console.error("Error parsing stored manual rules:", err);
+            }
+        }
+    }, []);
+
+    // Save manualRules to localStorage whenever they change.
+    useEffect(() => {
+        localStorage.setItem("manualRules", JSON.stringify(manualRules));
+        if (onManualRulesChange) {
+            onManualRulesChange(manualRules);
+        }
+    }, [manualRules, onManualRulesChange]);
+
+    // Fetch rulesets structure.
     useEffect(() => {
         async function fetchRulesets() {
             try {
@@ -80,7 +103,7 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({ onManualRul
         fetchRulesets();
     }, []);
 
-    // Once rulesets are loaded, fetch all manual rules.
+    // When rulesets are loaded, fetch all manual rules.
     useEffect(() => {
         async function fetchManualRules() {
             const allRules: ManualRule[] = [];
@@ -106,16 +129,15 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({ onManualRul
                     }
                 }
             }
-            setManualRules(allRules);
-            if (onManualRulesChange) {
-                onManualRulesChange(allRules);
+            // If there are no stored rules yet, update state with fetched ones.
+            if (allRules.length > 0 && manualRules.length === 0) {
+                setManualRules(allRules);
             }
         }
-
         if (Object.keys(rulesets).length > 0) {
             fetchManualRules();
         }
-    }, [rulesets, onManualRulesChange]);
+    }, [rulesets]);
 
     // Toggle verified state for a rule.
     const handleRuleToggle = (ruleId: string) => {
@@ -123,10 +145,7 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({ onManualRul
             rule.id === ruleId ? { ...rule, verified: !rule.verified } : rule
         );
         setManualRules(updatedRules);
-        if (onManualRulesChange) {
-            onManualRulesChange(updatedRules);
-        }
-        console.log("Updated rules:", updatedRules);
+        console.log("Updated manual rules:", updatedRules);
     };
 
     if (loading) return <p>Loading rulesets...</p>;
@@ -145,10 +164,8 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({ onManualRul
             </thead>
             <tbody>
             {manualRules.map((rule) => {
-                // Use rule.id as key to ensure uniqueness
-                const rowClass = rule.verified
-                    ? "bg-green-200"
-                    : "odd:bg-blue-200 even:bg-blue-100";
+                // Set row color based on verified state
+                const rowClass = rule.verified ? "bg-green-200" : "odd:bg-blue-200 even:bg-blue-100";
                 return (
                     <tr key={rule.id} className={`border ${rowClass}`}>
                         <td className="border px-2 py-1 text-center">

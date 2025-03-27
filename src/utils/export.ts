@@ -1,13 +1,19 @@
 import {jsPDF} from "jspdf";
 import {convertImageFromLinkToBase64, convertMarkdownToPlainText} from "@/utils/utils";
 import {autoTable} from "jspdf-autotable";
-import {fetchManualRulesFromAPI} from "@/components/ManualChecksSelector";
+import {ManualRule} from "@/components/ManualChecksSelector";
 import {EditorView} from "@codemirror/view";
 import React from "react";
 
-export const exportPDF = async (diagnostics: any[], editorViewRef: React.RefObject<EditorView | null>) => {
+export const exportPDF = async (
+    diagnostics: any[],
+    manualRules: ManualRule[],
+    editorViewRef: React.RefObject<EditorView | null>
+) => {
     const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
     const base64String = await convertImageFromLinkToBase64("/images/logo.png");
+    const totalPagesExp = "{total_pages_count_string}";
+
     // --- Found Issues ---
     doc.setFontSize(16);
     doc.text("Automated Compliance Validation report", 14, 40);
@@ -21,16 +27,7 @@ export const exportPDF = async (diagnostics: any[], editorViewRef: React.RefObje
         tableRows.push([lineNumber, diag.message, diag.severity, diag.source || ""]);
     });
 
-    autoTable(doc,{
-        willDrawPage: function (data) {
-            // Header
-            doc.setFontSize(20)
-            doc.setTextColor(40)
-            if (base64String) {
-                doc.addImage(base64String as string, 'JPEG', data.settings.margin.left, 15, 15, 7)
-            }
-            doc.text('Open Telekom Cloud', data.settings.margin.left + 20, 21)
-        },
+    autoTable(doc, {
         head: [tableColumn],
         body: tableRows,
         startY: 50,
@@ -45,17 +42,16 @@ export const exportPDF = async (diagnostics: any[], editorViewRef: React.RefObje
     const afterLintY = doc.lastAutoTable?.finalY || 40;
 
     // --- Manual Rules ---
-    const allManualRules = await fetchManualRulesFromAPI()
     doc.setFontSize(16);
     doc.text("Manual Checklist", 14, afterLintY + 15);
 
     const manualTableColumn = ["ID", "Title", "Summary", "Option", "Verified"];
-    const manualTableRows: (string | boolean | undefined)[][] = allManualRules.map((rule) => [
+    const manualTableRows = manualRules.map((rule) => [
         rule.id,
         rule.title,
         convertMarkdownToPlainText(rule.message),
         rule.option,
-        rule.verified
+        rule.verified ? "Verified" : "Unverified",
     ]);
     autoTable(doc, {
         head: [manualTableColumn],
@@ -66,20 +62,38 @@ export const exportPDF = async (diagnostics: any[], editorViewRef: React.RefObje
             fillColor: [226, 0, 116],
             fontSize: 12,
         },
-        // Footer
-        didDrawPage: function (data) {
-            const pageCount = (doc as any).internal.getNumberOfPages();
-            // For each page, print the page number and the total pages
-            for (let i = 1; i <= pageCount; i++) {
-                doc.setFontSize(10);
-                doc.setPage(i);
-                const pageSize = doc.internal.pageSize;
-                const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
-                doc.text('© 2025 T-Systems International GmbH. All rights reserved.', doc.internal.pageSize.getWidth() / 2, pageHeight - 10);
-                doc.text('Page ' + String(i) + ' of ' + String(pageCount), data.settings.margin.left, pageHeight - 10);
+        willDrawPage: function (data) {
+            // (Optional) Re-draw header if needed on pages for manual rules
+            doc.setFontSize(20);
+            doc.setTextColor(40);
+            if (base64String) {
+                doc.addImage(base64String as string, "JPEG", data.settings.margin.left, 15, 15, 7);
             }
-        }
+            doc.text("Open Telekom Cloud", data.settings.margin.left + 20, 21);
+        },
+        didDrawPage: function (data) {
+            doc.setFontSize(10);
+
+            const pageSize = doc.internal.pageSize;
+            const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
+            // Footer
+            doc.text(
+                "© 2025 T-Systems International GmbH. All rights reserved.",
+                doc.internal.pageSize.getWidth() / 2,
+                pageHeight - 10,
+                { align: "left" }
+            );
+            let str = "Page " + (doc as any).internal.getNumberOfPages();
+            if (typeof doc.putTotalPages === 'function') {
+                str = str + " of " + totalPagesExp;
+            }
+            doc.setFontSize(10);
+            doc.text(str, data.settings.margin.left, pageHeight - 10);
+        },
     });
+    if (typeof doc.putTotalPages === 'function') {
+        doc.putTotalPages(totalPagesExp);
+    }
 
     doc.save("lint-report.pdf");
-}
+};

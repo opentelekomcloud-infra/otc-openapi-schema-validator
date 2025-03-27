@@ -6,12 +6,9 @@ import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
 import { linter, lintGutter } from "@codemirror/lint";
-import { jsPDF } from 'jspdf'
-import { autoTable } from 'jspdf-autotable'
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
-import ManualChecksSelector, { fetchManualRulesFromAPI } from "@/components/ManualChecksSelector";
-import {convertImageFromLinkToBase64, convertMarkdownToPlainText} from "@/utils/utils";
+import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
 import {exportPDF} from "@/utils/export";
 
 interface Diagnostic {
@@ -32,6 +29,7 @@ const HomePage = () => {
     const prevDiagsRef = useRef<Diagnostic[]>([]);
     const [severityFilter, setSeverityFilter] = useState<string>("all");
     const [manualsIsOpen, setManualsIsOpen] = useState(true);
+    const [manualRules, setManualRules] = useState<ManualRule[]>([]);
 
     const filteredDiagnostics = diagnostics.filter((diag) =>
         severityFilter === "all" ? true : diag.severity === severityFilter
@@ -102,7 +100,7 @@ const HomePage = () => {
     };
 
     const handleExport = async () => {
-        await exportPDF(diagnostics, editorViewRef)
+        await exportPDF(diagnostics, manualRules, editorViewRef)
     };
 
     const handleSelectionChange = (newSelection: Record<string, any>) => {
@@ -124,6 +122,10 @@ const HomePage = () => {
                 scrollRef.current!.scrollTo({ top: newScrollTop, behavior: "smooth" });
             });
         }
+    };
+
+    const handleManualRulesChange = (rules: ManualRule[]) => {
+        setManualRules(rules);
     };
 
     return (
@@ -246,9 +248,9 @@ const HomePage = () => {
                             className="font-bold mb-2 cursor-pointer"
                             onClick={() => setManualsIsOpen(!manualsIsOpen)}
                         >Manual Checklist {manualsIsOpen ? '▲' : '▼'} </h3>
-                        {manualsIsOpen && (
-                            <ManualChecksSelector/>
-                        )}
+                        <div className={manualsIsOpen ? "" : "hidden"}>
+                            <ManualChecksSelector onManualRulesChange={handleManualRulesChange} />
+                        </div>
                     </div>
                     <div className="mt-4 p-4 border block whitespace-normal break-all">
                         <h3 className="font-bold mb-2">Lint Issues</h3>
