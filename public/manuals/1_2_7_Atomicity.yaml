@@ -5,4 +5,3 @@ rules:
       **The operation atomicity must be ensured in a single API of a cloud service.
       If an operation fails, junk data generated during the operation can be deleted.**
     option: Mandatory
-    severity: "hint"
