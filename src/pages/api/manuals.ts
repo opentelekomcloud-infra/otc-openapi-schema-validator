@@ -6,7 +6,7 @@ export default async function handler(
     req: NextApiRequest,
     res: NextApiResponse<RulesetsStructure | { error: string }>
 ) {
-    const rulesetsDir = path.join(process.cwd(), "/public/manuals");
+    const rulesetsDir = path.join(process.cwd(), "/public/manual-checklist");
     const result: RulesetsStructure = {};
 
     try {
