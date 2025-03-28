@@ -6,12 +6,10 @@ import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
 import { linter, lintGutter } from "@codemirror/lint";
-import { jsPDF } from 'jspdf'
-import { autoTable } from 'jspdf-autotable'
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
-import ManualChecksSelector, { fetchManualRulesFromAPI } from "@/components/ManualChecksSelector";
-import {convertImageFromLinkToBase64, convertMarkdownToPlainText} from "@/utils/utils";
+import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
+import {exportPDF} from "@/utils/export";
 
 interface Diagnostic {
     from: number;
@@ -31,6 +29,7 @@ const HomePage = () => {
     const prevDiagsRef = useRef<Diagnostic[]>([]);
     const [severityFilter, setSeverityFilter] = useState<string>("all");
     const [manualsIsOpen, setManualsIsOpen] = useState(true);
+    const [manualRules, setManualRules] = useState<ManualRule[]>([]);
 
     const filteredDiagnostics = diagnostics.filter((diag) =>
         severityFilter === "all" ? true : diag.severity === severityFilter
@@ -101,81 +100,7 @@ const HomePage = () => {
     };
 
     const handleExport = async () => {
-        const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
-        const base64String = await convertImageFromLinkToBase64("/images/logo.png");
-        // --- Found Issues ---
-        doc.setFontSize(16);
-        doc.text("Automated Compliance Validation report", 14, 40);
-        const tableColumn = ["Line #", "Summary", "Severity", "Rule ID"];
-        const tableRows: (string | number)[][] = [];
-
-        diagnostics.forEach((diag) => {
-            const lineNumber = editorViewRef.current
-                ? editorViewRef.current.state.doc.lineAt(diag.from).number
-                : "N/A";
-            tableRows.push([lineNumber, diag.message, diag.severity, diag.source || ""]);
-        });
-
-        autoTable(doc,{
-            willDrawPage: function (data) {
-                // Header
-                doc.setFontSize(20)
-                doc.setTextColor(40)
-                if (base64String) {
-                    doc.addImage(base64String as string, 'JPEG', data.settings.margin.left, 15, 15, 7)
-                }
-                doc.text('Open Telekom Cloud', data.settings.margin.left + 20, 21)
-            },
-            head: [tableColumn],
-            body: tableRows,
-            startY: 50,
-            styles: { fontSize: 10, cellPadding: 3 },
-            margin: { top: 30 },
-            headStyles: {
-                fillColor: [226, 0, 116],
-                fontSize: 12,
-            },
-        });
-
-        const afterLintY = doc.lastAutoTable?.finalY || 40;
-
-        // --- Manual Rules ---
-        const allManualRules = await fetchManualRulesFromAPI()
-        doc.setFontSize(16);
-        doc.text("Manual Checklist", 14, afterLintY + 15);
-
-        const manualTableColumn = ["ID", "Title", "Summary", "Severity"];
-        const manualTableRows: (string | number)[][] = allManualRules.map((rule) => [
-            rule.id,
-            rule.title,
-            convertMarkdownToPlainText(rule.message),
-            rule.option,
-        ]);
-        autoTable(doc, {
-            head: [manualTableColumn],
-            body: manualTableRows,
-            startY: afterLintY + 20,
-            styles: { fontSize: 10, cellPadding: 3 },
-            headStyles: {
-                fillColor: [226, 0, 116],
-                fontSize: 12,
-            },
-            // Footer
-            didDrawPage: function (data) {
-                const pageCount = (doc as any).internal.getNumberOfPages();
-                // For each page, print the page number and the total pages
-                for (let i = 1; i <= pageCount; i++) {
-                    doc.setFontSize(10);
-                    doc.setPage(i);
-                    const pageSize = doc.internal.pageSize;
-                    const pageHeight = pageSize.height ? pageSize.height : pageSize.getHeight();
-                    doc.text('© 2025 T-Systems International GmbH. All rights reserved.', doc.internal.pageSize.getWidth() / 2, pageHeight - 10);
-                    doc.text('Page ' + String(i) + ' of ' + String(pageCount), data.settings.margin.left, pageHeight - 10);
-                }
-            }
-        });
-
-        doc.save("lint-report.pdf");
+        await exportPDF(diagnostics, manualRules, editorViewRef)
     };
 
     const handleSelectionChange = (newSelection: Record<string, any>) => {
@@ -197,6 +122,10 @@ const HomePage = () => {
                 scrollRef.current!.scrollTo({ top: newScrollTop, behavior: "smooth" });
             });
         }
+    };
+
+    const handleManualRulesChange = (rules: ManualRule[]) => {
+        setManualRules(rules);
     };
 
     return (
@@ -314,14 +243,14 @@ const HomePage = () => {
                 {/* Right Panel - Rules Selection and Lint Issues List */}
                 <div className="w-1/2 p-4 bg-white overflow-auto h-full">
                     <RulesetsSelector onSelectionChange={handleSelectionChange}/>
-                    <div className="mt-4 p-4 border block whitespace-normal break-all">
+                    <div className="mt-1 hover:shadow-lg transition duration-200">
                         <h3
-                            className="font-bold mb-2"
+                            className="font-bold mb-2 cursor-pointer"
                             onClick={() => setManualsIsOpen(!manualsIsOpen)}
                         >Manual Checklist {manualsIsOpen ? '▲' : '▼'} </h3>
-                        {manualsIsOpen && (
-                            <ManualChecksSelector/>
-                        )}
+                        <div className={manualsIsOpen ? "" : "hidden"}>
+                            <ManualChecksSelector onManualRulesChange={handleManualRulesChange} />
+                        </div>
                     </div>
                     <div className="mt-4 p-4 border block whitespace-normal break-all">
                         <h3 className="font-bold mb-2">Lint Issues</h3>

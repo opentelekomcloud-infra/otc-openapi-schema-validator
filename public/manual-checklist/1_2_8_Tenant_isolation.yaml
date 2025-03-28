@@ -4,4 +4,3 @@ rules:
     message: |
       **For non-global APIs, APIs must support multiple tenants to ensure resource isolation between tenants.**
     option: Mandatory
-    severity: "hint"
