@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from "react";
 import yaml from "js-yaml";
 import { RulesetsStructure } from "@/utils/extract";
+import styles from "@/components/Table.module.css";
 
 export type Rule = {
     id: string;
@@ -157,13 +158,11 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                                     onChange={() => handleRuleToggle(rule)}
                                 />
                             </td>
-                            <td className="border px-2 py-1">{rule.id}</td>
-                            <td className="border px-2 py-1">{rule.title}</td>
-                            <td className="border px-2 py-1 whitespace-normal break-all">
-                                {rule.message}
-                            </td>
-                            <td className="border px-2 py-1">{rule.option}</td>
-                            <td className="border px-2 py-1">{rule.severity}</td>
+                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.id}</td>
+                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.title}</td>
+                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.message}</td>
+                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.option}</td>
+                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.severity}</td>
                         </tr>
                     ))}
                     </tbody>

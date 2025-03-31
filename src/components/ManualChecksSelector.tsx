@@ -4,59 +4,51 @@ import React, { useState, useEffect } from "react";
 import yaml from "js-yaml";
 import { RulesetsStructure } from "@/utils/extract";
 import ReactMarkdown from "react-markdown";
+import styles from "@/components/Table.module.css";
 
 export type ManualRule = {
     id: string;
     title: string;
     message: string;
     option: string;
-    severity: string;
+    verified?: boolean;
 };
 
 type ManualChecksSelectorProps = {
     onManualRulesChange?: (manualRules: ManualRule[]) => void;
 };
 
-export async function fetchManualRulesFromAPI(): Promise<ManualRule[]> {
-    const allManualRules: ManualRule[] = [];
-    try {
-        const resManuals = await fetch("/api/manuals");
-        if (!resManuals.ok) {
-            console.error("Failed to fetch manual rules structure");
-            return allManualRules;
-        }
-        const rulesets: RulesetsStructure = await resManuals.json();
-        for (const folder in rulesets) {
-            for (const fileName of rulesets[folder]) {
-                try {
-                    const fileRes = await fetch(`/manuals/${fileName}`);
-                    if (!fileRes.ok) {
-                        console.error(`Failed to fetch file: /manuals/${fileName}`);
-                        continue;
-                    }
-                    const text = await fileRes.text();
-                    const data = yaml.load(text) as any;
-                    if (data && data.rules && Array.isArray(data.rules)) {
-                        allManualRules.push(...data.rules);
-                    }
-                } catch (e) {
-                    console.error("Error fetching/parsing manual rule file:", e);
-                }
-            }
-        }
-    } catch (e) {
-        console.error("Error fetching manual rules structure:", e);
-    }
-    return allManualRules;
-}
-
-
-const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({ onManualRulesChange }) => {
+const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
+                                                                       onManualRulesChange,
+                                                                   }) => {
     const [rulesets, setRulesets] = useState<RulesetsStructure>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
+    const [initialized, setInitialized] = useState<boolean>(false);
 
+    // On mount, load stored manual rules from localStorage (if any)
+    useEffect(() => {
+        const storedRules = localStorage.getItem("manualRules");
+        if (storedRules) {
+            try {
+                setManualRules(JSON.parse(storedRules));
+            } catch (err) {
+                console.error("Error parsing stored manual rules:", err);
+            }
+        }
+        setInitialized(true);
+    }, []);
+
+    // Save manualRules to localStorage whenever they change.
+    useEffect(() => {
+        localStorage.setItem("manualRules", JSON.stringify(manualRules));
+        if (onManualRulesChange) {
+            onManualRulesChange(manualRules);
+        }
+    }, [manualRules, onManualRulesChange]);
+
+    // Fetch rulesets structure.
     useEffect(() => {
         async function fetchRulesets() {
             try {
@@ -75,37 +67,82 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({ onManualRul
         fetchRulesets();
     }, []);
 
-    useEffect(() => {
-        async function fetchManualRules() {
-            const allRules: ManualRule[] = [];
-            for (const folder in rulesets) {
-                for (const fileName of rulesets[folder]) {
-                    try {
-                        const res = await fetch(`/manuals/${fileName}`);
-                        if (!res.ok) {
-                            console.error(`Failed to fetch manual rule file ${fileName}`);
-                            continue;
-                        }
-                        const text = await res.text();
-                        const data = yaml.load(text) as any;
-                        if (data && data.rules && Array.isArray(data.rules)) {
-                            allRules.push(...data.rules);
-                        }
-                    } catch (err) {
-                        console.error("Error fetching manual rule file", err);
+    // Function to fetch all manual rules (from all files).
+    async function fetchAllManualRules() {
+        const allRules: ManualRule[] = [];
+        for (const folder in rulesets) {
+            for (const fileName of rulesets[folder]) {
+                try {
+                    const res = await fetch(`/manual-checklist/${fileName}`);
+                    if (!res.ok) {
+                        console.error(`Failed to fetch manual rule file ${fileName}`);
+                        continue;
                     }
+                    const text = await res.text();
+                    const data = yaml.load(text) as any;
+                    if (data && data.rules && Array.isArray(data.rules)) {
+                        const newRules = data.rules.map((rule: any) => ({
+                            ...rule,
+                            verified: false,
+                        }));
+                        allRules.push(...newRules);
+                    }
+                } catch (err) {
+                    console.error("Error fetching manual rule file", err);
                 }
             }
-            setManualRules(allRules);
-            if (onManualRulesChange) {
-                onManualRulesChange(allRules);
-            }
         }
+        return allRules;
+    }
 
-        if (Object.keys(rulesets).length > 0) {
-            fetchManualRules();
-        }
-    }, [rulesets, onManualRulesChange]);
+    // Polling: Re-fetch manual rules every 30 seconds after initial localStorage load.
+    useEffect(() => {
+        if (!initialized) return;
+        const intervalId = setInterval(async () => {
+            try {
+                // First, update the rulesets.
+                const resRulesets = await fetch("/api/manuals");
+                if (!resRulesets.ok) {
+                    console.error("Failed to fetch rules for manual checks");
+                    return;
+                }
+                const updatedRulesets: RulesetsStructure = await resRulesets.json();
+                setRulesets(updatedRulesets);
+
+                if (Object.keys(updatedRulesets).length > 0) {
+                    // Then, fetch all manual rules using the updated rulesets.
+                    const fetchedRules = await fetchAllManualRules();
+                    setManualRules((prevRules) => {
+                        // Merge new rules with previous ones preserving the verified state.
+                        const mergedRules = fetchedRules.map((newRule) => {
+                            const existingRule = prevRules.find((r) => r.id === newRule.id);
+                            return existingRule ? { ...newRule, verified: existingRule.verified } : newRule;
+                        });
+                        // Only update if there are changes.
+                        if (JSON.stringify(prevRules) !== JSON.stringify(mergedRules)) {
+                            if (onManualRulesChange) {
+                                onManualRulesChange(mergedRules);
+                            }
+                            return mergedRules;
+                        }
+                        return prevRules;
+                    });
+                }
+            } catch (err: any) {
+                console.error("Polling error:", err.message);
+            }
+        }, 30000);
+        return () => clearInterval(intervalId);
+    }, [initialized, onManualRulesChange, rulesets]);
+
+    // Toggle verified state for a rule.
+    const handleRuleToggle = (ruleId: string) => {
+        const updatedRules = manualRules.map((rule) =>
+            rule.id === ruleId ? { ...rule, verified: !rule.verified } : rule
+        );
+        setManualRules(updatedRules);
+        console.log("Updated manual rules:", updatedRules);
+    };
 
     if (loading) return <p>Loading rulesets...</p>;
     if (error) return <p>Error: {error}</p>;
@@ -114,24 +151,37 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({ onManualRul
         <table className="w-full border-collapse">
             <thead>
             <tr>
-                <th className="border px-2 py-1 w-1/8">ID</th>
-                <th className="border px-2 py-1 w-1/8">Title</th>
-                <th className="border px-2 py-1 w-5/8">Summary</th>
-                <th className="border px-2 py-1 w-1/8">Option</th>
+                <th className="border px-2 py-1"></th>
+                <th className={`border px-2 py-1 ${styles.wordBreak} w-1/9`}>ID</th>
+                <th className={`border px-2 py-1 ${styles.wordBreak} w-1/9`}>Title</th>
+                <th className={`border px-2 py-1 ${styles.wordBreak} w-6/9`}>Message</th>
+                <th className={`border px-2 py-1 ${styles.wordBreak} w-1/9`}>Option</th>
             </tr>
             </thead>
             <tbody>
-            {manualRules.map((rule, index) => (
-                <tr key={index} className="odd:bg-blue-200 even:bg-blue-100">
-                    <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{rule.id}</td>
-                    <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{rule.title}</td>
-                    <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>
-                        <ReactMarkdown>{rule.message}</ReactMarkdown>
-                    </td>
-                    <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}
-                    >{rule.option}</td>
-                </tr>
-            ))}
+            {manualRules.map((rule) => {
+                // Set row color based on verified state
+                const rowClass = rule.verified
+                    ? "bg-green-200"
+                    : "odd:bg-blue-200 even:bg-blue-100";
+                return (
+                    <tr key={rule.id} className={`border ${rowClass}`}>
+                        <td className="border px-2 py-1 text-center">
+                            <input
+                                type="checkbox"
+                                checked={!!rule.verified}
+                                onChange={() => handleRuleToggle(rule.id)}
+                            />
+                        </td>
+                        <td className="border px-2 py-1">{rule.id}</td>
+                        <td className="border px-2 py-1">{rule.title}</td>
+                        <td className="border px-2 py-1 whitespace-normal break-all">
+                            <ReactMarkdown>{rule.message}</ReactMarkdown>
+                        </td>
+                        <td className="border px-2 py-1">{rule.option}</td>
+                    </tr>
+                );
+            })}
             </tbody>
         </table>
     );
