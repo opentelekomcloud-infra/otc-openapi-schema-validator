@@ -1,0 +1,40 @@
+rules:
+  - id: "2.10.3.1"
+    title: "Sorting Parameter Specification"
+    message: "Sorting Keywords should be specified as sort_key and sort_dir."
+    option: Mandatory
+    location: query
+    element: url
+    call: {
+      function: CheckURLSortingParameter,
+      functionParams: {
+        "allowedKeywords": ["sort_key", "sort_dir"]
+        }
+    }
+    severity: "critical"
+  - id: "2.10.3.2"
+    title: "Sorting Parameter Default Direction"
+    message: "Sorting direction must be descending by default if not specified."
+    option: Mandatory
+    location: query
+    element: url
+    call: {
+      function: CheckURLSortingDefaultDirection,
+      functionParams: {"desc"}
+    }
+    severity: "critical"
+  - id: "2.10.3.2"
+    title: "Multiple Sorting Parameter Order"
+    message: "Sorting multiple values must be done in the order of sort_key and sort_dir."
+    option: Mandatory
+    location: query
+    element: url
+    call: {
+      function: CheckURLSortingDefaultDirection,
+      functionParams: {
+        "KeywordOrder": ["sort_key", "sort_dir"],
+        "checkSequence": True,
+        "disallowOtherParams": True,
+        "defaultValueNotAllowed": True
+        }
+    severity: "critical"
