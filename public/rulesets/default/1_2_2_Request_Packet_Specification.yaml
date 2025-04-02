@@ -10,3 +10,85 @@ rules:
       functionParams: {}
     }
     severity: "warning"
+
+  - id: "2.4.1.1"
+    title: "Complete CRUD Support for Created Resources"
+    message: "Each resource-creating path (POST) must have corresponding GET, PUT/PATCH, and DELETE operations for the same resource."
+    option: Mandatory
+    location: paths
+    element: path
+    call: {
+      function: crudCheck,
+      functionParams: {
+        "createMethod": "post",
+        "requiredMethods": ["get", "put", "patch", "delete"]
+      }
+    }
+    severity: "high"
+
+  - id: "2.4.1.2"
+    title: "GET operations must return 200 on success"
+    message: "All GET operations must return status code 200 (OK) on success."
+    option: Mandatory
+    location: paths
+    element:
+      - responses
+    call: {
+      function: checkGetSuccessResponse,
+      functionParams: {
+        "method": "get",
+        "requiredStatusCode": 200
+      }
+    }
+    severity: "critical"
+
+  - id: "2.4.1.3"
+    title: "GET operations must be secure and idempotent"
+    message: "GET operations must not modify server-side data or state. They must not have a request body or have action keywords in path."
+    option: Mandatory
+    location: paths
+    element:
+      - get
+    call: {
+      function: checkGetIdempotency,
+      functionParams: {
+        "disallowedPathKeywords": ["create", "update", "delete", "restart", "trigger", "action", "execute", "run", "reset", "change"],
+        "disallowRequestBody": true
+      }
+    }
+    severity: "critical"
+
+  - id: "2.4.1.4"
+    title: "GET single resource must return an object"
+    message: "GET requests that return a single resource must not return a list or array. The top-level schema type must be 'object'."
+    option: Mandatory
+    location: paths
+    element:
+      - responses
+    call: {
+      function: checkGetSingleReturnObject,
+      functionParams: {
+        "method": "get",
+        "requireObjectResponse": true,
+        "requirePathEndsWithParam": true
+      }
+    }
+    severity: "critical"
+
+  - id: "2.4.1.5"
+    title: "GET list operations must return an array"
+    message: "GET methods used to retrieve a list of resources must return a top-level array (e.g. [])."
+    option: Mandatory
+    location: paths
+    element:
+      - responses
+    call: {
+      function: checkGetListReturnArray,
+      functionParams: {
+      "method": "get",
+      "requireArrayResponse": true,
+      "requirePathEndsWithWord": true
+      }
+    }
+    severity: "critical"
+    
