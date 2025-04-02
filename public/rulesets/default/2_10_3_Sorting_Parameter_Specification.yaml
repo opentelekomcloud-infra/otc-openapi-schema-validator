@@ -23,7 +23,7 @@ rules:
       functionParams: {"desc"}
     }
     severity: "critical"
-  - id: "2.10.3.2"
+  - id: "2.10.3.3"
     title: "Multiple Sorting Parameter Order"
     message: "Sorting multiple values must be done in the order of sort_key and sort_dir."
     option: Mandatory
