@@ -1,4 +1,19 @@
-
+rules:
+  - id: "2.4.1.1"
+    title: "Complete CRUD Support for Created Resources"
+    message: "Each resource-creating path (POST) must have corresponding GET, PUT/PATCH, and DELETE operations for the same resource."
+    option: Mandatory
+    location: paths
+    element: path
+    call: {
+      function: crudCheck,
+      functionParams: {
+        "createMethod": "post",
+        "requiredMethods": ["get", "put", "patch", "delete"]
+      }
+    }
+    severity: "high"
+  
   - id: "2.4.1.2"
     title: "GET operations must return 200 on success"
     message: "All GET operations must return status code 200 (OK) on success."
