@@ -1,7 +1,7 @@
 rules:
   - id: "2.4.1.1"
     title: "Complete CRUD Support for Created Resources"
-    message: "Each resource-creating path (POST) must have corresponding GET, PUT/PATCH, and DELETE operations for the same resource."
+    message: "Each resource-creating path (POST) must have corresponding GET, PUT and DELETE operations for the same resource."
     option: Mandatory
     location: paths
     element: path
@@ -9,7 +9,7 @@ rules:
       function: crudCheck,
       functionParams: {
         "createMethod": "post",
-        "requiredMethods": ["get", "put", "patch", "delete"]
+        "requiredMethods": ["get", "put", "delete"]
       }
     }
     severity: "high"
