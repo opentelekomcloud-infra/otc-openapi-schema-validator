@@ -97,3 +97,51 @@ export const exportPDF = async (
 
     doc.save("lint-report.pdf");
 };
+
+export const exportJUnit = async (
+    diagnostics: any[],
+    manualRules: ManualRule[],
+    editorViewRef: React.RefObject<EditorView | null>
+) => {
+    // Build the diagnostic test cases.
+    let diagnosticTestCases = "";
+    diagnostics.forEach((diag) => {
+        const lineNumber = editorViewRef.current
+            ? editorViewRef.current.state.doc.lineAt(diag.from).number
+            : "N/A";
+        diagnosticTestCases += `<testcase classname="lint" name="Line ${lineNumber}" time="0">`;
+        diagnosticTestCases += `<failure message="Severity: ${diag.severity}, Rule: ${diag.source || ''}">${diag.message}</failure>`;
+        diagnosticTestCases += `</testcase>\n`;
+    });
+    const diagnosticsTests = diagnostics.length;
+    const diagnosticsFailures = diagnostics.length;
+
+    // Build the manual rules test cases.
+    let manualTestCases = "";
+    manualRules.forEach((rule) => {
+        manualTestCases += `<testcase classname="manual" name="${rule.id} - ${rule.title}" time="0">`;
+        if (!rule.verified) {
+            manualTestCases += `<failure message="Manual rule not verified: ${rule.option}">${convertMarkdownToPlainText(rule.message)}</failure>`;
+        }
+        manualTestCases += `</testcase>\n`;
+    });
+    const manualTests = manualRules.length;
+    const manualFailures = manualRules.filter((rule) => !rule.verified).length;
+
+    // Construct the full XML in jUnit format.
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Automated Compliance Validation Report" tests="${diagnosticsTests}" failures="${diagnosticsFailures}" time="0">
+    ${diagnosticTestCases}
+  </testsuite>
+  <testsuite name="Manual Checklist" tests="${manualTests}" failures="${manualFailures}" time="0">
+    ${manualTestCases}
+  </testsuite>
+</testsuites>`;
+
+    const blob = new Blob([xml], { type: "application/xml" });
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = "lint-report.xml";
+    link.click();
+};

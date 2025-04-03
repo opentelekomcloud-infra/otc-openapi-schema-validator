@@ -9,7 +9,7 @@ import { linter, lintGutter } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
-import {exportPDF} from "@/utils/export";
+import { exportPDF, exportJUnit } from "@/utils/export";
 
 interface Diagnostic {
     from: number;
@@ -30,6 +30,7 @@ const HomePage = () => {
     const [severityFilter, setSeverityFilter] = useState<string>("all");
     const [manualsIsOpen, setManualsIsOpen] = useState(true);
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
+    const [showExportModal, setShowExportModal] = useState(false);
 
     const filteredDiagnostics = diagnostics.filter((diag) =>
         severityFilter === "all" ? true : diag.severity === severityFilter
@@ -99,8 +100,8 @@ const HomePage = () => {
         URL.revokeObjectURL(url);
     };
 
-    const handleExport = async () => {
-        await exportPDF(diagnostics, manualRules, editorViewRef)
+    const handleExport = () => {
+        setShowExportModal(true);
     };
 
     const handleSelectionChange = (newSelection: Record<string, any>) => {
@@ -326,6 +327,72 @@ const HomePage = () => {
             <footer className="bg-gray-200 p-4 text-center">
                 © 2025 EcoSystems. All rights reserved.
             </footer>
+
+            {/* Modal for Export Options */}
+            {showExportModal && (
+                <div className="fixed inset-0 flex items-center justify-center bg-opacity-50 z-50"
+                     onClick={() => setShowExportModal(false)}
+                >
+                    <div className="bg-white rounded-lg shadow-lg p-6 w-80"
+                         onClick={(e) => e.stopPropagation()}
+                    >
+                        {/* X button inside modal */}
+                        <div className="inset-x-0 top-0 flex justify-end">
+                            <button
+                                className="text-black-500 hover:text-black-700 hover:scale-115"
+                                onClick={() => setShowExportModal(false)}
+                            >
+                                X
+                            </button>
+                        </div>
+                        <h2 className="text-xl font-bold mb-4">Export</h2>
+                        {/* X button on the top right */}
+                        <div className="flex flex-col space-y-4">
+                            <label
+                                title="Export to PDF"
+                                className="px-4 py-2 text-black rounded hover:bg-red-400 transition"
+                            >
+                                <Image
+                                    src="/images/pdf.png"
+                                    width={32}
+                                    height={32}
+                                    alt="Export Issues"
+                                    className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
+                                />
+                                <button
+                                    onClick={async () => {
+                                        await exportPDF(diagnostics, manualRules, editorViewRef);
+                                        setShowExportModal(false);
+                                    }}
+                                >
+                                    Export to PDF
+                                </button>
+                            </label>
+                            <label
+                                title="Export to PDF"
+                                className="px-4 py-2 text-black rounded hover:bg-green-400 transition"
+                            >
+                                <Image
+                                    src="/images/junit5.png"
+                                    width={32}
+                                    height={32}
+                                    alt="Export Issues"
+                                    className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
+                                />
+                                <button
+                                    onClick={async () => {
+                                        await exportJUnit(diagnostics, manualRules, editorViewRef);
+                                        setShowExportModal(false);
+                                    }}
+                                >
+                                    Export to XML
+                                </button>
+                            </label>
+                        </div>
+                    </div>
+                </div>
+            )}
+
         </div>
     );
 };
