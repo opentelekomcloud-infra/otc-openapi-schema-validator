@@ -1,0 +1,16 @@
+rules:
+  - id: "2.1.10"
+    title: "The API description file complies with the OAS 2.0/3.0 design specifications"
+    option: Mandatory
+    message: OpenAPI specificaiton must be compliant with OAS 2.0/3.0
+    location: openapi
+    element: version
+    call: {
+      function: CheckOAS
+      functionParams: {
+      "allowed_versions": ["2.0", "3.0"]
+      }
+    }
+    description: This rule checks whether delivered OpenAPI specification complains with OAS 2.0/3.0 versions.
+    status: devel
+    severity: "critical"

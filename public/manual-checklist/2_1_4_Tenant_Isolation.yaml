@@ -1,0 +1,7 @@
+rules:
+  - id: "2.1.4"
+    title: "For non-global APIs, tenant isolation must be considered in API design"
+    message: |
+      **For non-global APIs, APIs must support multiple tenants to ensure resource isolation between tenants.**
+    task: Test whether non-global APIs contain tenant/project identifier (in URLs) and that resouurce isolation is ensured between the tenants (resource of one tenant are not visible to second tenant).
+    option: Mandatory

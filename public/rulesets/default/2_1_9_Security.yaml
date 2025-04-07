@@ -1,0 +1,50 @@
+rules:
+  - id: "2.1.9.1"
+    title: "Security: APIs must meet security design requirements, such as authentication and authorization"
+    message: Do not transfer sensitive data parameters in URLs.
+    option: Mandatory
+    location: paths
+    element: path
+    call: {
+      function: CheckSensitiveData
+      functionParams: {
+      "no_allowed_query_params": ["password", "credential", "secret"]
+      }
+    }
+    description: This rule checks whether API path contains senstive information in query parameters
+    status: devel
+    severity: "critical"
+
+  - id: "2.1.9.2"
+    title: "Security: APIs must meet security design requirements, such as authentication and authorization"
+    message: Token authentication uses X-Auth-Token request header to carry authentication information
+    option: Mandatory
+    location: paths
+    element: parameters
+    call: {
+      function: headerCheck
+      functionParams: {
+      "header": ["X-Auth-Token"],
+      "exception_path": ["/","/{version_id}"]
+      }
+    }
+    description: This rule checks whether all APIs except version discovery APIs have mandatory request heade X-Auth-Token
+    status: devel
+    severity: "critical"
+
+  - id: "2.1.9.3"
+    title: "Security: APIs must meet security design requirements, such as authentication and authorization"
+    message: For RESTful API resource operations, the service side can select one or more types of GET/POST/PUT/PATCH/HEAD/DELETE based on the actual user permission. Insecure resource operations are not exposed.
+    option: Mandatory
+    location: paths
+    element: path
+    call: {
+      function: methodCheck
+      functionParams: {
+      "method": ["GET", "POST", "PUT", "PATCH", "HEAD", "DELETE"],
+      "exception_path": ["/","/{version_id}"]
+      }
+    }
+    description: This rule checks whether only allowed HTTP methods (GET/POST/PUT/PATCH/HEAD/DELETE) are exposed
+    status: devel
+    severity: "critical"
