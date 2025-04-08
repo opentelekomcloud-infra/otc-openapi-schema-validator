@@ -31,7 +31,7 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
     const [selectedRuleset, setSelectedRuleset] = useState<string>("");
     const [allRules, setAllRules] = useState<Rule[]>([]);
     const [selectedRules, setSelectedRules] = useState<Rule[]>([]);
-    const [hasAutoSelected, setHasAutoSelected] = useState<boolean>(false);
+    const [severityFilter, setSeverityFilter] = useState<string>("all");
 
     useEffect(() => {
         async function fetchRulesets() {
@@ -51,14 +51,6 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
         fetchRulesets();
     }, []);
 
-    // When a new ruleset is selected, reset selected rules and auto-selection flag.
-    useEffect(() => {
-        setAllRules([]);
-        setSelectedRules([]);
-        setHasAutoSelected(false);
-    }, [selectedRuleset]);
-
-    // When a new ruleset is selected, fetch all rules from all files of that ruleset.
     useEffect(() => {
         async function fetchAllRules() {
             const rulesArray: Rule[] = [];
@@ -67,13 +59,10 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                 for (const file of fileNames) {
                     try {
                         const res = await fetch(`/rulesets/${selectedRuleset}/${file}.yaml`);
-                        if (!res.ok) {
-                            console.error(`Failed to fetch ${file}.yaml`);
-                            continue;
-                        }
+                        if (!res.ok) continue;
                         const text = await res.text();
                         const data = yaml.load(text) as any;
-                        if (data && data.rules && Array.isArray(data.rules)) {
+                        if (data?.rules && Array.isArray(data.rules)) {
                             rulesArray.push(...data.rules);
                         }
                     } catch (error) {
@@ -81,43 +70,67 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                     }
                 }
             }
+
             setAllRules(rulesArray);
-            // Auto-select mandatory rules only once per new ruleset.
-            if (!hasAutoSelected) {
-                const autoSelected = rulesArray.filter(
-                    (rule) => rule.option.toLowerCase() === "mandatory"
-                );
-                setSelectedRules(autoSelected);
-                if (onSelectionChange) {
-                    onSelectionChange(autoSelected);
-                }
-                setHasAutoSelected(true);
+            const mandatoryRules = rulesArray.filter(
+                (rule) => rule.option.toLowerCase() === "mandatory"
+            );
+            setSelectedRules(mandatoryRules);
+            if (onSelectionChange) {
+                onSelectionChange(mandatoryRules);
             }
         }
-        fetchAllRules();
-    }, [selectedRuleset, rulesets, hasAutoSelected, onSelectionChange]);
+
+        if (selectedRuleset) {
+            fetchAllRules();
+        } else {
+            setAllRules([]);
+            setSelectedRules([]);
+        }
+    }, [selectedRuleset, rulesets]);
 
     const handleRulesetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedRuleset(e.target.value);
+        setSeverityFilter("all");
     };
 
     const handleRuleToggle = (rule: Rule) => {
-        let newSelected: Rule[];
-        if (selectedRules.find((r) => r.id === rule.id)) {
-            newSelected = selectedRules.filter((r) => r.id !== rule.id);
-        } else {
-            newSelected = [...selectedRules, rule];
-        }
-        setSelectedRules(newSelected);
-        if (onSelectionChange) {
-            onSelectionChange(newSelected);
-        }
+        const exists = selectedRules.find((r) => r.id === rule.id);
+        const updated = exists
+            ? selectedRules.filter((r) => r.id !== rule.id)
+            : [...selectedRules, rule];
+        setSelectedRules(updated);
+        if (onSelectionChange) onSelectionChange(updated);
+    };
+
+    const handleSelectAll = () => {
+        const filtered = applySeverityFilter(allRules);
+        setSelectedRules(filtered);
+        if (onSelectionChange) onSelectionChange(filtered);
+    };
+
+    const handleDeselectAll = () => {
+        setSelectedRules([]);
+        if (onSelectionChange) onSelectionChange([]);
+    };
+
+    const handleSeverityFilterChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+        const value = e.target.value;
+        setSeverityFilter(value);
+        const filtered = applySeverityFilter(allRules, value);
+        setSelectedRules(filtered);
+        if (onSelectionChange) onSelectionChange(filtered);
+    };
+
+    const applySeverityFilter = (rules: Rule[], filter = severityFilter): Rule[] => {
+        return filter === "all" ? rules : rules.filter((rule) => rule.severity === filter);
     };
 
     if (loading) return <p>Loading rulesets...</p>;
     if (error) return <p>Error: {error}</p>;
 
     const rulesetNames = Object.keys(rulesets);
+    const visibleRules = applySeverityFilter(allRules);
 
     return (
         <div>
@@ -137,36 +150,67 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                 </select>
             </div>
             {selectedRuleset && (
-                <table className="w-full border-collapse">
-                    <thead>
-                    <tr>
-                        <th className="border px-2 py-1"></th>
-                        <th className="border px-2 py-1">ID</th>
-                        <th className="border px-2 py-1">Title</th>
-                        <th className="border px-2 py-1">Message</th>
-                        <th className="border px-2 py-1">Option</th>
-                        <th className="border px-2 py-1">Severity</th>
-                    </tr>
-                    </thead>
-                    <tbody>
-                    {allRules.map((rule, index) => (
-                        <tr key={index} className="odd:bg-gray-200 even:bg-gray-100">
-                            <td className="border px-2 py-1 text-center">
-                                <input
-                                    type="checkbox"
-                                    checked={!!selectedRules.find((r) => r.id === rule.id)}
-                                    onChange={() => handleRuleToggle(rule)}
-                                />
-                            </td>
-                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.id}</td>
-                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.title}</td>
-                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.message}</td>
-                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.option}</td>
-                            <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.severity}</td>
+                <>
+                    <div className="flex items-center space-x-4 mb-2">
+                        <button
+                            onClick={handleSelectAll}
+                            className="px-2 py-1 bg-gray-300 rounded hover:bg-gray-400 transition"
+                        >
+                            Select All
+                        </button>
+                        <button
+                            onClick={handleDeselectAll}
+                            className="px-2 py-1 bg-gray-300 rounded hover:bg-gray-400 transition"
+                        >
+                            Deselect All
+                        </button>
+                        <div className="flex items-center space-x-2">
+                            <label className="font-semibold">Filter by Severity:</label>
+                            <select
+                                className="border p-1"
+                                value={severityFilter}
+                                onChange={handleSeverityFilterChange}
+                            >
+                                <option value="all">All</option>
+                                <option value="hint">Hint</option>
+                                <option value="info">Info</option>
+                                <option value="warning">Warning</option>
+                                <option value="error">Error</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <table className="w-full border-collapse">
+                        <thead>
+                        <tr>
+                            <th className="border px-2 py-1"></th>
+                            <th className="border px-2 py-1">ID</th>
+                            <th className="border px-2 py-1">Title</th>
+                            <th className="border px-2 py-1">Message</th>
+                            <th className="border px-2 py-1">Option</th>
+                            <th className="border px-2 py-1">Severity</th>
                         </tr>
-                    ))}
-                    </tbody>
-                </table>
+                        </thead>
+                        <tbody>
+                        {visibleRules.map((rule, index) => (
+                            <tr key={index} className="odd:bg-gray-200 even:bg-gray-100">
+                                <td className="border px-2 py-1 text-center">
+                                    <input
+                                        type="checkbox"
+                                        checked={!!selectedRules.find((r) => r.id === rule.id)}
+                                        onChange={() => handleRuleToggle(rule)}
+                                    />
+                                </td>
+                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.id}</td>
+                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.title}</td>
+                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.message}</td>
+                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.option}</td>
+                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.severity}</td>
+                            </tr>
+                        ))}
+                        </tbody>
+                    </table>
+                </>
             )}
         </div>
     );
