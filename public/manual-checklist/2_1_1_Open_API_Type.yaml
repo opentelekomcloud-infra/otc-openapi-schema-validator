@@ -1,5 +1,5 @@
 rules:
-  - id: "2.1.1"
+  - id: 2.1.1
     title: "Open API type: The API design meets the open type definition requirements."
     message: |
       Open APIs are APIs that can be invoked by tenants or cloud services using tenant credentials.
@@ -8,3 +8,4 @@ rules:
       In principle, the console can be built based on Open APIs.
     task: All API calls described in OpenAPI specification must be published and directly accessible by end users.
     option: Mandatory
+    severity: critical

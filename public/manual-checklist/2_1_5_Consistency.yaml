@@ -1,13 +1,14 @@
 rules:
-  - id: "2.1.5"
+  - id: 2.1.5
     title: "Consistency: Interoperability between APIs and consoles"
     message: |
-      The capabilities provided by the service on the public cloud console must also provide corresponding APIs. Users can perform operations and query on the console, and use the APIs provided by the service to call the corresponding APIs.
+      "The capabilities provided by the service on the public cloud console must also provide corresponding APIs. Users can perform operations and query on the console, and use the APIs provided by the service to call the corresponding APIs.
 
       - To ensure the consistency between the functions on the console and the open API functions, the functions implemented on the console must be implemented by calling open APIs first. If exceptions exist, review the reasonableness separately.
       - Some functions (including the yearly/monthly service) of the console must be provided by open APIs.
       - The backend APIs invoked by the console of new cloud services and existing cloud services must be open APIs registered with the internal APIGW.
 
-      Console and APIs must be rolled out at the same time.
+      Console and APIs must be rolled out at the same time."
     task: All Console functions must be also supplied by corresponding open APIs. 
     option: Mandatory
+    severity: critical

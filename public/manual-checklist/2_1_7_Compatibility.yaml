@@ -1,8 +1,8 @@
 rules:
-  - id: "2.1.7"
+  - id: 2.1.7
     title: "Compatibility: The interfaces must be compatible"
     message: |
-      APIs are external facades and cannot be modified once released. Compatibility is a top priority in API design. When modifying an API, you must consider the impact of the released API on users.
+      "APIs are external facades and cannot be modified once released. Compatibility is a top priority in API design. When modifying an API, you must consider the impact of the released API on users.
       After the APIs of each service are officially released, any modification of the APIs must be compatible with the APIs of the earlier version. If the API compatibility cannot be ensured, the APIs can be added or the API-TMG can be used for exception review
       Acceptable compatibility interface change scenarios:
 
@@ -26,7 +26,8 @@ rules:
       - Changes the semantic meaning of an attribute. For example, dhcp_enable indicates whether to enable DHCP. In the current version, dhcp_enable indicates whether to enable static IP address injection.
       - Modify or delete a response header.
       - Response code when the change is successful.
-      - Modify the operationId of the interface.
+      - Modify the operationId of the interface."
 
     task: Any API change must be evaluated against these rules. If evaluation identifies one of the unacceptable API change scenario then API change must not be released under these conditions
     option: Mandatory
+    severity: critical

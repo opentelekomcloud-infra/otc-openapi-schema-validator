@@ -1,15 +1,13 @@
 rules:
-  - id: "2.1.8"
+  - id: 2.1.8
     title: "Flow control design: Flow control must be considered during API design."
-    message: "All APIs must have x-apigateway-ratelimit defined."
+    message: All APIs must have x-apigateway-ratelimit defined.
     option: Mandatory
     location: paths
     element: x-apigatewway-ratelimit
-    call: {
-      function: CheckElementPresence,
-      functionParams: {
-      "key": "x-apigateway-ratelimit"
-      "value_type": "string"
-      }
-    }
-    severity: "high"
+    call:
+      function: CheckElementPresence
+      functionParams:
+        key: "x-apigateway-ratelimit"
+        value_type: string
+    severity: high

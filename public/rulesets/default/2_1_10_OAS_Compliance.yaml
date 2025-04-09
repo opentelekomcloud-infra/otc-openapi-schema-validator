@@ -1,16 +1,32 @@
 rules:
-  - id: "2.1.10"
-    title: "The API description file complies with the OAS 2.0/3.0 design specifications"
+  - id: 2.1.10.1
+    title: The API description file complies with the OAS 2.0/3.0 design specifications
     option: Mandatory
-    message: OpenAPI specificaiton must be compliant with OAS 2.0/3.0
+    message: OpenAPI specification must be compliant with OAS 2.0/3.0
     location: openapi
     element: version
-    call: {
+    call:
       function: CheckOAS
-      functionParams: {
-      "allowed_versions": ["2.0", "3.0"]
-      }
-    }
+      functionParams:
+        allowed_values:
+          - "2.0"
+          - "3.0"
     description: This rule checks whether delivered OpenAPI specification complains with OAS 2.0/3.0 versions.
     status: devel
-    severity: "critical"
+    severity: critical
+
+  - id: 2.1.10.2
+    title: The API description file complies with the OAS 2.0/3.0 design specifications
+    option: Mandatory
+    message: The deliverables must meet the specifications and must be checked in the tool. Complying with the YAML interface definition design specifications for cloud services
+    location: file
+    element: all
+    call:
+      function: CheckOAS
+      functionParams:
+        allowed_values:
+          - "template_OAS2.0.yaml"
+          - "template_OAS3.0.yaml"
+    description: This rule checks whether delivered OpenAPI specification is followig the agreed template OAS structure
+    status: devel
+    severity: critical

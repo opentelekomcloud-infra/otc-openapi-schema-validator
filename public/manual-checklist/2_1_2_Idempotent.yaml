@@ -1,19 +1,21 @@
 rules:
-  - id: "2.1.2"
+  - id: 2.1.2
     title: "Idempotent: API design must follow idempotent."
     message: |
-      **API design must follow several idempotent scenarios**
+      "**API design must follow several idempotent scenarios**
       
       **Idempotence:** In the HTTP/1.1 specification, *idempotence* is defined as follows:
       
-      Methods can also have the property of *"idempotence"* in that (aside from error or expiration issues)
+      Methods can also have the property of *idempotence* in that (aside from error or expiration issues)
       the side-effects of **N > 0** identical requests is the same as for a single request.
       
       By definition, the idempotent nature of the HTTP method means that a single request and multiple identical 
       requests for a resource should have the same side effects.
       
-      - **(1)** The query interface (GET) is not involved.
+      - **(1)** The query interface (GET) for resources is not involved.
       - **(2)** Resource modification interfaces (PUT and PATCH) are recommended to support idempotence.
       - **(3)** Creating a class interface (POST) is difficult to implement idempotence and is not required.
-      - **(4)** The DELETE interface is recommended to be idempotent.
+      - **(4)** The DELETE interface is recommended to be idempotent."
+    task: During the testing idempotency must be evaluated for GET, DELETE, PUT and PATCH HTTP methods.
     option: Recommend
+    severity: high

@@ -1,5 +1,5 @@
 rules:
-  - id: "2.1.8"
+  - id: 2.1.8
     title: "Flow control design: Flow control must be considered during API design."
     message: |
       **When resources or services become bottlenecks, the service needs to start the flow control protection mechanism**
@@ -11,3 +11,4 @@ rules:
       The service needs to provide the API flow control baseline value in typical scenarios.
     task: Test whether respective amount of API calls can be triggered within defined API threshold.
     option: Mandatory
+    severity: medium
