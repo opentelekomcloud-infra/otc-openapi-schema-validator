@@ -1,0 +1,15 @@
+rules:
+  - id: 2.1.6
+    title: "Experience: The API design must consider the ease of use for developers"
+    message: |
+      "The input parameters of API design must be easy to obtain and the output parameters must be easy to understand. This feature reduces the cost of using APIs and improves API user experience. Do not obtain the input parameters of the API through the query of the precondition API for multiple times.
+      Principles:
+
+      - The input and output parameters of the API are consistent with those of the same function on the console.
+      - API must be designed in the easy-to-follow manner including path, headers, request and response parameters, standardized return codes.
+      - Input parameters must be easy to obtain without complex and multiple collection of the parameters via mulitple different APIs
+      - Request and response paramaters must be aligned and must use same naming convention"
+
+    task: Evaluate APIs against defined principles
+    option: Mandatory
+    severity: high

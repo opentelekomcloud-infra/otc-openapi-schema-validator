@@ -1,0 +1,28 @@
+rules:
+  - id: 2.1.9
+    title: "Security: APIs must meet security design requirements, such as authentication and authorization"
+    message: |
+      "In principle, the request parameters of query and deletion APIs need to be checked. If the parameter is invalid, an error is reported.
+      Note: If an open source community is involved, the community prevails.
+      Sensitive data transmission:
+
+      - Do not transfer sensitive data parameters in URLs.
+      - HTTPS is used for sensitive data transmission and the POST method is used.
+      Authentication:
+
+      - Unless otherwise specified, cloud services support AK/SK authentication by default. APIs that require authentication carry authentication information in their requests:
+        - Permanent AK/SK authentication uses the Authorization request header to carry authentication information.
+        - Temporary AK/SK authentication uses the Authorization and X-Security-Token request headers to carry authentication information.
+        - Token authentication uses X-Auth-Token request header to carry authentication information
+
+      Resource operation permission:
+
+        - For RESTful API resource operations, the service side can select one or more types of GET/POST/PUT/DELETE/PATCH based on the actual user permission. Insecure resource operations are not exposed."
+
+    task: 
+      - API URLs must be evaluted to not contain any sensitive information.
+      - Sensitive information must be transmitted using secure POST method. 
+      - Cloud services must support AK/SK or token authentication.
+      - only GET, POST, PUT, DELETE, PATCH HTTP methods are allowed
+    option: Mandatory
+    severity: critical

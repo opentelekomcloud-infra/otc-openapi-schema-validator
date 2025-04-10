@@ -1,0 +1,10 @@
+rules:
+  - id: 2.1.10
+    title: The API description file complies with the OAS 2.0/3.0 design specifications
+    message: |
+      The API design deliverables are transferred to the backend through YAML files for subsequent activities such as development, test, and documentation delivery.
+      The deliverables must meet the specifications and must be checked in the tool.
+      Complying with the YAML interface definition design specifications for cloud services
+    task: OpenAPI specification must be delivered and must be compliant with OAS 2.0/3.0
+    option: Mandatory
+    severity: critical

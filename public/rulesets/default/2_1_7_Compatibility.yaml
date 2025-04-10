@@ -1,0 +1,179 @@
+rules:
+  - id: 2.1.7.1
+    title: "Compatibility: The interfaces must be compatible"
+    message: |
+      The API is deleted
+
+    option: Mandatory
+    location: paths
+    element: path
+    call:
+      function: DiffPreviousRelease
+      functionParams:
+        affectedMethods:
+          - "get"
+          - "put"
+          - "post"
+          - "patch"
+          - "delete"
+        action:
+          - "delete"
+        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
+    description: This rule compares whether any API call has been deleted when comparing to previous version of OpenAPI specification. 
+    status: devel
+    severity: critical
+
+  - id: 2.1.7.2
+    title: "Compatibility: The interfaces must be compatible"
+    message: |
+      The API request or response parameter is deleted.
+
+    option: Mandatory
+    location: paths
+    element:
+      - requestBody
+      - responses
+    call:
+      function: DiffPreviousRelease
+      functionParams:
+        parameter_type:
+          - "required"
+        action:
+          - "delete"
+      previousVersionRef: "https://github.com/opentelekomcloud-docs/"
+    description: This rule compares whether any API request or response parameter has been deleted when comparing to previous version of OpenAPI specification. 
+    status: devel
+    severity: critical
+
+  - id: 2.1.7.3
+    title: "Compatibility: The interfaces must be compatible"
+    message: |
+      Adding Mandatory Request Parameters to APIs
+
+    option: Mandatory
+    location: paths
+    element: requestBody
+    call:
+      function: DiffPreviousRelease
+      functionParams:
+        parameter_type:
+          - "required"
+        action:
+          - "add"
+        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
+    description: This rule compares whether new Mandatory request parameters have been added to existing API calls when comparing to previous version of OpenAPI specification. 
+    status: devel
+    severity: critical
+
+  - id: 2.1.7.4
+    title: "Compatibility: The interfaces must be compatible"
+    message: |
+      The API request or response parameter types are incompatible.
+
+    option: Mandatory
+    location: paths
+    element:
+      - requestBody
+      - responses
+    call:
+      function: CompareTypes
+      functionParams:
+        diff_location:
+          - "requestBody"
+          - "responses"
+        diff_target:
+          - "type"
+    description: This rule compares whether the request and response body parameter types are same for same parameters.
+    status: devel
+    severity: critical
+
+  - id: 2.1.7.5
+    title: "Compatibility: The interfaces must be compatible"
+    message: |
+      The value range of the API request parameter is narrowed down.
+
+    option: Mandatory
+    location: paths
+    element:
+      - requestBody
+      - responses
+    call:
+      function: DiffPreviousRelease
+      functionParams:
+        parameter_type:
+          - "enum"
+        action:
+          - "count_decreased"
+        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
+    description: This rule compares whether the value range in enum type has been decreased when comparing to previous OpenAPI specification
+    status: devel
+    severity: critical
+
+
+  - id: 2.1.7.6
+    title: "Compatibility: The interfaces must be compatible"
+    message: |
+      Some enumerated values (enum) of API request parameters of the enumerated type are deleted or changed.
+
+    option: Mandatory
+    location: paths
+    element:
+      - requestBody
+      - responses
+    call:
+      function: DiffPreviousRelease
+      functionParams:
+        parameter_type:
+          - "enum"
+        action:
+          - "delete"
+          - "modify"
+        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
+    description: This rule compares whether some values in enum type have been deleted or modified when comparing to previous OpenAPI specification
+    status: devel
+    severity: critical
+
+  - id: 2.1.7.7
+    title: "Compatibility: The interfaces must be compatible"
+    message: |
+      The API response status code is deleted or changed.
+
+    option: Mandatory
+    location: paths
+    element:
+      - responses
+    call:
+      function: DiffPreviousRelease
+      functionParams:
+        parameter_type:
+          - "response_code"
+        action:
+          - "delete"
+          - "modify"
+        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
+    description: This rule compares whether status code of API response has been deleted or modified when comparing to previous OpenAPI specification
+    status: devel
+    severity: critical
+
+  - id: 2.1.7.8
+    title: "Compatibility: The interfaces must be compatible"
+    message: |
+      Modify or delete a response header.
+
+    option: Mandatory
+    location: paths
+    element:
+      - responses
+    call:
+      function: DiffPreviousRelease
+      functionParams:
+        parameter_type:
+          - "headers"
+        action:
+          - "delete"
+          - "modify"
+        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
+    description: This rule compares whether response header in API response has been deleted or modified when comparing to previous OpenAPI specification
+    status: devel
+    severity: critical
+

@@ -1,0 +1,14 @@
+rules:
+  - id: 2.1.8
+    title: "Flow control design: Flow control must be considered during API design."
+    message: |
+      **When resources or services become bottlenecks, the service needs to start the flow control protection mechanism**
+      
+      The public cloud API flow control is hierarchical. The service needs to provide the local flow control capability.
+      When the threshold is exceeded, the service starts the local flow control. If the service provides external interfaces,
+      the API-GW can perform outer flow control. The API-GW is responsible for outer flow control. 
+      
+      The service needs to provide the API flow control baseline value in typical scenarios.
+    task: Test whether respective amount of API calls can be triggered within defined API threshold.
+    option: Mandatory
+    severity: medium
