@@ -1,0 +1,136 @@
+rules:
+  - id: 2.9.1
+    title: "Batch Resource Operations"
+    message: "API endpoints for updating resources in batches must use POST http method."
+    option: mandatory
+    location: paths
+    element: httpMethod
+    call: {
+      function: batchResourceOperationHttpMethodCheck,
+      functionParams: {
+        method: [post],
+        required: true
+      }
+    }
+    severity: critical
+    description: "This rule checks whether API endpoints for updating resources in batches use the POST HTTP method."
+
+  - id: 2.9.2
+    title: "Batch Resource Operations"
+    message: "API endpoints for deletion resources in batches must use POST http method."
+    option: mandatory
+    location: paths
+    element: httpMethod
+    call: {
+      function: batchResourceOperationHttpMethodCheck,
+      functionParams: {
+        method: [post],
+        required: true
+      }
+    }
+    severity: critical
+    description: "This rule checks whether API endpoints for deletion resources in batches use the POST HTTP method."
+
+  - id: 2.9.3
+    title: "Batch Resource Operations"
+    message: "Resources for creation, update, and deletion in batches must be specified in the request body as list of resources."
+    option: mandatory
+    location: paths
+    element: requestBody
+    call: {
+      function: batchResourceOperationPayloadCheck,
+      functionParams: {
+        requestPayload: true,
+        dataType: [array of objects],
+        required: true
+      }
+    }
+    severity: critical
+    description: "This rule checks whether resources for creation, update, and deletion in batches are specified in the request body."
+
+  - id: 2.9.4
+    title: "Batch Resource Operations"
+    message: "Success status code must be 200 (OK) for synchronous batch resource operations."
+    option: mandatory
+    location: paths
+    element: response
+    call: {
+      function: synchronousBatchResourceOperationsStatusCodeCheck,
+      functionParams: {
+        synchronousOperation: true,
+        requiredStatusCode: 200
+      }
+    }
+    severity: medium
+    description: "This rule checks whether success status code is 200 (OK) for synchronous batch resource operations."
+
+  - id: 2.9.5
+    title: "Batch Resource Operations"
+    message: "Success status code must be 202 (Accepted) for asynchronous batch resource operations."
+    option: mandatory
+    location: paths
+    element: response
+    call: {
+      function: asynchronousBatchResourceOperationsStatusCodeCheck,
+      functionParams: {
+        synchronousOperation: false,
+        requiredStatusCode: 202
+      }
+    }
+    severity: medium
+    description: "This rule checks whether success status code is 202 (Accepted) for asynchronous batch resource operations."
+
+  - id: 2.9.6
+    title: "Batch Resource Operations"
+    message: "If API supports 'all resources success' or 'all resources failure', then status of each indiviadual resource must be omitted in the response."
+    option: mandatory
+    location: paths
+    element: response
+    call: {
+      function: synchronousBatchResourceOperations,
+      functionParams: {
+        syncrhonousOperation: true,
+        responseBody: true,
+        individualResourceStatus: false,
+        allResourcesSuccess: true,
+        allResourcesFailure: true
+      }
+    }
+    severity: medium
+    description: "This rule checks whether the status of each individual resource is omitted in the response if API supports 'all resources success' or 'all resources failure'."
+
+  - id: 2.9.7
+    title: "Batch Resource Operations"
+    message: "If API supports partially 'resources success' or 'resources failure', then status of each indiviadual resource must be specified in the response."
+    option: mandatory
+    location: paths
+    element: response
+    call: {
+      function: synchronousBatchResourceOperations,
+      functionParams: {
+        syncrhonousOperation: true,
+        responseBody: true,
+        individualResourceStatus: true,
+        allResourcesSuccess: false,
+        allResourcesFailure: false
+      }
+    }
+    severity: medium
+    description: "This rule checks whether the status of each individual resource is specified in the response if API supports partially 'resources success' or 'resources failure'."
+
+  - id: 2.9.8
+    title: "Batch Resource Operations"
+    message: "Assynchronous batch resource operations must return list of resources in response body."
+    option: mandatory
+    location: paths
+    element: response
+    call: {
+      function: asynchronousBatchResourceOperations,
+      functionParams: {
+        synchronousOperation: false,
+        responseBody: true,
+        dataType: [array of objects]
+      }
+    }
+    severity: medium
+    description: "This rule checks whether the response body of asynchronous batch resource operations contains a list of resources."
