@@ -6,8 +6,9 @@ rules:
     location: paths
     element: x-apigatewway-ratelimit
     call:
-      function: CheckElementPresence
+      function: checkParamElementPresence
       functionParams:
-        key: "x-apigateway-ratelimit"
-        value_type: string
+        name: "x-apigateway-ratelimit"
+        valueType: string
+        in: header
     severity: high

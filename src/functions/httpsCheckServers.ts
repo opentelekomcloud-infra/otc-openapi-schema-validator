@@ -1,4 +1,5 @@
 import { Diagnostic } from "@codemirror/lint";
+import { mapSeverity } from "@/utils/mapSeverity";
 
 export function httpsCheckServers(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -14,7 +15,7 @@ export function httpsCheckServers(spec: any, content: string, rule: any): Diagno
                 diagnostics.push({
                     from: start,
                     to: end,
-                    severity: rule.severity,
+                    severity: mapSeverity(rule.severity),
                     message: rule.message,
                     source: rule.id,
                 });

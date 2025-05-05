@@ -9,7 +9,7 @@ rules:
       function: httpsCheckServers,
       functionParams: {}
     }
-    severity: "error" # "hint" | "info" | "warning" | "error" -> it might change to blocker - high - medium - low (example)
+    severity: high # "hint" | "info" | "warning" | "error" -> it might change to blocker - high - medium - low (example)
 
   - id: "1.2.1.2"
     title: "Content-Type: Set the media type"
@@ -26,4 +26,4 @@ rules:
         "methods": ["get", "head", "post", "put", "delete", "patch"]
       }
     }
-    severity: "error"
+    severity: high
