@@ -3,15 +3,20 @@ import { mapSeverity } from "@/utils/mapSeverity";
 
 export function httpsCheckServers(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
-    const items = spec && spec[rule.location];
-    if (Array.isArray(items)) {
-        items.forEach((item: any) => {
-            const value = item[rule.element];
-            if (typeof value === "string" && !value.startsWith("https://")) {
-                // Locate the value in the content to highlight it
-                const index = content.indexOf(value);
+
+    if (!spec || typeof spec.get !== "function") {
+        console.warn("Invalid spec format in httpsCheckServers");
+        return diagnostics;
+    }
+
+    const servers = spec.get("servers");
+    if (Array.isArray(servers)) {
+        servers.forEach((server: any) => {
+            const url = server.get("url");
+            if (typeof url === "string" && !url.startsWith("https://")) {
+                const index = content.indexOf(url);
                 const start = index >= 0 ? index : 0;
-                const end = index >= 0 ? start + value.length : content.length;
+                const end = index >= 0 ? start + url.length : content.length;
                 diagnostics.push({
                     from: start,
                     to: end,
