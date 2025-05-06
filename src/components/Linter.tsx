@@ -33,7 +33,6 @@ export function openApiLinter(selectedRules: any) {
             }
 
         } catch (error: any) {
-            console.log(error)
             diagnostics.push({
                 from: 0,
                 to: content.length,

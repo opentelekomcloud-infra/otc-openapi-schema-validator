@@ -141,7 +141,6 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
             rule.id === ruleId ? { ...rule, verified: !rule.verified } : rule
         );
         setManualRules(updatedRules);
-        console.log("Updated manual rules:", updatedRules);
     };
 
     if (loading) return <p>Loading rulesets...</p>;
