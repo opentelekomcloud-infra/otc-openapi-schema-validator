@@ -1,5 +1,5 @@
 import { Diagnostic } from "@codemirror/lint";
-import * as YAML from 'yaml';
+import yaml from "js-yaml";
 import { httpsCheckServers } from "@/functions/httpsCheckServers";
 import { mediaTypeCheck } from "@/functions/mediaTypeCheck";
 import { checkParamElementPresence } from "@/functions/checkParamElementPresence";
@@ -16,9 +16,7 @@ export function openApiLinter(selectedRules: any) {
         const content = view.state.doc.toString();
 
         try {
-            const doc = YAML.parseDocument(content, { prettyErrors: true });
-            const spec = doc.toJS({ mapAsMap: true });
-
+            const spec = yaml.load(content, {json:true});
             if (Array.isArray(selectedRules) && selectedRules.length > 0) {
                 selectedRules.forEach((rule: { call: { function: string } }) => {
                     if (rule.call && rule.call.function) {
@@ -35,6 +33,7 @@ export function openApiLinter(selectedRules: any) {
             }
 
         } catch (error: any) {
+            console.log(error)
             diagnostics.push({
                 from: 0,
                 to: content.length,

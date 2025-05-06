@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodPositionInYaml } from "@/utils/pos";
+import { matchParameterSchema } from "@/utils/schema";
 
 export function checkParamElementPresence(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -26,9 +27,11 @@ export function checkParamElementPresence(spec: any, content: string, rule: any)
             const parameters = operation.parameters || [];
 
             const found = parameters.some((param: any) =>
-                param.name === name &&
-                param.in === where &&
-                param.schema?.type === type
+                matchParameterSchema(param, name, where, type, spec, {
+                required: rule.call.functionParams.required,
+                description: rule.call.functionParams.description,
+                style: rule.call.functionParams.style,
+                })
             );
 
             if (!found) {
