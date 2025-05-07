@@ -5,11 +5,6 @@ import { matchParameterSchema } from "@/utils/schema";
 
 export function checkParamElementPresence(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
-
-    const name = rule.call.functionParams.name;
-    const type = rule.call.functionParams.valueType;
-    const where = rule.call.functionParams.in;
-
     if (!spec?.paths) return diagnostics;
 
     const seen = new Set<string>();
@@ -17,7 +12,8 @@ export function checkParamElementPresence(spec: any, content: string, rule: any)
     for (const path in spec.paths) {
         const pathItem = spec.paths[path];
 
-        for (const method in pathItem) {
+        const methodsToCheck = rule.call.functionParams.methods || Object.keys(pathItem);
+        for (const method of methodsToCheck) {
             const operation = pathItem[method];
             if (!operation || typeof operation !== "object") continue;
 
@@ -26,15 +22,26 @@ export function checkParamElementPresence(spec: any, content: string, rule: any)
 
             const parameters = operation.parameters || [];
 
-            const found = parameters.some((param: any) =>
-                matchParameterSchema(param, name, where, type, spec, {
-                required: rule.call.functionParams.required,
-                description: rule.call.functionParams.description,
-                style: rule.call.functionParams.style,
-                })
+            const headers = rule.call.functionParams.headers || [];
+
+            const allHeadersPresent = headers.every((header: any) =>
+                parameters.some((param: any) =>
+                    matchParameterSchema(
+                        param,
+                        header.name,
+                        header.in,
+                        header.valueType,
+                        spec,
+                        {
+                            required: header.required,
+                            description: header.description,
+                            style: header.style,
+                        }
+                    )
+                )
             );
 
-            if (!found) {
+            if (!allHeadersPresent) {
                 seen.add(key);
                 const { start, end } = findMethodPositionInYaml(content, path, method);
                 diagnostics.push({

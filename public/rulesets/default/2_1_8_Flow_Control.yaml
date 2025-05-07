@@ -4,11 +4,11 @@ rules:
     message: All APIs must have x-apigateway-ratelimit defined.
     option: Mandatory
     location: paths
-    element: x-apigatewway-ratelimit
     call:
       function: checkParamElementPresence
       functionParams:
-        name: "x-apigateway-ratelimit"
-        valueType: string
-        in: header
+        headers:
+          - name: "x-apigateway-ratelimit"
+            valueType: string
+            in: header
     severity: high

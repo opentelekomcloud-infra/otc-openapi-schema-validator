@@ -16,14 +16,18 @@ rules:
     message: "The default media type must be application/json, application/octet-stream or multipart/form-data if the body is available."
     option: Mandatory
     location: paths
-    element:
-      - requestBody
-      - responses
-    call: {
-      function: mediaTypeCheck,
-      functionParams: {
-        "headers": ["application/json", "application/octet-stream", "multipart/form-data"],
-        "methods": ["get", "head", "post", "put", "delete", "patch"]
-      }
-    }
+    call:
+      function: checkParamElementPresence
+      functionParams:
+        methods:
+          - "get"
+          - "head"
+          - "post"
+          - "put"
+          - "delete"
+          - "patch"
+        headers:
+          - name: "Content-Type"
+            valueType: string
+            in: header
     severity: high
