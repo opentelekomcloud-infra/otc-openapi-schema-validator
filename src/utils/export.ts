@@ -4,6 +4,7 @@ import {autoTable} from "jspdf-autotable";
 import {ManualRule} from "@/components/ManualChecksSelector";
 import {EditorView} from "@codemirror/view";
 import React from "react";
+import {getSeverityLabel} from "@/utils/mapSeverity";
 
 export const exportPDF = async (
     diagnostics: any[],
@@ -24,7 +25,7 @@ export const exportPDF = async (
         const lineNumber = editorViewRef.current
             ? editorViewRef.current.state.doc.lineAt(diag.from).number
             : "N/A";
-        tableRows.push([lineNumber, diag.message, diag.severity, diag.source || ""]);
+        tableRows.push([lineNumber, diag.message, getSeverityLabel(diag.severity), diag.source || ""]);
     });
 
     autoTable(doc, {
@@ -110,7 +111,7 @@ export const exportJUnit = async (
             ? editorViewRef.current.state.doc.lineAt(diag.from).number
             : "N/A";
         diagnosticTestCases += `<testcase classname="lint" name="Line ${lineNumber}" time="0">`;
-        diagnosticTestCases += `<failure message="Severity: ${diag.severity}, Rule: ${diag.source || ''}">${diag.message}</failure>`;
+        diagnosticTestCases += `<failure message="Severity: ${getSeverityLabel(diag.severity)}, Rule: ${diag.source || ''}">${diag.message}</failure>`;
         diagnosticTestCases += `</testcase>\n`;
     });
     const diagnosticsTests = diagnostics.length;

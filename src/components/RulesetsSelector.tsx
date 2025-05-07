@@ -172,10 +172,10 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                                 onChange={handleSeverityFilterChange}
                             >
                                 <option value="all">All</option>
-                                <option value="hint">Hint</option>
                                 <option value="info">Info</option>
-                                <option value="warning">Warning</option>
-                                <option value="error">Error</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
                             </select>
                         </div>
                     </div>

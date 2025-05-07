@@ -1,20 +1,19 @@
 import { Diagnostic } from "@codemirror/lint";
+import { mapSeverity } from "@/utils/mapSeverity";
 
 export function httpsCheckServers(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
-    const items = spec && spec[rule.location];
-    if (Array.isArray(items)) {
-        items.forEach((item: any) => {
-            const value = item[rule.element];
-            if (typeof value === "string" && !value.startsWith("https://")) {
-                // Locate the value in the content to highlight it
-                const index = content.indexOf(value);
+
+    if (Array.isArray(spec.servers)) {
+        spec.servers.forEach((server: any) => {
+            if (typeof server.url === "string" && !server.url.startsWith("https://")) {
+                const index = content.indexOf(server.url);
                 const start = index >= 0 ? index : 0;
-                const end = index >= 0 ? start + value.length : content.length;
+                const end = index >= 0 ? start + server.url.length : content.length;
                 diagnostics.push({
                     from: start,
                     to: end,
-                    severity: rule.severity,
+                    severity: mapSeverity(rule.severity),
                     message: rule.message,
                     source: rule.id,
                 });

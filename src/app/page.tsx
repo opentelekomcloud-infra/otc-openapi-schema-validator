@@ -10,6 +10,7 @@ import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
 import { exportPDF, exportJUnit } from "@/utils/export";
+import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 
 interface Diagnostic {
     from: number;
@@ -33,7 +34,7 @@ const HomePage = () => {
     const [showExportModal, setShowExportModal] = useState(false);
 
     const filteredDiagnostics = diagnostics.filter((diag) =>
-        severityFilter === "all" ? true : diag.severity === severityFilter
+        severityFilter === "all" ? true : diag.severity === severityToDiagnosticMap[severityFilter]
     );
 
     const diagnosticsListenerExtension = useMemo(
@@ -264,10 +265,10 @@ const HomePage = () => {
                                 onChange={(e) => setSeverityFilter(e.target.value)}
                             >
                                 <option value="all">All</option>
-                                <option value="hint">Hint</option>
                                 <option value="info">Info</option>
-                                <option value="warning">Warning</option>
-                                <option value="error">Error</option>
+                                <option value="low">Low</option>
+                                <option value="medium">Medium</option>
+                                <option value="high">High</option>
                             </select>
                         </div>
                         {filteredDiagnostics.length === 0 ? (
@@ -313,7 +314,7 @@ const HomePage = () => {
                                             <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{lineNumber}</td>
                                             <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.source}</td>
                                             <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.message}</td>
-                                            <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.severity}</td>
+                                            <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{getSeverityLabel(diag.severity)}</td>
                                         </tr>
                                     );
                                 })}

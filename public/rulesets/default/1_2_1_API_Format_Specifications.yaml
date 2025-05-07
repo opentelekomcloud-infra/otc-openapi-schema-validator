@@ -9,21 +9,27 @@ rules:
       function: httpsCheckServers,
       functionParams: {}
     }
-    severity: "error" # "hint" | "info" | "warning" | "error" -> it might change to blocker - high - medium - low (example)
+    severity: high # "hint" | "info" | "warning" | "error" -> it might change to blocker - high - medium - low (example)
+    status: implemented
 
   - id: "1.2.1.2"
     title: "Content-Type: Set the media type"
     message: "The default media type must be application/json, application/octet-stream or multipart/form-data if the body is available."
     option: Mandatory
     location: paths
-    element:
-      - requestBody
-      - responses
-    call: {
-      function: mediaTypeCheck,
-      functionParams: {
-        "headers": ["application/json", "application/octet-stream", "multipart/form-data"],
-        "methods": ["get", "head", "post", "put", "delete", "patch"]
-      }
-    }
-    severity: "error"
+    call:
+      function: checkParamElementPresence
+      functionParams:
+        methods:
+          - "get"
+          - "head"
+          - "post"
+          - "put"
+          - "delete"
+          - "patch"
+        headers:
+          - name: "Content-Type"
+            valueType: string
+            in: header
+    severity: high
+    status: implemented
