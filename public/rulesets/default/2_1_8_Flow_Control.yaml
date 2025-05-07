@@ -12,3 +12,4 @@ rules:
             valueType: string
             in: header
     severity: high
+    status: implemented

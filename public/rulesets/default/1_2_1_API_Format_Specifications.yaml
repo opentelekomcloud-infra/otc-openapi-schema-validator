@@ -10,6 +10,7 @@ rules:
       functionParams: {}
     }
     severity: high # "hint" | "info" | "warning" | "error" -> it might change to blocker - high - medium - low (example)
+    status: implemented
 
   - id: "1.2.1.2"
     title: "Content-Type: Set the media type"
@@ -31,3 +32,4 @@ rules:
             valueType: string
             in: header
     severity: high
+    status: implemented
