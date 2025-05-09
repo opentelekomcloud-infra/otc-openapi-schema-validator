@@ -6,17 +6,17 @@ rules:
     location: paths
     element: path
     call:
-      function: CheckSensitiveData
+      function: checkElementSensitiveData
       functionParams:
-        no_allowed_query_params:
+        queryNotAllowed:
           - "password"
           - "credential"
           - "secret"
           - "apikey"
           - "token"
-    description: This rule checks whether API path contains senstive information in query parameters
-    status: devel
-    severity: critical
+    description: This rule checks whether API path contains sensitive information in query parameters
+    status: implemented
+    severity: high
 
   - id: 2.1.9.2
     title: "Security: APIs must meet security design requirements, such as authentication and authorization"
