@@ -2,10 +2,12 @@ import { Diagnostic } from "@codemirror/lint";
 import yaml from "js-yaml";
 import { httpsCheckServers } from "@/functions/httpsCheckServers";
 import { checkParamElementPresence } from "@/functions/checkParamElementPresence";
+import { checkElementSensitiveData } from "@/functions/checkElementSensitiveData";
 
 const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] } = {
     httpsCheckServers,
-    checkParamElementPresence
+    checkParamElementPresence,
+    checkElementSensitiveData
 };
 
 export function openApiLinter(selectedRules: any) {
