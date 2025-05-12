@@ -187,28 +187,28 @@ const HomePage = () => {
                 className="rounded-full mr-1"
                 style={{width: "10px", height: "10px", backgroundColor: "white"}}
             ></span>
-                        <span>Hint</span>
+                        <span>Low</span>
                     </div>
                     <div className="flex items-center">
             <span
                 className="rounded-full mr-1"
                 style={{width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)"}}
             ></span>
-                        <span>Info</span>
+                        <span>Medium</span>
                     </div>
                     <div className="flex items-center">
             <span
                 className="rounded-full mr-1"
                 style={{width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)"}}
             ></span>
-                        <span>Warning</span>
+                        <span>High</span>
                     </div>
                     <div className="flex items-center">
             <span
                 className="rounded-full mr-1"
                 style={{width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)"}}
             ></span>
-                        <span>Error</span>
+                        <span>Critical</span>
                     </div>
                 </div>
             </header>
@@ -265,10 +265,10 @@ const HomePage = () => {
                                 onChange={(e) => setSeverityFilter(e.target.value)}
                             >
                                 <option value="all">All</option>
-                                <option value="info">Info</option>
                                 <option value="low">Low</option>
                                 <option value="medium">Medium</option>
                                 <option value="high">High</option>
+                                <option value="critical">Critical</option>
                             </select>
                         </div>
                         {filteredDiagnostics.length === 0 ? (

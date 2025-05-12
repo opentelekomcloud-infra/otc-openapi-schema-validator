@@ -16,7 +16,7 @@ rules:
           - "token"
     description: This rule checks whether API path contains sensitive information in query parameters
     status: implemented
-    severity: high
+    severity: critical
 
   - id: 2.1.9.2
     title: "Security: APIs must meet security design requirements, such as authentication and authorization"
@@ -25,14 +25,19 @@ rules:
     location: paths
     element: parameters
     call:
-      function: HeaderCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "X-Auth-Token"
-        exception_path:
+        headers:
+          - name: "X-Auth-Token"
+            valueType: string
+            in: header
+        exceptionPaths:
           - "/"
           - "/{version_id}"
-    description: This rule checks whether all APIs except version discovery APIs have mandatory request heade X-Auth-Token
-    status: devel
+          - "/rds/{version_id}"
+          - "/{version}"
+    description: This rule checks whether all APIs except version discovery APIs have mandatory request header X-Auth-Token
+    status: implemented
     severity: critical
 
   - id: 2.1.9.3
