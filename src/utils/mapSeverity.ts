@@ -2,13 +2,13 @@ import { Diagnostic } from "@codemirror/lint";
 
 export function mapSeverity(severity: string): Diagnostic["severity"] {
     switch (severity) {
-        case "info":
-            return "info";
         case "low":
             return "hint";
         case "medium":
-            return "warning";
+            return "info";
         case "high":
+            return "warning";
+        case "critical":
             return "error";
         default:
             return "info"; // fallback
@@ -21,19 +21,19 @@ export function getSeverityLabel(severity: string): string {
         case "hint":
             return "Low";
         case "info":
-            return "Info";
-        case "warning":
             return "Medium";
-        case "error":
+        case "warning":
             return "High";
+        case "error":
+            return "Critical";
         default:
-            return "Info";
+            return "Medium";
     }
 }
 
 export const severityToDiagnosticMap: Record<string, Diagnostic["severity"]> = {
-    info: "info",
-    low: "hint",
-    medium: "warning",
-    high: "error",
+    low: "info",
+    medium: "hint",
+    high: "warning",
+    critical: "error",
 };

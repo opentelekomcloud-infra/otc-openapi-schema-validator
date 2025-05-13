@@ -9,7 +9,9 @@ export function checkParamElementPresence(spec: any, content: string, rule: any)
 
     const seen = new Set<string>();
 
+    const excludedPaths = rule.call.functionParams.exceptionPaths || [];
     for (const path in spec.paths) {
+        if (excludedPaths.includes(path)) continue;
         const pathItem = spec.paths[path];
 
         const methodsToCheck = rule.call.functionParams.methods || Object.keys(pathItem);
