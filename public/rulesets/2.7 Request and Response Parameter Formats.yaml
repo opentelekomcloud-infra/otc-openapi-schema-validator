@@ -1,0 +1,65 @@
+rules:
+  - id: 2.7.1
+    title: "Request and Response Parameter Formats"
+    message: "Request and response  parameters are named in a snake case format. All letters are in lowercase."
+    option: mandatory
+    location: paths
+    element: 
+        - requestBody
+        - responses
+        - parameters
+    call: 
+      function: validateSnakeCaseAndAcronyms
+      functionParams: 
+        allowedAcronyms:
+          - uuid
+          - api
+          - id
+          - url
+          - ip
+          - os
+        method: 
+          - "post"
+          - "put"
+          - "get"
+          - "patch"
+          - "delete"             
+    severity: critical
+    description: "This rule checks whether Request and Response parameters are named in a serpentine format separated by underscores."
+
+  - id: 2.7.2
+    title: "Request and Response Parameter Formats"
+    message: "Resources must use plurals for API paths for creating and batch processing."
+    option: mandatory
+    location: paths
+    element: path
+    call: 
+      function: validatePluralResourceNaming
+    function params:
+    methods:
+      create:
+        - post
+      retrieve:
+        - get
+      delete:
+        - delete
+        - patch
+        - put
+    severity: critical
+    description: "This rule checks whether resources in API paths use plural names for creating and batch processing operations."
+
+  - id: 2.7.3
+    title: "The project_id parameter is an optional parameter in the URI."
+    message: "The project_id parameter is optional only for APIs that support global services."
+    option: optional
+    location: paths
+    element: path
+    call: 
+      function: validateOptionalProjectId
+    function params:
+      allowedApis:
+        - /v3/auth/tokens 
+        - /V2/{project_id}/cloudservers 
+    severity: high
+    description:
+      This rule checks whether the project_id parameter is correctly used in the URI.
