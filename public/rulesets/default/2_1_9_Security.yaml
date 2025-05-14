@@ -42,14 +42,14 @@ rules:
 
   - id: 2.1.9.3
     title: "Security: APIs must meet security design requirements, such as authentication and authorization"
-    message: For RESTful API resource operations, the service side can select one or more types of GET/POST/PUT/PATCH/HEAD/DELETE based on the actual user permission. Insecure resource operations are not exposed.
+    message: For RESTFull API resource operations, the service side can select one or more types of GET/POST/PUT/PATCH/HEAD/DELETE based on the actual user permission. Insecure resource operations are not exposed.
     option: Mandatory
     location: paths
     element: path
     call:
-      function: MethodCheck
+      function: allowedMethodsCheck
       functionParams:
-        method:
+        methods:
           - "GET"
           - "POST"
           - "PUT"
@@ -57,5 +57,5 @@ rules:
           - "HEAD"
           - "DELETE"
     description: This rule checks whether only allowed HTTP methods (GET/POST/PUT/PATCH/HEAD/DELETE) are exposed
-    status: devel
+    status: implemented
     severity: critical

@@ -17,6 +17,7 @@ export type Rule = {
         functionParams?: any;
     };
     severity: string;
+    status: string;
 };
 
 type RulesetsSelectorProps = {
@@ -70,8 +71,8 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                     }
                 }
             }
-
-            setAllRules(rulesArray);
+            const implementedRules = rulesArray.filter(rule => rule.status === "implemented");
+            setAllRules(implementedRules);
             const mandatoryRules = rulesArray.filter(
                 (rule) => rule.option.toLowerCase() === "mandatory"
             );
