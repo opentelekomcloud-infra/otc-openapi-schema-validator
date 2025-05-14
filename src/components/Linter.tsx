@@ -3,11 +3,13 @@ import yaml from "js-yaml";
 import { httpsCheckServers } from "@/functions/httpsCheckServers";
 import { checkParamElementPresence } from "@/functions/checkParamElementPresence";
 import { checkElementSensitiveData } from "@/functions/checkElementSensitiveData";
+import { allowedMethodsCheck } from "@/functions/allowedMethodCheck";
 
 const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] } = {
     httpsCheckServers,
     checkParamElementPresence,
-    checkElementSensitiveData
+    checkElementSensitiveData,
+    allowedMethodsCheck
 };
 
 export function openApiLinter(selectedRules: any) {
