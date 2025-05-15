@@ -1,32 +1,38 @@
 rules:
   - id: 2.1.10.1
-    title: The API description file complies with the OAS 2.0/3.0 design specifications
+    title: The API description file complies with the OAS 3.0.+ design specifications.
     option: Mandatory
-    message: OpenAPI specification must be compliant with OAS 2.0/3.0
+    message: OpenAPI specification must be compliant with OAS 3.0.+
     location: openapi
     element: version
     call:
-      function: CheckOAS
+      function: checkOASVersion
       functionParams:
-        allowed_values:
-          - "2.0"
+        allowedVersions:
           - "3.0"
-    description: This rule checks whether delivered OpenAPI specification complains with OAS 2.0/3.0 versions.
-    status: devel
+    description: This rule checks whether delivered OpenAPI specification complains with OAS 3.0.+ versions.
+    status: implemented
     severity: critical
 
   - id: 2.1.10.2
-    title: The API description file complies with the OAS 2.0/3.0 design specifications
+    title: The API description file complies with the OAS 3.0 design specifications
     option: Mandatory
-    message: The deliverables must meet the specifications and must be checked in the tool. Complying with the YAML interface definition design specifications for cloud services
+    message: The deliverables must meet the specifications and must be checked in the tool. Complying with the YAML interface definition design specifications for cloud services.
     location: file
     element: all
     call:
-      function: CheckOAS
+      function: checkOASSpec
       functionParams:
-        allowed_values:
-          - "template_OAS2.0.yaml"
-          - "template_OAS3.0.yaml"
-    description: This rule checks whether delivered OpenAPI specification is followig the agreed template OAS structure
-    status: devel
+        requiredValues:
+          - openapi
+          - info
+          - paths
+        optionalValues:
+          - servers
+          - security
+          - tags
+          - externalDocs
+          - components
+    description: This rule checks whether delivered OpenAPI specification is following the agreed template OAS structure
+    status: implemented
     severity: critical

@@ -4,12 +4,16 @@ import { httpsCheckServers } from "@/functions/httpsCheckServers";
 import { checkParamElementPresence } from "@/functions/checkParamElementPresence";
 import { checkElementSensitiveData } from "@/functions/checkElementSensitiveData";
 import { allowedMethodsCheck } from "@/functions/allowedMethodCheck";
+import { checkOASSpec } from "@/functions/checkOASSpec";
+import { checkOASVersion } from "@/functions/checkOASVersion";
 
 const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] } = {
     httpsCheckServers,
     checkParamElementPresence,
     checkElementSensitiveData,
-    allowedMethodsCheck
+    allowedMethodsCheck,
+    checkOASSpec,
+    checkOASVersion
 };
 
 export function openApiLinter(selectedRules: any) {

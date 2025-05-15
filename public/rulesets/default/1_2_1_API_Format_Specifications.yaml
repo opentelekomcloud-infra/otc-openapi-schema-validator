@@ -9,7 +9,7 @@ rules:
       function: httpsCheckServers,
       functionParams: {}
     }
-    severity: high # "hint" | "info" | "warning" | "error" -> it might change to blocker - high - medium - low (example)
+    severity: high
     status: implemented
 
   - id: "1.2.1.2"
