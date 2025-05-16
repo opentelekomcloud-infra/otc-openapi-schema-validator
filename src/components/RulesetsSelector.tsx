@@ -73,7 +73,7 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
             }
             const implementedRules = rulesArray.filter(rule => rule.status === "implemented");
             setAllRules(implementedRules);
-            const mandatoryRules = rulesArray.filter(
+            const mandatoryRules = implementedRules.filter(
                 (rule) => rule.option.toLowerCase() === "mandatory"
             );
             setSelectedRules(mandatoryRules);

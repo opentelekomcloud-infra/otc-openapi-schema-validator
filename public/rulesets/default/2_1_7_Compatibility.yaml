@@ -3,7 +3,6 @@ rules:
     title: "Compatibility: The interfaces must be compatible"
     message: |
       The API is deleted
-
     option: Mandatory
     location: paths
     element: path
@@ -27,7 +26,6 @@ rules:
     title: "Compatibility: The interfaces must be compatible"
     message: |
       The API request or response parameter is deleted.
-
     option: Mandatory
     location: paths
     element:
@@ -49,7 +47,6 @@ rules:
     title: "Compatibility: The interfaces must be compatible"
     message: |
       Adding Mandatory Request Parameters to APIs
-
     option: Mandatory
     location: paths
     element: requestBody
@@ -69,7 +66,6 @@ rules:
     title: "Compatibility: The interfaces must be compatible"
     message: |
       The API request or response parameter types are incompatible.
-
     option: Mandatory
     location: paths
     element:
@@ -91,7 +87,6 @@ rules:
     title: "Compatibility: The interfaces must be compatible"
     message: |
       The value range of the API request parameter is narrowed down.
-
     option: Mandatory
     location: paths
     element:
@@ -114,7 +109,6 @@ rules:
     title: "Compatibility: The interfaces must be compatible"
     message: |
       Some enumerated values (enum) of API request parameters of the enumerated type are deleted or changed.
-
     option: Mandatory
     location: paths
     element:
@@ -137,7 +131,6 @@ rules:
     title: "Compatibility: The interfaces must be compatible"
     message: |
       The API response status code is deleted or changed.
-
     option: Mandatory
     location: paths
     element:
@@ -159,7 +152,6 @@ rules:
     title: "Compatibility: The interfaces must be compatible"
     message: |
       Modify or delete a response header.
-
     option: Mandatory
     location: paths
     element:
@@ -176,4 +168,3 @@ rules:
     description: This rule compares whether response header in API response has been deleted or modified when comparing to previous OpenAPI specification
     status: devel
     severity: critical
-

@@ -20,7 +20,6 @@ export function openApiLinter(selectedRules: any) {
     return (view: any): Diagnostic[] => {
         let diagnostics: Diagnostic[] = [];
         const content = view.state.doc.toString();
-
         try {
             const spec = yaml.load(content, {json:true});
             if (Array.isArray(selectedRules) && selectedRules.length > 0) {
