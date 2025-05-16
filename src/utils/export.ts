@@ -106,11 +106,12 @@ export const exportJUnit = async (
 ) => {
     // Build the diagnostic test cases.
     let diagnosticTestCases = "";
+    const ts = Date.now()
     diagnostics.forEach((diag) => {
         const lineNumber = editorViewRef.current
             ? editorViewRef.current.state.doc.lineAt(diag.from).number
             : "N/A";
-        diagnosticTestCases += `<testcase classname="lint" name="Line ${lineNumber}" time="0">`;
+        diagnosticTestCases += `<testcase classname="lint" name="Rule: ${diag.source || ''}, Line: ${lineNumber}" time="${ts}">`;
         diagnosticTestCases += `<failure message="Severity: ${getSeverityLabel(diag.severity)}, Rule: ${diag.source || ''}">${diag.message}</failure>`;
         diagnosticTestCases += `</testcase>\n`;
     });
@@ -120,7 +121,7 @@ export const exportJUnit = async (
     // Build the manual rules test cases.
     let manualTestCases = "";
     manualRules.forEach((rule) => {
-        manualTestCases += `<testcase classname="manual" name="${rule.id} - ${rule.title}" time="0">`;
+        manualTestCases += `<testcase classname="manual" name="${rule.id} - ${rule.title}" time="${ts}">`;
         if (!rule.verified) {
             manualTestCases += `<failure message="Manual rule not verified: ${rule.option}">${convertMarkdownToPlainText(rule.message)}</failure>`;
         }
@@ -132,10 +133,10 @@ export const exportJUnit = async (
     // Construct the full XML in jUnit format.
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <testsuites>
-  <testsuite name="Automated Compliance Validation Report" tests="${diagnosticsTests}" failures="${diagnosticsFailures}" time="0">
+  <testsuite name="Automated Compliance Validation Report" tests="${diagnosticsTests}" failures="${diagnosticsFailures}" time="${ts}">
     ${diagnosticTestCases}
   </testsuite>
-  <testsuite name="Manual Checklist" tests="${manualTests}" failures="${manualFailures}" time="0">
+  <testsuite name="Manual Checklist" tests="${manualTests}" failures="${manualFailures}" time="${ts}">
     ${manualTestCases}
   </testsuite>
 </testsuites>`;
