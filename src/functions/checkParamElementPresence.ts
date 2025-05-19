@@ -8,8 +8,9 @@ export function checkParamElementPresence(spec: any, content: string, rule: any)
     if (!spec?.paths) return diagnostics;
 
     const seen = new Set<string>();
-
+    const checkOnlyIf = rule.call.functionParams.checkMethodIfSectionExist || "";
     const excludedPaths = rule.call.functionParams.exceptionPaths || [];
+
     for (const path in spec.paths) {
         if (excludedPaths.includes(path)) continue;
         const pathItem = spec.paths[path];
@@ -18,6 +19,8 @@ export function checkParamElementPresence(spec: any, content: string, rule: any)
         for (const method of methodsToCheck) {
             const operation = pathItem[method];
             if (!operation || typeof operation !== "object") continue;
+
+            if (checkOnlyIf && !operation[checkOnlyIf]) continue;
 
             const key = `${path}|${method}`;
             if (seen.has(key)) continue;

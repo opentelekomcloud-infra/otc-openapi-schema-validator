@@ -31,5 +31,6 @@ rules:
           - name: "Content-Type"
             valueType: string
             in: header
+        checkMethodIfSectionExist: requestBody
     severity: high
     status: implemented
