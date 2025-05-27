@@ -147,7 +147,28 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
     if (error) return <p>Error: {error}</p>;
 
     return (
-        <table className="w-full border-collapse">
+        <div>
+            <div className="flex items-center space-x-4 mb-2">
+                <button
+                    onClick={() => {
+                        const updated = manualRules.map(rule => ({ ...rule, verified: true }));
+                        setManualRules(updated);
+                    }}
+                    className="px-2 py-1 bg-green-200 rounded hover:bg-green-300 transition"
+                >
+                    Select All
+                </button>
+                <button
+                    onClick={() => {
+                        const updated = manualRules.map(rule => ({ ...rule, verified: false }));
+                        setManualRules(updated);
+                    }}
+                    className="px-2 py-1 bg-blue-200 rounded hover:bg-blue-300 transition"
+                >
+                    Deselect All
+                </button>
+            </div>
+            <table className="w-full border-collapse">
             <thead>
             <tr>
                 <th className="border px-2 py-1"></th>
@@ -182,7 +203,8 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
                 );
             })}
             </tbody>
-        </table>
+            </table>
+        </div>
     );
 };
 
