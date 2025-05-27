@@ -362,7 +362,7 @@ const HomePage = () => {
                                 />
                                 <button
                                     onClick={async () => {
-                                        await exportPDF(diagnostics, manualRules, editorViewRef);
+                                        await exportPDF(diagnostics, selectedRules, manualRules, editorViewRef);
                                         setShowExportModal(false);
                                     }}
                                 >
@@ -382,7 +382,7 @@ const HomePage = () => {
                                 />
                                 <button
                                     onClick={async () => {
-                                        await exportJUnit(diagnostics, manualRules, editorViewRef);
+                                        await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
                                         setShowExportModal(false);
                                     }}
                                 >

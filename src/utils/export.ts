@@ -8,6 +8,7 @@ import {getSeverityLabel} from "@/utils/mapSeverity";
 
 export const exportPDF = async (
     diagnostics: any[],
+    selectedRules: Record<string, any>,
     manualRules: ManualRule[],
     editorViewRef: React.RefObject<EditorView | null>
 ) => {
@@ -18,8 +19,15 @@ export const exportPDF = async (
     // --- Found Issues ---
     doc.setFontSize(16);
     doc.text("Automated Compliance Validation report", 14, 40);
+    const failedRuleIds = new Set(diagnostics.map((diag) => diag.source));
     const tableColumn = ["Line #", "Summary", "Severity", "Rule ID"];
     const tableRows: (string | number)[][] = [];
+
+    Object.values(selectedRules).forEach((rule: any) => {
+        if (!failedRuleIds.has(rule.id)) {
+            tableRows.push(["Passed", rule.message, rule.severity, rule.id]);
+        }
+    });
 
     diagnostics.forEach((diag) => {
         const lineNumber = editorViewRef.current
@@ -101,12 +109,21 @@ export const exportPDF = async (
 
 export const exportJUnit = async (
     diagnostics: any[],
+    selectedRules: Record<string, any>,
     manualRules: ManualRule[],
     editorViewRef: React.RefObject<EditorView | null>
 ) => {
     // Build the diagnostic test cases.
     let diagnosticTestCases = "";
     const ts = Date.now()
+    // Add passed rules from selectedRules that are not in diagnostics
+    const failedRuleIds = new Set(diagnostics.map((diag) => diag.source));
+    Object.values(selectedRules).forEach((rule: any) => {
+        if (!failedRuleIds.has(rule.id)) {
+            diagnosticTestCases += `<testcase classname="lint" name="Rule: ${rule.id}, Line: -1" time="${ts}" />\n`;
+        }
+    });
+    const diagnosticsTests = Object.keys(selectedRules).length;
     diagnostics.forEach((diag) => {
         const lineNumber = editorViewRef.current
             ? editorViewRef.current.state.doc.lineAt(diag.from).number
@@ -115,7 +132,6 @@ export const exportJUnit = async (
         diagnosticTestCases += `<failure message="Severity: ${getSeverityLabel(diag.severity)}, Rule: ${diag.source || ''}">${diag.message}</failure>`;
         diagnosticTestCases += `</testcase>\n`;
     });
-    const diagnosticsTests = diagnostics.length;
     const diagnosticsFailures = diagnostics.length;
 
     // Build the manual rules test cases.
