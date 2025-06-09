@@ -1,0 +1,75 @@
+rules:
+  - id: "2.15"
+    title: "Common parameter design"
+    message: "Common parameters should be named according to the common standard words"
+    option: Optional
+    location: paths
+    element: 
+      - responses
+	  - requestBody
+	  - path
+    call: 
+      function: CommonParametersCheck
+      functionParams: 
+        affectedMethods:
+          - "get"
+          - "put"
+          - "post"
+          - "patch"
+          - "delete"
+        allowed_params:
+          - "name"
+		  - "create_time"
+		  - "update_time"
+		  - "delete_time"
+		  - "expire_time"
+		  - "start_time"
+		  - "end_time"
+		  - "read_time"
+		  - "time_zone"
+		  - "region_code"
+		  - "language_code"
+		  - "mime_type"
+		  - "display_name"
+		  - "title"
+		  - "description"
+		  - "filter"
+		  - "query"
+		  - "count"
+		  - "order_by"
+		  - "request_id"
+		  - "deleted"
+		  - "show_deleted"
+		  - "dry_run"
+		  - "charge_mode"
+		  - "period_type"
+		  - "period_num"
+		  - "is_auto_renew"
+		  - "is_auto_pay"
+		  - "limit"
+		  - "offset"
+		  - "sort_key"
+		  - "sort_dir"
+		  - "tag"
+		  - "availability_zone_id"
+		  - "virsubnet_id"
+		no_allowed_params:
+		  - "descp"
+		  - "locale"
+		  - "gmt_create_timestamp"
+		  - "gmt_modify_timestamp"
+		  - "gmt_create"
+		  - "gmt_modify"
+		  - "total_count"
+		  - "page"
+		  - "gmt_modify"
+		  - "ok"
+		  - "total"
+		  - "tag_list"
+		  - "host_group_tag"
+		  - "tags"
+		  - "access_config_tag_list"
+		  - "access_config_tag_list"
+    description: This rule checks if the names of common parameters match common reserved standard words.
+    status: devel
+	severity: critical
