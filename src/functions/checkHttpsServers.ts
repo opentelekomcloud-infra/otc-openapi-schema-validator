@@ -1,7 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 
-export function httpsCheckServers(spec: any, content: string, rule: any): Diagnostic[] {
+export function checkHttpsServers(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     if (Array.isArray(spec.servers)) {

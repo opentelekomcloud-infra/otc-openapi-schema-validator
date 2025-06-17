@@ -1,7 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 
-export function allowedMethodsCheck(spec: any, content: string, rule: any): Diagnostic[] {
+export function checkAllowedMethods(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
     const allowedMethods = rule.call.functionParams.methods.map((m: string) => m.toLowerCase());
 

@@ -1,19 +1,21 @@
 import { Diagnostic } from "@codemirror/lint";
 import yaml from "js-yaml";
-import { httpsCheckServers } from "@/functions/httpsCheckServers";
+import { checkHttpsServers } from "@/functions/checkHttpsServers";
 import { checkParamElementPresence } from "@/functions/checkParamElementPresence";
 import { checkElementSensitiveData } from "@/functions/checkElementSensitiveData";
-import { allowedMethodsCheck } from "@/functions/allowedMethodCheck";
+import { checkAllowedMethods } from "@/functions/checkAllowedMethods";
 import { checkOASSpec } from "@/functions/checkOASSpec";
 import { checkOASVersion } from "@/functions/checkOASVersion";
+import { checkCRUD } from "@/functions/checkCRUD";
 
 const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] } = {
-    httpsCheckServers,
+    checkHttpsServers,
     checkParamElementPresence,
     checkElementSensitiveData,
-    allowedMethodsCheck,
+    checkAllowedMethods,
     checkOASSpec,
-    checkOASVersion
+    checkOASVersion,
+    checkCRUD,
 };
 
 export function openApiLinter(selectedRules: any) {

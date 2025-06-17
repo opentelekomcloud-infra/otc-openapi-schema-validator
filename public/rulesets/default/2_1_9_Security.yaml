@@ -47,7 +47,7 @@ rules:
     location: paths
     element: path
     call:
-      function: allowedMethodsCheck
+      function: checkAllowedMethods
       functionParams:
         methods:
           - "GET"

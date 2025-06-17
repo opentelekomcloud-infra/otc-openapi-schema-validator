@@ -7,16 +7,16 @@ rules:
     location: paths
     element: path
     call:
-      function: crudCheck
+      function: checkCRUD
       functionParams: 
         createMethod: 
-          - post
+          - "post"
         requiredMethods:
-          - get
-          - put
-          - delete
+          - "get"
+          - "put"
+          - "delete"
     description: This rule checks whether each resource creation operation (POST) has all related CRUD operations (GET, PUT, DELETE).
-    status: devel
+    status: implemented
     severity: high
   
   - id: 2.4.1.2
