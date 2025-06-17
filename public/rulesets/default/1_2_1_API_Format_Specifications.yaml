@@ -6,7 +6,7 @@ rules:
     location: servers
     element: url
     call: {
-      function: httpsCheckServers,
+      function: checkHttpsServers,
       functionParams: {}
     }
     severity: high
