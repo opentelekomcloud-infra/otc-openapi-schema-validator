@@ -42,7 +42,8 @@ export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
 
             const pathPattern = new RegExp(`^\\s*["']?${escapeRegExp(path)}["']?:`, "m");
             const match = content.match(pathPattern);
-            const pathIndex = match?.index ?? -1;            diagnostics.push({
+            const pathIndex = match?.index ?? -1;
+            diagnostics.push({
                 from: pathIndex >= 0 ? pathIndex : 0,
                 to: pathIndex >= 0 ? pathIndex + path.length : content.length,
                 severity: mapSeverity(rule.severity),

@@ -25,15 +25,14 @@ rules:
       All GET operations must return status code 200 (OK) on success.
     option: Mandatory
     location: paths
-    element:
-      - responses
+    element: responses
     call:
-      function: checkGetSuccessResponse
+      function: checkSuccessResponse
       functionParams:
-        method: get
-        requiredStatusCode: 200
-    description: Check status code for successfull GET operation. It should be 200.
-    status: devel
+        method: "get"
+        requiredStatusCode: "200"
+    description: Check status code for successfully GET operation. It should be 200.
+    status: implemented
     severity: critical
 
   - id: 2.4.1.3
