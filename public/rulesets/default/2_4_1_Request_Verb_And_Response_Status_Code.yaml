@@ -41,25 +41,24 @@ rules:
       GET operations must not modify server-side data or state. They must not have a request body or have action keywords in path.
     option: Mandatory
     location: paths
-    element:
-      - get
+    element: get
     call:
       function: checkGetIdempotency
       functionParams:
         disallowedPathKeywords:
-          - create
-          - update
-          - delete
-          - restart
-          - trigger
-          - action
-          - execute
-          - run
-          - reset
-          - change
+          - "create"
+          - "update"
+          - "delete"
+          - "restart"
+          - "trigger"
+          - "action"
+          - "execute"
+          - "run"
+          - "reset"
+          - "change"
         disallowRequestBody: true
     description: Check whether GET operation has request body or action keywords in path.
-    status: devel    
+    status: implemented
     severity: critical
 
   - id: 2.4.1.4
