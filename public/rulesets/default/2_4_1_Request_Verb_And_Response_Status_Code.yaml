@@ -70,14 +70,14 @@ rules:
     element:
       - responses
     call:
-      function: checkGetSingleReturnObject
+      function: checkGetReturnObject
       functionParams:
         method: get
-        requireObjectResponse: true
+        requiredResponseType: object
         requiredPathRegexp:
           - "^.*id}$"
     description: Check structure of response body for query of single resource. It should be object.
-    status: devel    
+    status: implemented
     severity: critical
 
   - id: 2.4.1.5
@@ -89,15 +89,15 @@ rules:
     element:
       - responses
     call:
-      function: checkGetListReturnArray
+      function: checkGetReturnObject
       functionParams:
         method: get
-        requireArrayResponse: true
-        requiredPath_regexp: 
-          - "/.*s:"
-        exceptionPath_regexp: 
+        requiredResponseType: array
+        requiredPathRegexp:
+          - ".*/[^/]*s$"
+        exceptionPathRegexp:
           - "^.*status$"
     description: Check structure of response body for query list of resources. It should be array.
-    status: devel    
+    status: implemented
     severity: critical
     
