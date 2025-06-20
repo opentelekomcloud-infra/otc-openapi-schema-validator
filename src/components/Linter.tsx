@@ -9,6 +9,7 @@ import { checkOASVersion } from "@/functions/checkOASVersion";
 import { checkCRUD } from "@/functions/checkCRUD";
 import { checkSuccessResponse } from "@/functions/checkSuccessResponse";
 import { checkGetIdempotency } from "@/functions/checkGetIdempotency";
+import { checkGetReturnObject } from "@/functions/checkGetReturnObject";
 
 const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] } = {
     checkHttpsServers,
@@ -19,7 +20,8 @@ const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => 
     checkOASVersion,
     checkCRUD,
     checkSuccessResponse,
-    checkGetIdempotency
+    checkGetIdempotency,
+    checkGetReturnObject
 };
 
 export function openApiLinter(selectedRules: any) {
