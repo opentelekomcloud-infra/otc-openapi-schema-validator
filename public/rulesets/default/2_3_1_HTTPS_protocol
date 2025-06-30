@@ -1,0 +1,11 @@
+rules:
+  - id: "2.3.1"
+    title: "Transmission Protocol Requirements"
+    message: "All tenant-oriented APIs must use the HTTPS protocol."
+    option: Mandatory
+    location: servers
+    element: url
+    call:
+  	function: httpsCheckServers
+  	functionParams: {}
+    severity: "high"
