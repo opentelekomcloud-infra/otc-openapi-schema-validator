@@ -1,0 +1,37 @@
+rules:
+  - id: "2.3.2"
+    title: "Content-Type: Default Media Type"
+    message: "If the request or response body is present, the default media type must be application/json or application/bson."
+    option: Mandatory
+    location: paths
+    call:
+      function: checkParamElementPresence
+      functionParams:
+        methods:
+          - "post"
+          - "put"
+          - "delete"
+        headers:
+          - name: "Content-Type"
+            valueType: string
+            in: header
+        checkMethodIfSectionExist: requestBody
+    severity: high
+    status: implemented
+
+  - id: "2.3.2.1"
+    title: "Content-Type: Default Media Type not present for GET requests"
+    message: "If the request body is absent, the default media type header must not be set."
+    option: Mandatory
+    location: paths
+    call:
+      function: checkParamElementAbsence
+      functionParams:
+        methods:
+          - "get"
+        headers:
+          - name: "Content-Type"
+            valueType: string
+            in: header
+    severity: high
+    status: implemented

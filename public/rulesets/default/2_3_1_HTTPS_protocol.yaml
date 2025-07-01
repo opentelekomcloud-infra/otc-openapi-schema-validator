@@ -5,7 +5,9 @@ rules:
     option: Mandatory
     location: servers
     element: url
-    call:
-  	function: httpsCheckServers
-  	functionParams: {}
-    severity: "high"
+    call: {
+      function: checkHttpsServers,
+      functionParams: {}
+    }
+    severity: high
+    status: implemented
