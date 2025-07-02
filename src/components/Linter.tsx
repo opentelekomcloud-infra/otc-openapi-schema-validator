@@ -11,6 +11,7 @@ import { checkSuccessResponse } from "@/functions/checkSuccessResponse";
 import { checkGetIdempotency } from "@/functions/checkGetIdempotency";
 import { checkGetReturnObject } from "@/functions/checkGetReturnObject";
 import { checkParamElementAbsence } from "@/functions/checkParamElementAbsence";
+import { requestEncapsulationCheck } from "@/functions/requestEncapsulationCheck";
 
 const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] } = {
     checkHttpsServers,
@@ -24,6 +25,7 @@ const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => 
     checkGetIdempotency,
     checkGetReturnObject,
     checkParamElementAbsence,
+    requestEncapsulationCheck,
 };
 
 export function openApiLinter(selectedRules: any) {
