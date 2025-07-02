@@ -9,5 +9,5 @@ rules:
       function: availabilityValueCheck
       functionParams:
         "StatusCodes": [500, 503]
-    status: "out of scope"
+    status: "unsupported"
     severity: "low"
