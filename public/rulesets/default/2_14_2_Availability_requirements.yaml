@@ -5,10 +5,9 @@ rules:
     option: Optional
     location: response
     element: statusCodes
-    call: {
+    call:
       function: availabilityValueCheck
-      functionParams: {
+      functionParams:
         "StatusCodes": [500, 503]
-      }
-    }
-    severity: “low”
+    status: "out of scope"
+    severity: "low"
