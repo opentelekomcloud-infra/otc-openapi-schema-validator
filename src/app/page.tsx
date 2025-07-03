@@ -213,7 +213,7 @@ const HomePage = () => {
                 </div>
             </header>
 
-            <div className="flex h-screen">
+            <div className="flex flex-1 overflow-hidden">
                 {/* Left Panel - Code Editor */}
                 <div className="relative w-1/2 border-r border-gray-300 bg-gray-100 h-full flex flex-col">
                     <CodeMirror

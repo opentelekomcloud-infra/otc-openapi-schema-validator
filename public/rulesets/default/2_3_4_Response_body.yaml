@@ -4,10 +4,9 @@ rules:
     message: "The response body must support JSON or BSON encapsulation. If a body is present, the Content-Type must be application/json or application/bson."
     option: Mandatory
     location: paths
-    element:
-      - responses
+    element: responses
     call:
-      function: responseEncapsulationCheck,
+      function: checkResponseEncapsulation
       functionParams:
         headers:
           - Content-Type
@@ -18,5 +17,5 @@ rules:
           - "post"
           - "put"
           - "delete"
-    severity: "error"
-    status: devel
+    severity: "medium"
+    status: implemented
