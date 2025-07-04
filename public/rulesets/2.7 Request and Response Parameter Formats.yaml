@@ -8,16 +8,19 @@ rules:
         - requestBody
         - responses
         - parameters
-    call: 
-      function: validateSnakeCaseAndAcronyms
+    calls: 
+    - function: validateSnakeCase
       functionParams: 
-        allowedAcronyms:
-          - uuid
-          - api
-          - id
-          - url
-          - ip
-          - os
+        method: 
+          - "post"
+          - "put"
+          - "get"
+          - "patch"
+          - "delete" 
+    - function: validateAcronymWhitelist
+      functionParams: 
+        acronymsFile: "public/acronyms.yaml"
+        dictionaryApiUrl: "https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
         method: 
           - "post"
           - "put"
@@ -33,18 +36,22 @@ rules:
     option: mandatory
     location: paths
     element: path
-    call: 
-      function: validatePluralResourceNaming
-    function params:
-    methods:
-      create:
-        - post
-      retrieve:
-        - get
-      delete:
-        - delete
-        - patch
-        - put
+    calls: 
+     - function: validatePluralResourceNaming
+       functionParams:
+        methods:
+            post:
+              skipIfEndsWith:
+                - "_id"
+                - "action"
+                - "manage"
+            get:
+              skipIfEndsWith:
+                - "_id"
+            delete:
+              skipIfEndsWith:
+                - "_id"
+                - "delete"
     severity: critical
     description: "This rule checks whether resources in API paths use plural names for creating and batch processing operations."
 
@@ -55,11 +62,14 @@ rules:
     location: paths
     element: path
     call: 
-      function: validateOptionalProjectId
+     function: validateProjectIdByTagScope
     function params:
-      allowedApis:
-        - /v3/auth/tokens 
-        - /V2/{project_id}/cloudservers 
+     tagScopeField: tags
+     globalScopeTag: global
+     regionalScopeTag: regional
     severity: high
     description:
-      This rule checks whether the project_id parameter is correctly used in the URI.
+          This rule ensures that the URI path structure aligns with the service scope defined by tags:
+          - If the operation includes a `global` tag, the URI must NOT contain {project_id}.
+          - If the operation includes a `regional` tag, the URI MUST contain {project_id}.
+            This avoids false positives from using hardcoded paths and ensures tag-driven validation 
