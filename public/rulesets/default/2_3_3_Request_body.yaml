@@ -6,7 +6,7 @@ rules:
     location: paths
     element: requestBody
     call:
-      function: requestEncapsulationCheck
+      function: checkRequestEncapsulation
       functionParams:
         content:
           - application/json

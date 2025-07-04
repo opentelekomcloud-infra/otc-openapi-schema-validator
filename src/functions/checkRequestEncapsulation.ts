@@ -1,7 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 
-export function requestEncapsulationCheck(spec: any, content: string, rule: any): Diagnostic[] {
+export function checkRequestEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
     const requestBodyKey: string = rule.element;
     const contentTypes: string[] = rule.call.functionParams.content || [];
