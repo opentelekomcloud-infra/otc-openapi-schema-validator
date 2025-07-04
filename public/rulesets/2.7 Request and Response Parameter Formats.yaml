@@ -1,0 +1,75 @@
+rules:
+  - id: 2.7.1
+    title: "Request and Response Parameter Formats"
+    message: "Request and response  parameters are named in a snake case format. All letters are in lowercase."
+    option: mandatory
+    location: paths
+    element: 
+        - requestBody
+        - responses
+        - parameters
+    calls: 
+    - function: validateSnakeCase
+      functionParams: 
+        method: 
+          - "post"
+          - "put"
+          - "get"
+          - "patch"
+          - "delete" 
+    - function: validateAcronymWhitelist
+      functionParams: 
+        acronymsFile: "public/acronyms.yaml"
+        dictionaryApiUrl: "https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
+        method: 
+          - "post"
+          - "put"
+          - "get"
+          - "patch"
+          - "delete"             
+    severity: critical
+    description: "This rule checks whether Request and Response parameters are named in a serpentine format separated by underscores."
+
+  - id: 2.7.2
+    title: "Request and Response Parameter Formats"
+    message: "Resources must use plurals for API paths for creating and batch processing."
+    option: mandatory
+    location: paths
+    element: path
+    calls: 
+     - function: validatePluralResourceNaming
+       functionParams:
+        methods:
+            post:
+              skipIfEndsWith:
+                - "_id"
+                - "action"
+                - "manage"
+            get:
+              skipIfEndsWith:
+                - "_id"
+            delete:
+              skipIfEndsWith:
+                - "_id"
+                - "delete"
+    severity: critical
+    description: "This rule checks whether resources in API paths use plural names for creating and batch processing operations."
+
+  - id: 2.7.3
+    title: "The project_id parameter is an optional parameter in the URI."
+    message: "The project_id parameter is optional only for APIs that support global services."
+    option: optional
+    location: paths
+    element: path
+    call: 
+     function: validateProjectIdByTagScope
+    function params:
+     tagScopeField: tags
+     globalScopeTag: global
+     regionalScopeTag: regional
+    severity: high
+    description:
+          This rule ensures that the URI path structure aligns with the service scope defined by tags:
+          - If the operation includes a `global` tag, the URI must NOT contain {project_id}.
+          - If the operation includes a `regional` tag, the URI MUST contain {project_id}.
+            This avoids false positives from using hardcoded paths and ensures tag-driven validation 
