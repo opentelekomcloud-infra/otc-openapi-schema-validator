@@ -59,8 +59,8 @@ rules:
     title: "The project_id parameter is an optional parameter in the URI."
     message: "The project_id parameter is optional only for APIs that support global services."
     option: optional
-    location: paths
-    element: path
+    location: operations
+    element: operation
     call: 
      function: validateProjectIdByTagScope
     function params:
