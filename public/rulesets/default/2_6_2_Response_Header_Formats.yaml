@@ -3,48 +3,39 @@ rules:
     title: "Content-Type Header Requirement for Response"
     message: "Content-Type must be set to application/json;charset=UTF-8 if the body is present in the response."
     option: Conditional
-    location: responses
+    location: parameters
     element:
-      - responseHeaders
+      - headers
     call:
       function: headerCheck
       functionParams:
         header: "Content-Type"
-        default_value: "application/json;charset=UTF-8"
+        default_value: "application/json"
         allowed_values:
-          - "application/json;charset=UTF-8"
-          - "application/json;charset=utf-8"
-          - "application/json;charset=\"utf-8\""
+          - "application/json"
           - "application/octet-stream"
           - "multipart/form-data"
-          - "application/bson"
         condition:
-          property: "responseBody"
+          property: "content"
           exists: true
-        max_length_condition:
-          header_max_length: 32768
-          http_header_max_size: 65536
-    severity: "critical"
+    severity: "medium"
 
   - id: "2.6.2.2"
     title: "X-Request-Id Header Validation for Response"
     message: "X-Request-Id is required for task tracking in the response header. It must follow the format: request_id-timestamp-hostname."
     option: Conditional
-    location: responses
+    location: parameters
     element:
-      - responseHeaders
+      - headers
     call:
       function: headerCheck
       functionParams:
         header: "X-Request-Id"
         regex: "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
         condition:
-          property: "responseBody"
+          property: "content"
           exists: true
-        max_length_condition:
-          header_max_length: 32768
-          http_header_max_size: 65536
-    severity: "critical"
+    severity: "medium"
 
   - id: "2.6.2.3"
     title: "Custom Header Naming and Format Validation"
@@ -52,13 +43,9 @@ rules:
     option: Optional
     location: paths
     element:
-      - requestHeaders
-      - responseHeaders
+      - headers
     call:
       function: headerCheck
       functionParams:
-        header_format: "X-([A-Z][a-z0-9]*)(-[A-Z][a-z0-9]*)*"  
-        max_length_condition:
-          header_max_length: 32768
-          http_header_max_size: 65536
-    severity: "warning"
+        header_format: "(X-[A-Z][a-z0-9]*(-[A-Z][a-z0-9]*)*|content-type|host)"
+    severity: "medium"
