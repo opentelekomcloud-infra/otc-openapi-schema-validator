@@ -39,8 +39,8 @@ const HomePage = () => {
 
     const diagnosticsListenerExtension = useMemo(
         () =>
-            EditorView.updateListener.of((update) => {
-                const newDiags = openApiLinter(selectedRules)(update.view);
+            EditorView.updateListener.of(async (update) => {
+                const newDiags = await openApiLinter(selectedRules)(update.view);
                 if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
                     prevDiagsRef.current = newDiags;
                     setDiagnostics(newDiags);

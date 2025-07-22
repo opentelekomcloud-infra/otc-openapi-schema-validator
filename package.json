@@ -12,6 +12,7 @@
     "@codemirror/lang-javascript": "^6.2.3",
     "@codemirror/lang-yaml": "^6.1.2",
     "@uiw/react-codemirror": "^4.23.10",
+    "axios": "^1.10.0",
     "js-yaml": "^4.1.0",
     "jspdf": "^3.0.1",
     "jspdf-autotable": "^5.0.2",

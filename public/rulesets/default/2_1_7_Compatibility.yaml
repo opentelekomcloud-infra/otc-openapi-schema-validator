@@ -157,7 +157,7 @@ rules:
     element:
       - responses
     call:
-      function: DiffPreviousRelease
+      function: compatibilityCheckResponseStatusCode
       functionParams:
         parameter_type:
           - "headers"
@@ -166,5 +166,5 @@ rules:
           - "modify"
         previousVersionRef: "https://github.com/opentelekomcloud-docs/"
     description: This rule compares whether response header in API response has been deleted or modified when comparing to previous OpenAPI specification
-    status: devel
+    status: implemented
     severity: critical
