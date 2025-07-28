@@ -22,7 +22,7 @@ class GiteaClient {
 
     let spec;
     try {
-      spec = yaml.load(response.data);
+      spec = yaml.load(response.data, { json: true });
     } catch (e: any) {
       throw new Error(`Invalid YAML in ${path}: ${e.message}`);
     }

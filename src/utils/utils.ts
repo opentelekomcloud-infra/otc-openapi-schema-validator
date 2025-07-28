@@ -35,7 +35,7 @@ export async function fetchRepoMap(spec: any): Promise<Record<string, string> | 
     }
 }
 
-export async function fetchSpecFromGitea(repo: string, path: string): Promise<string | null> {
+export async function fetchSpecFromGitea(repo: string, path: string): Promise<any | null> {
     try {
         const response = await fetch(`/api/gitea?repo=${repo}&path=${path}`);
         const data = await response.json();

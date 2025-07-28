@@ -13,7 +13,7 @@ import { checkGetReturnObject } from "@/functions/checkGetReturnObject";
 import { checkParamElementAbsence } from "@/functions/checkParamElementAbsence";
 import { checkRequestEncapsulation } from "@/functions/checkRequestEncapsulation";
 import { checkResponseEncapsulation } from "@/functions/checkResponseEncapsulation";
-import { compatibilityCheckResponseStatusCode } from "@/functions/compatibilityCheckResponseStatusCode";
+import { checkCompatibility } from "@/functions/checkCompatibility";
 
 const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -31,7 +31,7 @@ const functionsMap: {
     checkParamElementAbsence,
     checkRequestEncapsulation,
     checkResponseEncapsulation,
-    compatibilityCheckResponseStatusCode
+    checkCompatibility
 };
 
 export function openApiLinter(selectedRules: any) {

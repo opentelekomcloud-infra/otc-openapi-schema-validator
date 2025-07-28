@@ -1,25 +1,22 @@
 rules:
   - id: 2.1.7.1
     title: "Compatibility: The interfaces must be compatible"
+    description: This rule compares whether any API call has been deleted when comparing to previous version of OpenAPI specification.
     message: |
       The API is deleted
     option: Mandatory
     location: paths
     element: path
     call:
-      function: DiffPreviousRelease
+      function: checkCompatibility
       functionParams:
-        affectedMethods:
+        methods:
           - "get"
           - "put"
           - "post"
           - "patch"
           - "delete"
-        action:
-          - "delete"
-        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
-    description: This rule compares whether any API call has been deleted when comparing to previous version of OpenAPI specification. 
-    status: devel
+    status: implemented
     severity: critical
 
   - id: 2.1.7.2
@@ -157,14 +154,13 @@ rules:
     element:
       - responses
     call:
-      function: compatibilityCheckResponseStatusCode
+      function: checkCompatibility
       functionParams:
         parameter_type:
           - "headers"
         action:
           - "delete"
           - "modify"
-        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
     description: This rule compares whether response header in API response has been deleted or modified when comparing to previous OpenAPI specification
-    status: implemented
+    status: devel
     severity: critical
