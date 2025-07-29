@@ -13,8 +13,11 @@ import { checkGetReturnObject } from "@/functions/checkGetReturnObject";
 import { checkParamElementAbsence } from "@/functions/checkParamElementAbsence";
 import { checkRequestEncapsulation } from "@/functions/checkRequestEncapsulation";
 import { checkResponseEncapsulation } from "@/functions/checkResponseEncapsulation";
+import { checkCompatibility } from "@/functions/checkCompatibility";
 
-const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] } = {
+const functionsMap: {
+  [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
+} = {
     checkHttpsServers,
     checkParamElementPresence,
     checkElementSensitiveData,
@@ -27,39 +30,40 @@ const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => 
     checkGetReturnObject,
     checkParamElementAbsence,
     checkRequestEncapsulation,
-    checkResponseEncapsulation
+    checkResponseEncapsulation,
+    checkCompatibility
 };
 
 export function openApiLinter(selectedRules: any) {
-    return (view: any): Diagnostic[] => {
-        let diagnostics: Diagnostic[] = [];
-        const content = view.state.doc.toString();
-        try {
-            const spec = yaml.load(content, {json:true});
-            if (Array.isArray(selectedRules) && selectedRules.length > 0) {
-                selectedRules.forEach((rule: { call: { function: string } }) => {
-                    if (rule.call && rule.call.function) {
-                        const funcName = rule.call.function;
-                        const ruleFunc = functionsMap[funcName];
-                        if (typeof ruleFunc === "function") {
-                            const ruleDiagnostics = ruleFunc(spec, content, rule);
-                            diagnostics = diagnostics.concat(ruleDiagnostics);
-                        } else {
-                            console.error(`No function found for ${funcName}`);
-                        }
-                    }
-                });
+  return async (view: any): Promise<Diagnostic[]> => {
+    let diagnostics: Diagnostic[] = [];
+    const content = view.state.doc.toString();
+
+    try {
+      const spec = yaml.load(content, { json: true });
+      if (Array.isArray(selectedRules) && selectedRules.length > 0) {
+        for (const rule of selectedRules) {
+          if (rule.call?.function) {
+            const funcName = rule.call.function;
+            const ruleFunc = functionsMap[funcName];
+            if (typeof ruleFunc === "function") {
+              const ruleDiagnostics = await Promise.resolve(ruleFunc(spec, content, rule));
+              diagnostics = diagnostics.concat(ruleDiagnostics);
+            } else {
+              console.error(`No function found for ${funcName}`);
             }
-
-        } catch (error: any) {
-            diagnostics.push({
-                from: 0,
-                to: content.length,
-                severity: "error",
-                message: "Specification parsing error: " + error.message,
-            });
+          }
         }
+      }
+    } catch (error: any) {
+      diagnostics.push({
+        from: 0,
+        to: content.length,
+        severity: "error",
+        message: "Specification parsing error: " + error.message,
+      });
+    }
 
-        return diagnostics;
-    };
+    return diagnostics;
+  };
 }
