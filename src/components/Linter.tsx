@@ -14,7 +14,6 @@ import { checkParamElementAbsence } from "@/functions/checkParamElementAbsence";
 import { checkRequestEncapsulation } from "@/functions/checkRequestEncapsulation";
 import { checkResponseEncapsulation } from "@/functions/checkResponseEncapsulation";
 import { checkCompatibility } from "@/functions/checkCompatibility";
-import {fetchRepoMap} from "@/utils/utils";
 
 const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
