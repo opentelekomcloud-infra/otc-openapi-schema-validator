@@ -11,5 +11,5 @@ rules:
           - name: "x-apigateway-ratelimit"
             valueType: string
             in: header
-    severity: high
+    severity: low
     status: implemented
