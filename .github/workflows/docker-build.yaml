@@ -1,0 +1,50 @@
+name: Docker Image Build
+
+on:
+  pull_request:
+    types:
+      - opened
+      - reopened
+      - synchronize
+
+env:
+  ORG: opentelekomcloud
+  PROJECT: openapi-validator
+
+jobs:
+
+  build:
+    if: github.event.pull_request.merged == false
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Docker meta
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: |
+            "${{ secrets.REGISTRY }}/${{ env.ORG }}/${{ env.PROJECT }}"
+          tags: |
+            type=schedule
+            type=ref,event=branch
+            type=ref,event=pr
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+            type=sha
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          push: false
+          build-args: |
+            GITEA_BASE_URL=${{ secrets.GITEA_BASE_URL }}
+            GITEA_TOKEN=${{ secrets.GITEA_TOKEN }}
