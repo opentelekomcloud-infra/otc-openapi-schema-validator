@@ -2,7 +2,7 @@
 FROM node:20-alpine AS deps
 WORKDIR /app
 COPY package.json package-lock.json* ./
-RUN npm install
+RUN npm install --production
 
 # Rebuild the source code only when needed
 FROM node:20-alpine AS builder
@@ -15,21 +15,13 @@ RUN npm run build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
-# Set NODE_ENV to production
-ENV NODE_ENV=production
-
-# Copy only necessary files
+# Only copy what's needed to run the app
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/.next ./.next
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/package.json ./package.json
 
-# Expose port
+ENV NODE_ENV=production
 EXPOSE 3000
 
-# Define runtime env variables (can be overridden at runtime)
-ENV GITEA_BASE_URL=""
-ENV GITEA_TOKEN=""
-
-# Start Next.js app
-CMD ["npm", "start"]
+CMD ["node_modules/.bin/next", "start"]

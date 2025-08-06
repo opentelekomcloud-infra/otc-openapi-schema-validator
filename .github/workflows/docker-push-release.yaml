@@ -47,6 +47,3 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
-          build-args: |
-            GITEA_BASE_URL=${{ secrets.GITEA_BASE_URL }}
-            GITEA_TOKEN=${{ secrets.GITEA_TOKEN }}
