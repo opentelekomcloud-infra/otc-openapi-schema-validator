@@ -20,6 +20,12 @@ rules:
     - function: validateAcronymWhitelist
       functionParams: 
         acronymsFile: "public/acronyms.yaml"
+        allowed_acronyms:
+          - id
+          - api
+          - uuid
+          - ip
+          - os
         dictionaryApiUrl: "https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
         method: 
           - "post"
