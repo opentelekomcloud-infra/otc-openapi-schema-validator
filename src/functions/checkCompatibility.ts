@@ -155,6 +155,46 @@ function checkDeletedRequestResponseParam(remoteSpec: any, spec: any, content: s
     }
 }
 
+function checkAddedRequestBodyParam(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
+    const elements: string[] = rule?.element ?? [];
+    if (!elements.length) return;
+
+    for (const pathKey in remoteSpec.paths) {
+        const remotePathItem = remoteSpec.paths[pathKey];
+        const currentPathItem = spec.paths[pathKey];
+        if (!currentPathItem) continue;
+
+        for (const method in remotePathItem) {
+            const remoteOp = remotePathItem[method];
+            const currentOp = currentPathItem[method];
+            if (!currentOp) continue;
+
+            if (elements.includes("requestBody")) {
+                const remoteRef = remoteOp?.requestBody?.content?.["application/json"]?.schema?.$ref;
+                const currentRef = currentOp?.requestBody?.content?.["application/json"]?.schema?.$ref;
+                const remoteSchema = remoteRef && resolveRef(remoteRef, remoteSpec);
+                const currentSchema = currentRef && resolveRef(currentRef, spec);
+                if (remoteSchema && currentSchema) {
+                    const remoteProps = extractAllProperties(remoteSchema, remoteSpec);
+                    const currentProps = extractAllProperties(currentSchema, spec);
+                    for (const key of currentProps) {
+                        if (!remoteProps.has(key)) {
+                            const index = content.indexOf(pathKey);
+                            diagnostics.push({
+                                from: index >= 0 ? index : 0,
+                                to: index >= 0 ? index + pathKey.length : 0,
+                                severity: mapSeverity(rule.severity),
+                                message: `Request body property "${key}" was added in method ${method.toUpperCase()} at path "${pathKey}".`,
+                                source: rule.id,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
 export async function checkCompatibility(spec: any, content: string, rule: any): Promise<Diagnostic[]> {
     const diagnostics: Diagnostic[] = [];
 
@@ -170,14 +210,15 @@ export async function checkCompatibility(spec: any, content: string, rule: any):
     }
 
     switch (rule.id) {
-        case '2.1.7.1': {
+        case '2.1.7.1':
             checkDeletedApi(remoteSpec, spec, content, diagnostics, rule,);
             break;
-        }
         case '2.1.7.2':
             checkDeletedRequestResponseParam(remoteSpec, spec, content, diagnostics, rule);
             break;
         case '2.1.7.3':
+            checkAddedRequestBodyParam(remoteSpec, spec, content, diagnostics, rule);
+            break;
         case '2.1.7.4':
         case '2.1.7.5':
         case '2.1.7.6':
