@@ -49,6 +49,7 @@ rules:
 
   - id: 2.1.7.4
     title: "Compatibility: The interfaces must be compatible"
+    description: This rule compares whether the request and response body parameter types are same for same parameters.
     message: |
       The API request or response parameter types are incompatible.
     option: Mandatory
@@ -57,15 +58,8 @@ rules:
       - requestBody
       - responses
     call:
-      function: CompareTypes
-      functionParams:
-        diff_location:
-          - "requestBody"
-          - "responses"
-        diff_target:
-          - "type"
-    description: This rule compares whether the request and response body parameter types are same for same parameters.
-    status: devel
+      function: checkCompatibility
+    status: implemented
     severity: critical
 
   - id: 2.1.7.5
