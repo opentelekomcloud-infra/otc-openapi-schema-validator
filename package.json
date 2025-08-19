@@ -11,6 +11,7 @@
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.3",
     "@codemirror/lang-yaml": "^6.1.2",
+    "@telekom/scale-components": "^3.0.0-beta.156",
     "@uiw/react-codemirror": "^4.23.10",
     "axios": "^1.10.0",
     "js-yaml": "^4.1.0",

@@ -11,6 +11,19 @@ import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
 import { exportPDF, exportJUnit } from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
+import "@telekom/scale-components/dist/scale-components/scale-components.css";
+import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
+
+declare global {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace JSX {
+    interface IntrinsicElements {
+      'scale-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { variant?: string; size?: string };
+      'scale-card': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+      'scale-icon': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { name?: string; slot?: string };
+    }
+  }
+}
 
 interface Diagnostic {
     from: number;
@@ -25,6 +38,7 @@ const HomePage = () => {
     const [showScrollButton, setShowScrollButton] = useState(false);
     const scrollRef = useRef<HTMLElement | null>(null);
     const editorViewRef = useRef<EditorView | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [selectedRules, setSelectedRules] = useState<Record<string, any>>({});
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
     const prevDiagsRef = useRef<Diagnostic[]>([]);
@@ -48,6 +62,12 @@ const HomePage = () => {
             }),
         [selectedRules]
     );
+
+    useEffect(() => {
+      applyPolyfills().then(() => {
+        defineCustomElements(window);
+      });
+    }, []);
 
     const handleEditorCreated = (editorView: EditorView) => {
         editorViewRef.current = editorView;
@@ -133,84 +153,75 @@ const HomePage = () => {
     return (
         <div className="flex h-screen flex-col">
             {/* Header with Upload, Save Button and Severity Legend */}
-            <header className="p-2 bg-gray-200 flex justify-between items-center shadow-lg">
-                <div className="flex space-x-2 items-center">
-                    <label
-                        title="Select a YAML file to load"
-                        className="inline-flex items-center text-white px-0 py-2 rounded cursor-pointer"
-                    >
-                        <Image
-                            src="/images/open-folder.png"
-                            width={32}
-                            height={32}
-                            alt="Load YAML File"
-                            className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
-                        />
-                        <input
-                            type="file"
-                            accept=".yaml,.yml"
-                            className="hidden"
-                            onChange={handleFileUpload}
-                        />
-                    </label>
-                    <label
-                        title="Save modified"
-                        className="inline-flex items-center text-white px-0 py-2 rounded cursor-pointer"
-                    >
-                        <Image
-                            src="/images/save.png"
-                            width={32}
-                            height={32}
-                            alt="Save YAML File"
-                            className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
-                        />
-                        <button onClick={handleSave} className="inline-flex"></button>
-                    </label>
-                    <div className="h-8 border-l border-gray mx-2"></div>
-                    <label
-                        title="Export lint issues"
-                        className="inline-flex items-center text-white px-4 py-2 rounded cursor-pointer"
-                    >
-                        <Image
-                            src="/images/export.png"
-                            width={32}
-                            height={32}
-                            alt="Export Issues"
-                            className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
-                        />
-                        <button onClick={handleExport} className="inline-flex"></button>
-                    </label>
+            <header className="p-3 bg-gray-100 flex justify-between items-center shadow-sm border-b">
+              <div className="flex items-center gap-2">
+                {/* Load YAML */}
+                <scale-button
+                  onClick={() => fileInputRef.current?.click()}
+                  variant="primary"
+                  size="m"
+                >
+                  <Image
+                    src="/images/open-folder.png"
+                    width={32}
+                    height={32}
+                    alt="Load YAML File"
+                    className="w-8 h-8 mr-2"
+                  />
+                   Load
+                </scale-button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".yaml,.yml"
+                  className="hidden"
+                  onChange={handleFileUpload}
+                />
+
+                {/* Save */}
+                <scale-button onClick={handleSave} size="m" variant="secondary">
+                  <Image
+                    src="/images/save.png"
+                    width={32}
+                    height={32}
+                    alt="Save YAML File"
+                    className="w-8 h-8 mr-2"
+                  />
+                  Save
+                </scale-button>
+
+                {/* Export */}
+                <scale-button onClick={handleExport} variant="secondary" size="m">
+                  <Image
+                    src="/images/export.png"
+                    width={32}
+                    height={32}
+                    alt="Export Issues"
+                    className="w-8 h-8 mr-2"
+                  />
+                  Export
+                </scale-button>
+              </div>
+
+              {/* Severity legend (kept simple, could be replaced by badges later) */}
+              <div className="flex space-x-4 text-sm">
+                <div className="flex items-center">
+                  <span className="rounded-full mr-1" style={{ width: "10px", height: "10px", backgroundColor: "white" }} />
+                  <span>Low</span>
                 </div>
-                <div className="flex space-x-4">
-                    <div className="flex items-center">
-            <span
-                className="rounded-full mr-1"
-                style={{width: "10px", height: "10px", backgroundColor: "white"}}
-            ></span>
-                        <span>Low</span>
-                    </div>
-                    <div className="flex items-center">
-            <span
-                className="rounded-full mr-1"
-                style={{width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)"}}
-            ></span>
-                        <span>Medium</span>
-                    </div>
-                    <div className="flex items-center">
-            <span
-                className="rounded-full mr-1"
-                style={{width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)"}}
-            ></span>
-                        <span>High</span>
-                    </div>
-                    <div className="flex items-center">
-            <span
-                className="rounded-full mr-1"
-                style={{width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)"}}
-            ></span>
-                        <span>Critical</span>
-                    </div>
+                <div className="flex items-center">
+                  <span className="rounded-full mr-1" style={{ width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)" }} />
+                  <span>Medium</span>
                 </div>
+                <div className="flex items-center">
+                  <span className="rounded-full mr-1" style={{ width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)" }} />
+                  <span>High</span>
+                </div>
+                <div className="flex items-center">
+                  <span className="rounded-full mr-1" style={{ width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)" }} />
+                  <span>Critical</span>
+                </div>
+              </div>
             </header>
 
             <div className="flex flex-1 overflow-hidden">
@@ -234,94 +245,101 @@ const HomePage = () => {
                         onCreateEditor={handleEditorCreated}
                     />
                     {showScrollButton && (
-                        <button
+                        <scale-button
                             onClick={scrollToTop}
-                            className="absolute bottom-10 right-10 bg-blue-500 text-white p-2 rounded shadow-md hover:bg-blue-600 transition"
+                            className="absolute bottom-10 right-10 text-white p-2 rounded shadow-md transition"
                         >
                         ↑ Top
-                        </button>
+                        </scale-button>
                     )}
                 </div>
                 {/* Right Panel - Rules Selection and Lint Issues List */}
                 <div className="w-1/2 p-4 bg-white overflow-auto h-full">
-                    <RulesetsSelector onSelectionChange={handleSelectionChange}/>
+                  <scale-card className="block p-4 mb-4">
+                    <RulesetsSelector onSelectionChange={handleSelectionChange} />
+                  </scale-card>
+
+                  <scale-card className="block p-4 mb-4">
                     <div className="mt-1 hover:shadow-lg transition duration-200">
-                        <h3
-                            className="font-bold mb-2 cursor-pointer"
-                            onClick={() => setManualsIsOpen(!manualsIsOpen)}
-                        >Manual Checklist {manualsIsOpen ? '▲' : '▼'} </h3>
-                        <div className={manualsIsOpen ? "" : "hidden"}>
-                            <ManualChecksSelector onManualRulesChange={handleManualRulesChange} />
-                        </div>
+                      <h3
+                        className="font-bold mb-2 cursor-pointer"
+                        onClick={() => setManualsIsOpen(!manualsIsOpen)}
+                      >
+                        Manual Checklist {manualsIsOpen ? '▲' : '▼'}
+                      </h3>
+                      <div className={manualsIsOpen ? "" : "hidden"}>
+                        <ManualChecksSelector onManualRulesChange={handleManualRulesChange} />
+                      </div>
                     </div>
-                    <div className="mt-4 p-4 border block whitespace-normal break-all">
-                        <h3 className="font-bold mb-2">Lint Issues</h3>
-                        {/* Severity Filter Dropdown */}
-                        <div className="mb-2">
-                            <label className="mr-2 font-semibold">Filter by Severity:</label>
-                            <select
-                                className="border p-1"
-                                value={severityFilter}
-                                onChange={(e) => setSeverityFilter(e.target.value)}
-                            >
-                                <option value="all">All</option>
-                                <option value="low">Low</option>
-                                <option value="medium">Medium</option>
-                                <option value="high">High</option>
-                                <option value="critical">Critical</option>
-                            </select>
-                        </div>
-                        {filteredDiagnostics.length === 0 ? (
-                            <p className="text-gray-500">No lint issues.</p>
-                        ) : (
-                            <table className="w-full border-collapse">
-                                <thead>
-                                <tr>
-                                    <th className="border px-2 py-1 w-1/8">#</th>
-                                    <th className="border px-2 py-1 w-1/8">ID</th>
-                                    <th className="border px-2 py-1 w-5/8">Summary</th>
-                                    <th className="border px-2 py-1 w-1/8" style={{ wordBreak: "normal", overflowWrap: "normal" }}>Severity</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {filteredDiagnostics.map((diag, index) => {
-                                    const lineNumber = editorViewRef.current
-                                        ? editorViewRef.current.state.doc.lineAt(diag.from).number
-                                        : "N/A";
-                                    let severityBg = "";
-                                    switch (diag.severity) {
-                                        case "hint":
-                                            severityBg = "bg-white";
-                                            break;
-                                        case "info":
-                                            severityBg = "bg-blue-200";
-                                            break;
-                                        case "warning":
-                                            severityBg = "bg-yellow-200";
-                                            break;
-                                        case "error":
-                                            severityBg = "bg-red-200";
-                                            break;
-                                        default:
-                                            severityBg = "bg-gray-200";
-                                    }
-                                    return (
-                                        <tr
-                                            key={index}
-                                            onClick={() => handleDiagnosticClick(diag.from)}
-                                            className={`cursor-pointer hover:underline ${severityBg}`}
-                                        >
-                                            <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{lineNumber}</td>
-                                            <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.source}</td>
-                                            <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.message}</td>
-                                            <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{getSeverityLabel(diag.severity)}</td>
-                                        </tr>
-                                    );
-                                })}
-                                </tbody>
-                            </table>
-                        )}
+                  </scale-card>
+
+                  <scale-card className="block p-4">
+                    <h3 className="font-bold mb-2">Lint Issues</h3>
+                    <div className="mb-2">
+                      <label className="mr-2 font-semibold">Filter by Severity:</label>
+                      <select
+                        className="border p-1"
+                        value={severityFilter}
+                        onChange={(e) => setSeverityFilter(e.target.value)}
+                      >
+                        <option value="all">All</option>
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                        <option value="critical">Critical</option>
+                      </select>
                     </div>
+                    {filteredDiagnostics.length === 0 ? (
+                      <p className="text-gray-500">No lint issues.</p>
+                    ) : (
+                      <table className="w-full border-collapse">
+                        <thead>
+                          <tr>
+                            <th className="border px-2 py-1 w-1/8">#</th>
+                            <th className="border px-2 py-1 w-1/8">ID</th>
+                            <th className="border px-2 py-1 w-5/8">Summary</th>
+                            <th className="border px-2 py-1 w-1/8" style={{ wordBreak: "normal", overflowWrap: "normal" }}>Severity</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {filteredDiagnostics.map((diag, index) => {
+                            const lineNumber = editorViewRef.current
+                              ? editorViewRef.current.state.doc.lineAt(diag.from).number
+                              : "N/A";
+                            let severityBg = "";
+                            switch (diag.severity) {
+                              case "hint":
+                                severityBg = "bg-white";
+                                break;
+                              case "info":
+                                severityBg = "bg-blue-200";
+                                break;
+                              case "warning":
+                                severityBg = "bg-yellow-200";
+                                break;
+                              case "error":
+                                severityBg = "bg-red-200";
+                                break;
+                              default:
+                                severityBg = "bg-gray-200";
+                            }
+                            return (
+                              <tr
+                                key={index}
+                                onClick={() => handleDiagnosticClick(diag.from)}
+                                className={`cursor-pointer hover:underline ${severityBg}`}
+                              >
+                                <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{lineNumber}</td>
+                                <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.source}</td>
+                                <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.message}</td>
+                                <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{getSeverityLabel(diag.severity)}</td>
+                              </tr>
+                            );
+                          })}
+                        </tbody>
+                      </table>
+                    )}
+                  </scale-card>
                 </div>
             </div>
             {/* Footer */}
@@ -348,47 +366,40 @@ const HomePage = () => {
                         </div>
                         <h2 className="text-xl font-bold mb-4">Export</h2>
                         {/* X button on the top right */}
-                        <div className="flex flex-col space-y-4">
-                            <label
-                                title="Export to PDF"
-                                className="px-4 py-2 text-black rounded hover:bg-red-400 transition"
-                            >
-                                <Image
-                                    src="/images/pdf.png"
-                                    width={32}
-                                    height={32}
-                                    alt="Export Issues"
-                                    className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
-                                />
-                                <button
-                                    onClick={async () => {
-                                        await exportPDF(diagnostics, selectedRules, manualRules, editorViewRef);
-                                        setShowExportModal(false);
-                                    }}
-                                >
-                                    Export to PDF
-                                </button>
-                            </label>
-                            <label
-                                title="Export to PDF"
-                                className="px-4 py-2 text-black rounded hover:bg-green-400 transition"
-                            >
-                                <Image
-                                    src="/images/junit5.png"
-                                    width={32}
-                                    height={32}
-                                    alt="Export Issues"
-                                    className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
-                                />
-                                <button
-                                    onClick={async () => {
-                                        await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
-                                        setShowExportModal(false);
-                                    }}
-                                >
-                                    Export to XML
-                                </button>
-                            </label>
+                        <div className="flex flex-col space-y-2">
+                          <scale-button
+                            onClick={async () => {
+                              await exportPDF(diagnostics, selectedRules, manualRules, editorViewRef);
+                              setShowExportModal(false);
+                            }}
+                            size="m"
+                          >
+                            <Image
+                              src="/images/pdf.png"
+                              width={32}
+                              height={32}
+                              alt="Export Issues"
+                              className="w-8 h-8 mr-2"
+                            />
+                            Export to PDF
+                          </scale-button>
+                          <scale-button
+                            onClick={async () => {
+                              await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
+                              setShowExportModal(false);
+                            }}
+                            variant="secondary"
+                            size="m"
+                          >
+                            <Image
+                              src="/images/junit5.png"
+                              width={32}
+                              height={32}
+                              alt="Export Issues"
+                              className="w-8 h-8 mr-2"
+                            />
+                            Export to XML (JUnit)
+                          </scale-button>
                         </div>
                     </div>
                 </div>
