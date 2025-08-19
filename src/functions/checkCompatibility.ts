@@ -312,6 +312,42 @@ function checkDeletedRequestResponseParamTypes(remoteSpec: any, spec: any, conte
     }
 }
 
+function checkResponseDeleted(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
+    const elements: string[] = rule?.element ?? [];
+    if (!elements.length) return;
+
+    for (const pathKey in remoteSpec.paths) {
+        const remotePathItem = remoteSpec.paths[pathKey];
+        const currentPathItem = spec.paths[pathKey];
+        if (!currentPathItem) continue;
+
+        for (const method in remotePathItem) {
+            const remoteOp = remotePathItem[method];
+            const currentOp = currentPathItem[method];
+            if (!currentOp) continue;
+
+            if (elements.includes("responses")) {
+                const remoteResponses = remoteOp?.responses || {};
+                const currentResponses = currentOp?.responses || {};
+
+                for (const code in remoteResponses) {
+                    if (!(code in currentResponses)) {
+                        const index = content.indexOf(pathKey);
+                        diagnostics.push({
+                            from: index >= 0 ? index : 0,
+                            to: index >= 0 ? index + pathKey.length : 0,
+                            severity: mapSeverity(rule.severity),
+                            message: `Response code ${code} was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
+                            source: rule.id,
+                        });
+                    }
+                }
+            }
+        }
+    }
+}
+
+
 export async function checkCompatibility(spec: any, content: string, rule: any): Promise<Diagnostic[]> {
     const diagnostics: Diagnostic[] = [];
 
@@ -343,6 +379,8 @@ export async function checkCompatibility(spec: any, content: string, rule: any):
             checkEnumDecrease(remoteSpec, spec, content, diagnostics, rule);
             break;
         case '2.1.7.6':
+            checkResponseDeleted(remoteSpec, spec, content, diagnostics, rule);
+            break
         case '2.1.7.7':
         default:
             return diagnostics;

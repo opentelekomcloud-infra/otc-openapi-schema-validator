@@ -87,8 +87,8 @@ rules:
     element:
       - responses
     call:
-      function: DiffPreviousRelease
-    status: devel
+      function: checkCompatibility
+    status: implemented
     severity: critical
 
   - id: 2.1.7.7
