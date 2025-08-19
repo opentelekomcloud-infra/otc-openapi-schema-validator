@@ -64,6 +64,7 @@ rules:
 
   - id: 2.1.7.5
     title: "Compatibility: The interfaces must be compatible"
+    description: This rule compares whether the value range in enum type has been changed when comparing to previous OpenAPI specification
     message: |
       The value range of the API request parameter is narrowed down.
     option: Mandatory
@@ -72,42 +73,13 @@ rules:
       - requestBody
       - responses
     call:
-      function: DiffPreviousRelease
-      functionParams:
-        parameter_type:
-          - "enum"
-        action:
-          - "count_decreased"
-        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
-    description: This rule compares whether the value range in enum type has been decreased when comparing to previous OpenAPI specification
-    status: devel
+      function: checkCompatibility
+    status: implemented
     severity: critical
-
 
   - id: 2.1.7.6
     title: "Compatibility: The interfaces must be compatible"
-    message: |
-      Some enumerated values (enum) of API request parameters of the enumerated type are deleted or changed.
-    option: Mandatory
-    location: paths
-    element:
-      - requestBody
-      - responses
-    call:
-      function: DiffPreviousRelease
-      functionParams:
-        parameter_type:
-          - "enum"
-        action:
-          - "delete"
-          - "modify"
-        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
-    description: This rule compares whether some values in enum type have been deleted or modified when comparing to previous OpenAPI specification
-    status: devel
-    severity: critical
-
-  - id: 2.1.7.7
-    title: "Compatibility: The interfaces must be compatible"
+    description: This rule compares whether status code of API response has been deleted or modified when comparing to previous OpenAPI specification
     message: |
       The API response status code is deleted or changed.
     option: Mandatory
@@ -116,19 +88,12 @@ rules:
       - responses
     call:
       function: DiffPreviousRelease
-      functionParams:
-        parameter_type:
-          - "response_code"
-        action:
-          - "delete"
-          - "modify"
-        previousVersionRef: "https://github.com/opentelekomcloud-docs/"
-    description: This rule compares whether status code of API response has been deleted or modified when comparing to previous OpenAPI specification
     status: devel
     severity: critical
 
-  - id: 2.1.7.8
+  - id: 2.1.7.7
     title: "Compatibility: The interfaces must be compatible"
+    description: This rule compares whether response header in API response has been deleted or modified when comparing to previous OpenAPI specification
     message: |
       Modify or delete a response header.
     option: Mandatory
@@ -143,6 +108,5 @@ rules:
         action:
           - "delete"
           - "modify"
-    description: This rule compares whether response header in API response has been deleted or modified when comparing to previous OpenAPI specification
     status: devel
     severity: critical
