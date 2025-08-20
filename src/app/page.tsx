@@ -14,17 +14,6 @@ import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
 
-declare global {
-  // eslint-disable-next-line @typescript-eslint/no-namespace
-  namespace JSX {
-    interface IntrinsicElements {
-      'scale-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { variant?: string; size?: string };
-      'scale-card': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
-      'scale-icon': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & { name?: string; slot?: string };
-    }
-  }
-}
-
 interface Diagnostic {
     from: number;
     to: number;
@@ -46,10 +35,31 @@ const HomePage = () => {
     const [manualsIsOpen, setManualsIsOpen] = useState(true);
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
     const [showExportModal, setShowExportModal] = useState(false);
+    const [sort, setSort] = useState<{ key: 'line' | 'id' | 'summary' | 'severity'; dir: 'asc' | 'desc' }>({ key: 'severity', dir: 'desc' });
 
     const filteredDiagnostics = diagnostics.filter((diag) =>
         severityFilter === "all" ? true : diag.severity === severityToDiagnosticMap[severityFilter]
     );
+
+    const toggleSort = (key: 'line' | 'id' | 'summary' | 'severity') =>
+      setSort((s) => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }));
+
+    const sortedDiagnostics = useMemo(() => {
+      const arr = [...filteredDiagnostics];
+      const order = sort.dir === 'asc' ? 1 : -1;
+      const rank = (s: string) => ({ error: 3, warning: 2, info: 1, hint: 0 }[s] ?? -1);
+      return arr.sort((a, b) => {
+        if (sort.key === 'line') {
+          const la = editorViewRef.current?.state.doc.lineAt(a.from).number ?? 0;
+          const lb = editorViewRef.current?.state.doc.lineAt(b.from).number ?? 0;
+          return la === lb ? 0 : la > lb ? order : -order;
+        }
+        if (sort.key === 'id') return ((a.source || '').localeCompare(b.source || '')) * order;
+        if (sort.key === 'summary') return a.message.localeCompare(b.message) * order;
+        // severity
+        return (rank(a.severity) - rank(b.severity)) * order;
+      });
+    }, [filteredDiagnostics, sort]);
 
     const diagnosticsListenerExtension = useMemo(
         () =>
@@ -150,6 +160,13 @@ const HomePage = () => {
         setManualRules(rules);
     };
 
+    // Helper functions for Lint Issues table
+    const ariaSortFor = (key: 'line'|'id'|'summary'|'severity') =>
+      sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined;
+    const handleHeaderKeyUp = (e: React.KeyboardEvent, key: 'line'|'id'|'summary'|'severity') => {
+      if (e.key === 'Enter' || e.key === ' ') toggleSort(key);
+    };
+
     return (
         <div className="flex h-screen flex-col">
             {/* Header with Upload, Save Button and Severity Legend */}
@@ -229,7 +246,7 @@ const HomePage = () => {
                 <div className="relative w-1/2 border-r border-gray-300 bg-gray-100 h-full flex flex-col">
                     <CodeMirror
                         value={code}
-                        height="100vh"
+                        height="85vh"
                         extensions={[
                             yaml(),
                             linter(openApiLinter(selectedRules)),
@@ -278,7 +295,7 @@ const HomePage = () => {
                     <div className="mb-2">
                       <label className="mr-2 font-semibold">Filter by Severity:</label>
                       <select
-                        className="border p-1"
+                        className="border p-2 rounded-md"
                         value={severityFilter}
                         onChange={(e) => setSeverityFilter(e.target.value)}
                       >
@@ -292,36 +309,36 @@ const HomePage = () => {
                     {filteredDiagnostics.length === 0 ? (
                       <p className="text-gray-500">No lint issues.</p>
                     ) : (
-                      <table className="w-full border-collapse">
+                      <table className="w-full border-collapse rounded-t-lg rounded-b-lg overflow-hidden">
                         <thead>
-                          <tr>
-                            <th className="border px-2 py-1 w-1/8">#</th>
-                            <th className="border px-2 py-1 w-1/8">ID</th>
-                            <th className="border px-2 py-1 w-5/8">Summary</th>
-                            <th className="border px-2 py-1 w-1/8" style={{ wordBreak: "normal", overflowWrap: "normal" }}>Severity</th>
+                        <tr>
+                          <th className="px-2 py-1 w-1/8 bg-gray-200">#</th>
+                            <th className="px-2 py-1 w-1/8 bg-gray-200">ID</th>
+                            <th className="px-2 py-1 w-5/8 bg-gray-200">Summary</th>
+                            <th className="px-2 py-1 w-1/8 bg-gray-200" style={{ wordBreak: "normal", overflowWrap: "normal" }}>Severity</th>
                           </tr>
-                        </thead>
-                        <tbody>
-                          {filteredDiagnostics.map((diag, index) => {
+                          </thead>
+                          <tbody>
+                          {sortedDiagnostics.map((diag, index) => {
                             const lineNumber = editorViewRef.current
                               ? editorViewRef.current.state.doc.lineAt(diag.from).number
-                              : "N/A";
-                            let severityBg = "";
+                              : 'N/A';
+                            let severityBg = '';
                             switch (diag.severity) {
-                              case "hint":
-                                severityBg = "bg-white";
+                              case 'hint':
+                                severityBg = 'bg-white';
                                 break;
-                              case "info":
-                                severityBg = "bg-blue-200";
+                              case 'info':
+                                severityBg = 'bg-blue-200';
                                 break;
-                              case "warning":
-                                severityBg = "bg-yellow-200";
+                              case 'warning':
+                                severityBg = 'bg-yellow-200';
                                 break;
-                              case "error":
-                                severityBg = "bg-red-200";
+                              case 'error':
+                                severityBg = 'bg-red-200';
                                 break;
                               default:
-                                severityBg = "bg-gray-200";
+                                severityBg = 'bg-gray-200';
                             }
                             return (
                               <tr
@@ -329,10 +346,12 @@ const HomePage = () => {
                                 onClick={() => handleDiagnosticClick(diag.from)}
                                 className={`cursor-pointer hover:underline ${severityBg}`}
                               >
-                                <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{lineNumber}</td>
-                                <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.source}</td>
-                                <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.message}</td>
-                                <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{getSeverityLabel(diag.severity)}</td>
+                                <td className="px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{lineNumber}</td>
+                                <td className="px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.source}</td>
+                                <td className="px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.message}</td>
+                                <td                                 className="text-center break-words whitespace-normal"
+                                >
+                                  <scale-tag>{getSeverityLabel(diag.severity)}</scale-tag></td>
                               </tr>
                             );
                           })}
@@ -342,68 +361,68 @@ const HomePage = () => {
                   </scale-card>
                 </div>
             </div>
-            {/* Footer */}
-            <footer className="bg-gray-200 p-4 text-center">
-                © 2025 EcoSystems. All rights reserved.
-            </footer>
+          {/* Footer */}
+          <footer className="bg-gray-200 p-4 text-center">
+            © 2025 EcoSystems. All rights reserved.
+          </footer>
 
-            {/* Modal for Export Options */}
-            {showExportModal && (
-                <div className="fixed inset-0 flex items-center justify-center bg-opacity-50 z-50"
-                     onClick={() => setShowExportModal(false)}
-                >
-                    <div className="bg-white rounded-lg shadow-lg p-6 w-80"
-                         onClick={(e) => e.stopPropagation()}
-                    >
-                        {/* X button inside modal */}
-                        <div className="inset-x-0 top-0 flex justify-end">
-                            <button
-                                className="text-black-500 hover:text-black-700 hover:scale-115"
-                                onClick={() => setShowExportModal(false)}
-                            >
-                                X
-                            </button>
-                        </div>
-                        <h2 className="text-xl font-bold mb-4">Export</h2>
-                        {/* X button on the top right */}
-                        <div className="flex flex-col space-y-2">
-                          <scale-button
-                            onClick={async () => {
-                              await exportPDF(diagnostics, selectedRules, manualRules, editorViewRef);
-                              setShowExportModal(false);
-                            }}
-                            size="m"
-                          >
-                            <Image
-                              src="/images/pdf.png"
-                              width={32}
-                              height={32}
-                              alt="Export Issues"
-                              className="w-8 h-8 mr-2"
-                            />
-                            Export to PDF
-                          </scale-button>
-                          <scale-button
-                            onClick={async () => {
-                              await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
-                              setShowExportModal(false);
-                            }}
-                            variant="secondary"
-                            size="m"
-                          >
-                            <Image
-                              src="/images/junit5.png"
-                              width={32}
-                              height={32}
-                              alt="Export Issues"
-                              className="w-8 h-8 mr-2"
-                            />
-                            Export to XML (JUnit)
-                          </scale-button>
-                        </div>
-                    </div>
+          {/* Modal for Export Options */}
+          {showExportModal && (
+            <div className="fixed inset-0 flex items-center justify-center bg-opacity-50 z-50"
+                 onClick={() => setShowExportModal(false)}
+            >
+              <div className="bg-white rounded-lg shadow-lg p-6 w-80"
+                   onClick={(e) => e.stopPropagation()}
+              >
+                {/* X button inside modal */}
+                <div className="inset-x-0 top-0 flex justify-end">
+                  <button
+                    className="text-black-500 hover:text-black-700 hover:scale-115"
+                    onClick={() => setShowExportModal(false)}
+                  >
+                    X
+                  </button>
                 </div>
-            )}
+                <h2 className="text-xl font-bold mb-4">Export</h2>
+                {/* X button on the top right */}
+                <div className="flex flex-col space-y-2">
+                  <scale-button
+                    onClick={async () => {
+                      await exportPDF(diagnostics, selectedRules, manualRules, editorViewRef);
+                      setShowExportModal(false);
+                    }}
+                    size="m"
+                  >
+                    <Image
+                      src="/images/pdf.png"
+                      width={32}
+                      height={32}
+                      alt="Export Issues"
+                      className="w-8 h-8 mr-2"
+                    />
+                    Export to PDF
+                  </scale-button>
+                  <scale-button
+                    onClick={async () => {
+                      await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
+                      setShowExportModal(false);
+                    }}
+                    variant="secondary"
+                    size="m"
+                  >
+                    <Image
+                      src="/images/junit5.png"
+                      width={32}
+                      height={32}
+                      alt="Export Issues"
+                      className="w-8 h-8 mr-2"
+                    />
+                    Export to XML (JUnit)
+                  </scale-button>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
     );

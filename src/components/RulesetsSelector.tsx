@@ -4,6 +4,7 @@ import React, { useState, useEffect } from "react";
 import yaml from "js-yaml";
 import { RulesetsStructure } from "@/utils/extract";
 import styles from "@/components/Table.module.css";
+import Image from "next/image";
 
 export type Rule = {
     id: string;
@@ -140,7 +141,7 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                 <select
                     value={selectedRuleset}
                     onChange={handleRulesetChange}
-                    className="border p-2 w-full"
+                    className="w-full border p-2 rounded-md"
                 >
                     <option value="">-- Select a ruleset --</option>
                     {rulesetNames.map((ruleset) => (
@@ -153,24 +154,27 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
             {selectedRuleset && (
                 <>
                     <div className="flex items-center space-x-4 mb-2">
-                        <button
-                            onClick={handleSelectAll}
-                            className="px-2 py-1 bg-gray-300 rounded hover:bg-gray-400 transition"
+                        <scale-button
+                          onClick={handleSelectAll}
+                          variant="primary"
+                          size="m"
                         >
                             Select All
-                        </button>
-                        <button
-                            onClick={handleDeselectAll}
-                            className="px-2 py-1 bg-gray-300 rounded hover:bg-gray-400 transition"
+                        </scale-button>
+                        <scale-button
+                          onClick={handleDeselectAll}
+                          variant="secondary"
+                          size="m"
                         >
-                            Deselect All
-                        </button>
+                            Select All
+                        </scale-button>
                         <div className="flex items-center space-x-2">
                             <label className="font-semibold">Filter by Severity:</label>
                             <select
-                                className="border p-1"
-                                value={severityFilter}
-                                onChange={handleSeverityFilterChange}
+                              className="w-full border p-2 rounded-md"
+                              value={severityFilter}
+                              onChange={handleSeverityFilterChange}
+
                             >
                                 <option value="all">All</option>
                                 <option value="low">Low</option>
@@ -181,32 +185,32 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                         </div>
                     </div>
 
-                    <table className="w-full border-collapse">
+                    <table className="w-full border-collapse rounded-t-lg rounded-b-lg overflow-hidden">
                         <thead>
                         <tr>
-                            <th className="border px-2 py-1"></th>
-                            <th className="border px-2 py-1">ID</th>
-                            <th className="border px-2 py-1">Title</th>
-                            <th className="border px-2 py-1">Message</th>
-                            <th className="border px-2 py-1">Option</th>
-                            <th className="border px-2 py-1">Severity</th>
+                            <th className="px-2 py-1 bg-gray-200"></th>
+                            <th className="px-2 py-1 bg-gray-200">ID</th>
+                            <th className="px-2 py-1 bg-gray-200">Title</th>
+                            <th className="px-2 py-1 bg-gray-200">Message</th>
+                            <th className="px-2 py-1 bg-gray-200">Option</th>
+                            <th className="px-2 py-1 bg-gray-200">Severity</th>
                         </tr>
                         </thead>
                         <tbody>
                         {visibleRules.map((rule, index) => (
-                            <tr key={index} className="odd:bg-gray-200 even:bg-gray-100">
-                                <td className="border px-2 py-1 text-center">
+                            <tr key={index} className="odd:bg-white even:bg-gray-100">
+                                <td className="px-2 py-1 text-center">
                                     <input
                                         type="checkbox"
                                         checked={!!selectedRules.find((r) => r.id === rule.id)}
                                         onChange={() => handleRuleToggle(rule)}
                                     />
                                 </td>
-                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.id}</td>
-                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.title}</td>
-                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.message}</td>
-                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.option}</td>
-                                <td className={`border px-2 py-1 ${styles.wordBreak}`}>{rule.severity}</td>
+                                <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.id}</td>
+                                <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.title}</td>
+                                <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.message}</td>
+                                <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.option}</td>
+                                <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.severity}</td>
                             </tr>
                         ))}
                         </tbody>
