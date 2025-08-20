@@ -37,6 +37,21 @@ const HomePage = () => {
     const [showExportModal, setShowExportModal] = useState(false);
     const [sort, setSort] = useState<{ key: 'line' | 'id' | 'summary' | 'severity'; dir: 'asc' | 'desc' }>({ key: 'severity', dir: 'desc' });
 
+    const [editorHeight, setEditorHeight] = useState<number>(0);
+    const headerRef = useRef<HTMLDivElement>(null);
+    const footerRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+      const calc = () => {
+        const headerH = headerRef.current?.offsetHeight ?? 0;
+        const footerH = footerRef.current?.offsetHeight ?? 0;
+        setEditorHeight(window.innerHeight - headerH - footerH);
+      };
+      calc();
+      window.addEventListener('resize', calc);
+      return () => window.removeEventListener('resize', calc);
+    }, []);
+
     const filteredDiagnostics = diagnostics.filter((diag) =>
         severityFilter === "all" ? true : diag.severity === severityToDiagnosticMap[severityFilter]
     );
@@ -170,7 +185,7 @@ const HomePage = () => {
     return (
         <div className="flex h-screen flex-col">
             {/* Header with Upload, Save Button and Severity Legend */}
-            <header className="p-3 bg-gray-100 flex justify-between items-center shadow-sm border-b">
+            <header className="p-3 bg-gray-100 flex justify-between items-center shadow-sm border-b" ref={headerRef}>
               <div className="flex items-center gap-2">
                 {/* Load YAML */}
                 <scale-button
@@ -243,10 +258,10 @@ const HomePage = () => {
 
             <div className="flex flex-1 overflow-hidden">
                 {/* Left Panel - Code Editor */}
-                <div className="relative w-1/2 border-r border-gray-300 bg-gray-100 h-full flex flex-col">
-                    <CodeMirror
-                        value={code}
-                        height="85vh"
+              <div className="relative w-1/2 border-r border-gray-300 bg-gray-100 h-full flex flex-col min-h-0">
+                <CodeMirror
+                  value={code}
+                  height={`${editorHeight}px`}
                         extensions={[
                             yaml(),
                             linter(openApiLinter(selectedRules)),
@@ -312,12 +327,61 @@ const HomePage = () => {
                       <table className="w-full border-collapse rounded-t-lg rounded-b-lg overflow-hidden">
                         <thead>
                         <tr>
-                          <th className="px-2 py-1 w-1/8 bg-gray-200">#</th>
-                            <th className="px-2 py-1 w-1/8 bg-gray-200">ID</th>
-                            <th className="px-2 py-1 w-5/8 bg-gray-200">Summary</th>
-                            <th className="px-2 py-1 w-1/8 bg-gray-200" style={{ wordBreak: "normal", overflowWrap: "normal" }}>Severity</th>
-                          </tr>
-                          </thead>
+                          <th
+                            scope="col"
+                            className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300"
+                            aria-sort={ariaSortFor("line")}
+                            onKeyUp={(e) => handleHeaderKeyUp(e, "line")}
+                          >
+                            <button onClick={() => toggleSort("line")} className="w-full text-left flex items-center group">
+                              #
+                              <span className={`ml-1 text-xs ${sort.key === "line" ? "inline" : "hidden group-hover:inline"} ${sort.dir === "asc" ? "text-gray-500" : "text-gray-500 rotate-180"} group-hover:text-pink-500`}>
+                                ▲
+                              </span>
+                            </button>
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300"
+                            aria-sort={ariaSortFor("id")}
+                            onKeyUp={(e) => handleHeaderKeyUp(e, "id")}
+                          >
+                            <button onClick={() => toggleSort("id")} className="w-full text-left flex items-center group">
+                              ID
+                              <span className={`ml-1 text-xs ${sort.key === "id" ? "inline" : "hidden group-hover:inline"} ${sort.dir === "asc" ? "text-gray-500" : "text-gray-500 rotate-180"} group-hover:text-pink-500`}>
+                                ▲
+                              </span>
+                            </button>
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-2 py-1 w-5/8 bg-gray-200 cursor-pointer hover:bg-gray-300"
+                            aria-sort={ariaSortFor("summary")}
+                            onKeyUp={(e) => handleHeaderKeyUp(e, "summary")}
+                          >
+                            <button onClick={() => toggleSort("summary")} className="w-full text-left flex items-center group">
+                              Summary
+                              <span className={`ml-1 text-xs ${sort.key === "summary" ? "inline" : "hidden group-hover:inline"} ${sort.dir === "asc" ? "text-gray-500" : "text-gray-500 rotate-180"} group-hover:text-pink-500`}>
+                                ▲
+                              </span>
+                            </button>
+                          </th>
+                          <th
+                            scope="col"
+                            className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300"
+                            style={{ wordBreak: "normal", overflowWrap: "normal" }}
+                            aria-sort={ariaSortFor("severity")}
+                            onKeyUp={(e) => handleHeaderKeyUp(e, "severity")}
+                          >
+                            <button onClick={() => toggleSort("severity")} className="w-full text-left flex items-center group">
+                              Severity
+                              <span className={`ml-1 text-xs ${sort.key === "severity" ? "inline" : "hidden group-hover:inline"} ${sort.dir === "asc" ? "text-gray-500" : "text-gray-500 rotate-180"} group-hover:text-pink-500`}>
+                                ▲
+                              </span>
+                            </button>
+                          </th>
+                        </tr>
+                        </thead>
                           <tbody>
                           {sortedDiagnostics.map((diag, index) => {
                             const lineNumber = editorViewRef.current
@@ -362,7 +426,7 @@ const HomePage = () => {
                 </div>
             </div>
           {/* Footer */}
-          <footer className="bg-gray-200 p-4 text-center">
+          <footer className="bg-gray-200 p-4 text-center" ref={footerRef}>
             © 2025 EcoSystems. All rights reserved.
           </footer>
 

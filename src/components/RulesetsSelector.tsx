@@ -4,7 +4,6 @@ import React, { useState, useEffect } from "react";
 import yaml from "js-yaml";
 import { RulesetsStructure } from "@/utils/extract";
 import styles from "@/components/Table.module.css";
-import Image from "next/image";
 
 export type Rule = {
     id: string;
