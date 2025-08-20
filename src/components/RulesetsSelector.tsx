@@ -165,7 +165,7 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                           variant="secondary"
                           size="m"
                         >
-                            Select All
+                            Deselect All
                         </scale-button>
                         <div className="flex items-center space-x-2">
                             <label className="font-semibold">Filter by Severity:</label>

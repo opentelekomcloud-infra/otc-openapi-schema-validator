@@ -13,6 +13,19 @@ import { exportPDF, exportJUnit } from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
+declare module 'react' {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace JSX {
+    interface IntrinsicElements {
+      'scale-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        variant?: string;
+        size?: string;
+      };
+      'scale-card': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+      'scale-tag': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+    }
+  }
+}
 
 interface Diagnostic {
     from: number;
@@ -413,7 +426,7 @@ const HomePage = () => {
                                 <td className="px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{lineNumber}</td>
                                 <td className="px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.source}</td>
                                 <td className="px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.message}</td>
-                                <td                                 className="text-center break-words whitespace-normal"
+                                <td className="text-center break-words whitespace-normal"
                                 >
                                   <scale-tag>{getSeverityLabel(diag.severity)}</scale-tag></td>
                               </tr>
