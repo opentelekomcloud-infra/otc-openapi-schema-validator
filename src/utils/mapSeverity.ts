@@ -32,8 +32,8 @@ export function getSeverityLabel(severity: string): string {
 }
 
 export const severityToDiagnosticMap: Record<string, Diagnostic["severity"]> = {
-    low: "info",
-    medium: "hint",
+    low: "hint",
+    medium: "info",
     high: "warning",
     critical: "error",
 };
