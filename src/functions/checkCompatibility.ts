@@ -347,6 +347,66 @@ function checkResponseDeleted(remoteSpec: any, spec: any, content: string, diagn
     }
 }
 
+function checkResponseHeaderChange(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
+    const elements: string[] = rule?.element ?? [];
+    if (!elements.length) return;
+
+    for (const pathKey in remoteSpec.paths) {
+        const remotePathItem = remoteSpec.paths[pathKey];
+        const currentPathItem = spec.paths[pathKey];
+        if (!currentPathItem) continue;
+
+        for (const method in remotePathItem) {
+            const remoteOp = remotePathItem[method];
+            const currentOp = currentPathItem[method];
+            if (!currentOp) continue;
+
+            if (elements.includes("responses")) {
+                for (const code in remoteOp.responses || {}) {
+                    const remoteResp = remoteOp.responses[code];
+                    const currentResp = currentOp.responses?.[code];
+
+                    if (!currentResp) continue;
+
+                    const remoteHeaders = (remoteResp && remoteResp.headers) ? remoteResp.headers : {};
+                    const currentHeaders = (currentResp && currentResp.headers) ? currentResp.headers : {};
+
+                    const toLowerKeySet = (obj: Record<string, any>) => new Set(Object.keys(obj || {}).map(k => k.toLowerCase()));
+                    const remoteKeys = toLowerKeySet(remoteHeaders);
+                    const currentKeys = toLowerKeySet(currentHeaders);
+
+                    // Deletions
+                    for (const key of remoteKeys) {
+                        if (!currentKeys.has(key)) {
+                            const index = content.indexOf(pathKey);
+                            diagnostics.push({
+                                from: index >= 0 ? index : 0,
+                                to: index >= 0 ? index + pathKey.length : 0,
+                                severity: mapSeverity(rule.severity),
+                                message: `Response header "${key}" was deleted for code ${code} in ${method.toUpperCase()} at path "${pathKey}".`,
+                                source: rule.id,
+                            });
+                        }
+                    }
+
+                    // Additions/changes
+                    for (const key of currentKeys) {
+                        if (!remoteKeys.has(key)) {
+                            const index = content.indexOf(pathKey);
+                            diagnostics.push({
+                                from: index >= 0 ? index : 0,
+                                to: index >= 0 ? index + pathKey.length : 0,
+                                severity: mapSeverity(rule.severity),
+                                message: `Response header "${key}" was added for code ${code} in ${method.toUpperCase()} at path "${pathKey}".`,
+                                source: rule.id,
+                            });
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 export async function checkCompatibility(spec: any, content: string, rule: any): Promise<Diagnostic[]> {
     const diagnostics: Diagnostic[] = [];
@@ -382,6 +442,8 @@ export async function checkCompatibility(spec: any, content: string, rule: any):
             checkResponseDeleted(remoteSpec, spec, content, diagnostics, rule);
             break
         case '2.1.7.7':
+            checkResponseHeaderChange(remoteSpec, spec, content, diagnostics, rule);
+            break
         default:
             return diagnostics;
     }
