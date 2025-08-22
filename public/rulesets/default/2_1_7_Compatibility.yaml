@@ -102,11 +102,5 @@ rules:
       - responses
     call:
       function: checkCompatibility
-      functionParams:
-        parameter_type:
-          - "headers"
-        action:
-          - "delete"
-          - "modify"
-    status: devel
+    status: implemented
     severity: critical
