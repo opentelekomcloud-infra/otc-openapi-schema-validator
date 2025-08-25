@@ -35,26 +35,43 @@ const functionsMap: {
 };
 
 export function openApiLinter(selectedRules: any) {
-  return async (view: any): Promise<Diagnostic[]> => {
+  return async (view: any): Promise<{ diagnostics: Diagnostic[]; specTitle?: string }> => {
     let diagnostics: Diagnostic[] = [];
+    let specTitle: string | undefined = undefined;
     const content = view.state.doc.toString();
 
     try {
       const spec = yaml.load(content, { json: true });
-      if (Array.isArray(selectedRules) && selectedRules.length > 0) {
-        for (const rule of selectedRules) {
-          if (rule.call?.function) {
-            const funcName = rule.call.function;
-            const ruleFunc = functionsMap[funcName];
-            if (typeof ruleFunc === "function") {
-              const ruleDiagnostics = await Promise.resolve(ruleFunc(spec, content, rule));
-              diagnostics = diagnostics.concat(ruleDiagnostics);
-            } else {
-              console.error(`No function found for ${funcName}`);
-            }
-          }
-        }
+      specTitle = (spec as any)?.info?.title;
+      if (!Array.isArray(selectedRules) || selectedRules.length === 0) {
+        return { diagnostics, specTitle }; // nothing to do
       }
+
+      // Filter to applicable rules once, then run them in parallel against the same parsed spec/content
+      const runnable = selectedRules
+        .filter((rule: any) => !!rule?.call?.function && typeof functionsMap[rule.call.function] === "function");
+
+      const results = await Promise.all(
+        runnable.map(async (rule: any) => {
+          const funcName = rule.call.function as string;
+          const ruleFunc = functionsMap[funcName];
+          try {
+            const out = await ruleFunc(spec, content, rule);
+            return Array.isArray(out) ? out : [];
+          } catch (err: any) {
+            // Isolate per-rule errors so one bad rule doesn't nuke the entire run
+            return [{
+              from: 0,
+              to: content.length,
+              severity: "error",
+              message: `Rule \"${funcName}\" execution failed: ${err?.message || String(err)}`,
+              source: funcName,
+            } as Diagnostic];
+          }
+        })
+      );
+
+      diagnostics = results.flat();
     } catch (error: any) {
       diagnostics.push({
         from: 0,
@@ -64,6 +81,6 @@ export function openApiLinter(selectedRules: any) {
       });
     }
 
-    return diagnostics;
+    return { diagnostics, specTitle };
   };
 }

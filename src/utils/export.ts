@@ -115,7 +115,7 @@ export const exportJUnit = async (
 ) => {
     // Build the diagnostic test cases.
     let diagnosticTestCases = "";
-    const ts = Date.now()
+    const ts = 1;
     // Add passed rules from selectedRules that are not in diagnostics
     const failedRuleIds = new Set(diagnostics.map((diag) => diag.source));
     Object.values(selectedRules).forEach((rule: any) => {
@@ -162,4 +162,90 @@ export const exportJUnit = async (
     link.href = URL.createObjectURL(blob);
     link.download = "lint-report.xml";
     link.click();
+};
+
+export type ReportPortalConfig = {
+    endpoint?: string;
+    apiKey?: string;
+    project: string;  // e.g. "openapi"
+    launch: string;   // launch name (we pass filename + ISO timestamp)
+    description?: string;
+    attributes?: Array<{ key?: string; value: string }>;
+    mode?: 'DEFAULT' | 'DEBUG';
+};
+
+export const exportReportPortal = async (
+  diagnostics: any[],
+  selectedRules: Record<string, any>,
+  manualRules: ManualRule[],
+  editorViewRef: React.RefObject<EditorView | null>,
+  config: ReportPortalConfig
+) => {
+    try {
+        let diagnosticTestCases = "";
+        const ts = 1;
+
+        const failedRuleIds = new Set(diagnostics.map((diag) => diag.source));
+        Object.values(selectedRules).forEach((rule: any) => {
+            if (!failedRuleIds.has(rule.id)) {
+                diagnosticTestCases += `<testcase classname="lint" name="Rule: ${rule.id}, Line: -1" time="${ts}" />\n`;
+            }
+        });
+        const diagnosticsTests = Object.keys(selectedRules).length;
+
+        diagnostics.forEach((diag) => {
+            const lineNumber = editorViewRef.current
+              ? editorViewRef.current.state.doc.lineAt(diag.from).number
+              : "N/A";
+            diagnosticTestCases += `<testcase classname="lint" name="Rule: ${diag.source || ''}, Line: ${lineNumber}" time="${ts}">`;
+            diagnosticTestCases += `<failure message="Severity: ${getSeverityLabel(diag.severity)}, Rule: ${diag.source || ''}">${diag.message}</failure>`;
+            diagnosticTestCases += `</testcase>\n`;
+        });
+        const diagnosticsFailures = diagnostics.length;
+
+        let manualTestCases = "";
+        manualRules.forEach((rule) => {
+            manualTestCases += `<testcase classname="manual" name="${rule.id} - ${rule.title}" time="${ts}">`;
+            if (!rule.verified) {
+                manualTestCases += `<failure message="Manual rule not verified: ${rule.option}">${convertMarkdownToPlainText(rule.message)}</failure>`;
+            }
+            manualTestCases += `</testcase>\n`;
+        });
+        const manualTests = manualRules.length;
+        const manualFailures = manualRules.filter((rule) => !rule.verified).length;
+
+        const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<testsuites>
+  <testsuite name="Automated Compliance Validation Report" tests="${diagnosticsTests}" failures="${diagnosticsFailures}" time="${ts}">
+    ${diagnosticTestCases}
+  </testsuite>
+  <testsuite name="Manual Checklist" tests="${manualTests}" failures="${manualFailures}" time="${ts}">
+    ${manualTestCases}
+  </testsuite>
+</testsuites>`;
+        // Send to Next.js proxy instead of calling ReportPortal directly from the browser
+        const res = await fetch('/api/reportportal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'multipart/form-data' },
+          body: JSON.stringify({
+            xml,
+            launch: config.launch,
+            description: config.description,
+            attributes: config.attributes,
+            mode: config.mode ?? 'DEFAULT',
+            project: config.project,
+          }),
+        });
+
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          const msg = typeof data?.error === 'string' ? data.error : `Proxy responded with status ${res.status}`;
+          throw new Error(msg);
+        }
+
+        alert("Exported to ReportPortal successfully.");
+    } catch (err: any) {
+        console.error("ReportPortal export failed", err);
+        alert(`Export to ReportPortal failed: ${err?.message || err}`);
+    }
 };

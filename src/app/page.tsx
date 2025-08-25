@@ -9,7 +9,7 @@ import { linter, lintGutter } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
-import { exportPDF, exportJUnit } from "@/utils/export";
+import { exportPDF, exportJUnit, exportReportPortal } from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
@@ -54,6 +54,7 @@ const HomePage = () => {
     const [sort, setSort] = useState<{ key: 'line' | 'id' | 'summary' | 'severity'; dir: 'asc' | 'desc' }>({ key: 'severity', dir: 'desc' });
 
     const [editorHeight, setEditorHeight] = useState<number>(0);
+    const [specTitle, setSpecTitle] = useState<string | null>(null);
     const headerRef = useRef<HTMLDivElement>(null);
     const footerRef = useRef<HTMLDivElement>(null);
 
@@ -95,13 +96,16 @@ const HomePage = () => {
     const diagnosticsListenerExtension = useMemo(
         () =>
             EditorView.updateListener.of(async (update) => {
-                const newDiags = await openApiLinter(selectedRules)(update.view);
+                const { diagnostics: newDiags, specTitle: newTitle } = await openApiLinter(selectedRules)(update.view);
+                if (newTitle !== specTitle) {
+                  setSpecTitle(newTitle ?? null);
+                }
                 if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
                     prevDiagsRef.current = newDiags;
                     setDiagnostics(newDiags);
                 }
             }),
-        [selectedRules]
+        [selectedRules, specTitle]
     );
 
     useEffect(() => {
@@ -290,7 +294,7 @@ const HomePage = () => {
               height={`${editorHeight}px`}
               extensions={[
                 yaml(),
-                linter(openApiLinter(selectedRules)),
+                linter((v) => openApiLinter(selectedRules)(v).then(r => r.diagnostics)),
                 lintGutter(),
                 diagnosticsListenerExtension,
               ]}
@@ -519,6 +523,38 @@ const HomePage = () => {
                     className="w-8 h-8 mr-2"
                   />
                   Export to XML (JUnit)
+                </scale-button>
+                <scale-button
+                  onClick={async () => {
+                    await exportReportPortal(
+                      diagnostics,
+                      selectedRules,
+                      manualRules,
+                      editorViewRef,
+                      {
+                        project: "openapi",
+                        launch: `${specTitle ?? 'OpenAPI'} - ${new Date().toISOString()}`,
+                        description: `Latest launch for ${specTitle ?? 'OpenAPI'} - ${new Date().toISOString()}`,
+                        // attributes: [
+                        //   { key: "attributeKey", value: "attrbiuteValue" },
+                        //   { value: "anotherAttrbiuteValue" },
+                        // ],
+                        mode: "DEFAULT",
+                      }
+                    );
+                    setShowExportModal(false);
+                  }}
+                  variant="secondary"
+                  size="m"
+                >
+                  <Image
+                    src="/images/export.png"
+                    width={32}
+                    height={32}
+                    alt="Export to ReportPortal"
+                    className="w-8 h-8 mr-2"
+                  />
+                  Export to ReportPortal
                 </scale-button>
               </div>
             </div>
