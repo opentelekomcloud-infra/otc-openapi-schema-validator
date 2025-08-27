@@ -9,7 +9,7 @@ import { linter, lintGutter } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
-import { exportPDF, exportJUnit } from "@/utils/export";
+import { exportPDF, exportReportPortal } from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
@@ -20,6 +20,7 @@ declare module 'react' {
       'scale-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
         variant?: string;
         size?: string;
+        disabled?: boolean;
       };
       'scale-card': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
       'scale-tag': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
@@ -54,8 +55,10 @@ const HomePage = () => {
     const [sort, setSort] = useState<{ key: 'line' | 'id' | 'summary' | 'severity'; dir: 'asc' | 'desc' }>({ key: 'severity', dir: 'desc' });
 
     const [editorHeight, setEditorHeight] = useState<number>(0);
+    const [specTitle, setSpecTitle] = useState<string | null>(null);
     const headerRef = useRef<HTMLDivElement>(null);
     const footerRef = useRef<HTMLDivElement>(null);
+    const [isExporting, setIsExporting] = useState(false);
 
     useEffect(() => {
       const calc = () => {
@@ -95,13 +98,16 @@ const HomePage = () => {
     const diagnosticsListenerExtension = useMemo(
         () =>
             EditorView.updateListener.of(async (update) => {
-                const newDiags = await openApiLinter(selectedRules)(update.view);
+                const { diagnostics: newDiags, specTitle: newTitle } = await openApiLinter(selectedRules)(update.view);
+                if (newTitle !== specTitle) {
+                  setSpecTitle(newTitle ?? null);
+                }
                 if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
                     prevDiagsRef.current = newDiags;
                     setDiagnostics(newDiags);
                 }
             }),
-        [selectedRules]
+        [selectedRules, specTitle]
     );
 
     useEffect(() => {
@@ -198,6 +204,25 @@ const HomePage = () => {
       if (e.key === 'Enter' || e.key === ' ') toggleSort(key);
     };
 
+    const handleExportReportPortal = async () => {
+      setIsExporting(true);
+      try {
+        await exportReportPortal(diagnostics, selectedRules, manualRules, editorViewRef, {
+          project: "openapi",
+          launch: `Service: ${specTitle ?? 'OpenAPI'}`,
+          description: `Latest launch for ${specTitle ?? 'OpenAPI'} - ${new Date().toISOString()}`,
+          mode: "DEFAULT",
+        });
+        setShowExportModal(false);
+        alert("Exported to ReportPortal successfully.");
+      } catch (err) {
+        console.error(err);
+        alert("Export failed: " + (err as Error).message);
+      } finally {
+        setIsExporting(false);
+      }
+    };
+
     return (
       <div className="flex h-screen flex-col">
         {/* Header with Upload, Save Button and Severity Legend */}
@@ -290,7 +315,7 @@ const HomePage = () => {
               height={`${editorHeight}px`}
               extensions={[
                 yaml(),
-                linter(openApiLinter(selectedRules)),
+                linter((v) => openApiLinter(selectedRules)(v).then(r => r.diagnostics)),
                 lintGutter(),
                 diagnosticsListenerExtension,
               ]}
@@ -504,21 +529,30 @@ const HomePage = () => {
                   Export to PDF
                 </scale-button>
                 <scale-button
-                  onClick={async () => {
-                    await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
-                    setShowExportModal(false);
-                  }}
+                  onClick={handleExportReportPortal}
+                  disabled={isExporting}
                   variant="secondary"
                   size="m"
                 >
-                  <Image
-                    src="/images/junit5.png"
-                    width={32}
-                    height={32}
-                    alt="Export Issues"
-                    className="w-8 h-8 mr-2"
-                  />
-                  Export to XML (JUnit)
+                  {isExporting ? (
+                    <>
+                      <span className="inline-block mr-2 align-middle">
+                        <span className="animate-spin inline-block h-5 w-5 border-2 border-gray-300 border-t-pink-600 rounded-full" />
+                      </span>
+                      Exporting…
+                    </>
+                  ) : (
+                    <>
+                      <Image
+                        src="/images/rp.png"
+                        width={32}
+                        height={32}
+                        alt="Export to ReportPortal"
+                        className="w-8 h-8 mr-2"
+                      />
+                      Export to ReportPortal
+                    </>
+                  )}
                 </scale-button>
               </div>
             </div>
