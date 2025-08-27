@@ -9,7 +9,7 @@ import { linter, lintGutter } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
-import { exportPDF, exportJUnit, exportReportPortal } from "@/utils/export";
+import { exportPDF, exportReportPortal } from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
@@ -20,6 +20,7 @@ declare module 'react' {
       'scale-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
         variant?: string;
         size?: string;
+        disabled?: boolean;
       };
       'scale-card': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
       'scale-tag': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
@@ -57,6 +58,7 @@ const HomePage = () => {
     const [specTitle, setSpecTitle] = useState<string | null>(null);
     const headerRef = useRef<HTMLDivElement>(null);
     const footerRef = useRef<HTMLDivElement>(null);
+    const [isExporting, setIsExporting] = useState(false);
 
     useEffect(() => {
       const calc = () => {
@@ -200,6 +202,25 @@ const HomePage = () => {
       sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined;
     const handleHeaderKeyUp = (e: React.KeyboardEvent, key: 'line'|'id'|'summary'|'severity') => {
       if (e.key === 'Enter' || e.key === ' ') toggleSort(key);
+    };
+
+    const handleExportReportPortal = async () => {
+      setIsExporting(true);
+      try {
+        await exportReportPortal(diagnostics, selectedRules, manualRules, editorViewRef, {
+          project: "openapi",
+          launch: `Service: ${specTitle ?? 'OpenAPI'}`,
+          description: `Latest launch for ${specTitle ?? 'OpenAPI'} - ${new Date().toISOString()}`,
+          mode: "DEFAULT",
+        });
+        setShowExportModal(false);
+        alert("Exported to ReportPortal successfully.");
+      } catch (err) {
+        console.error(err);
+        alert("Export failed: " + (err as Error).message);
+      } finally {
+        setIsExporting(false);
+      }
     };
 
     return (
@@ -508,53 +529,30 @@ const HomePage = () => {
                   Export to PDF
                 </scale-button>
                 <scale-button
-                  onClick={async () => {
-                    await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
-                    setShowExportModal(false);
-                  }}
+                  onClick={handleExportReportPortal}
+                  disabled={isExporting}
                   variant="secondary"
                   size="m"
                 >
-                  <Image
-                    src="/images/junit5.png"
-                    width={32}
-                    height={32}
-                    alt="Export Issues"
-                    className="w-8 h-8 mr-2"
-                  />
-                  Export to XML (JUnit)
-                </scale-button>
-                <scale-button
-                  onClick={async () => {
-                    await exportReportPortal(
-                      diagnostics,
-                      selectedRules,
-                      manualRules,
-                      editorViewRef,
-                      {
-                        project: "openapi",
-                        launch: `${specTitle ?? 'OpenAPI'} - ${new Date().toISOString()}`,
-                        description: `Latest launch for ${specTitle ?? 'OpenAPI'} - ${new Date().toISOString()}`,
-                        // attributes: [
-                        //   { key: "attributeKey", value: "attrbiuteValue" },
-                        //   { value: "anotherAttrbiuteValue" },
-                        // ],
-                        mode: "DEFAULT",
-                      }
-                    );
-                    setShowExportModal(false);
-                  }}
-                  variant="secondary"
-                  size="m"
-                >
-                  <Image
-                    src="/images/export.png"
-                    width={32}
-                    height={32}
-                    alt="Export to ReportPortal"
-                    className="w-8 h-8 mr-2"
-                  />
-                  Export to ReportPortal
+                  {isExporting ? (
+                    <>
+                      <span className="inline-block mr-2 align-middle">
+                        <span className="animate-spin inline-block h-5 w-5 border-2 border-gray-300 border-t-pink-600 rounded-full" />
+                      </span>
+                      Exporting…
+                    </>
+                  ) : (
+                    <>
+                      <Image
+                        src="/images/rp.png"
+                        width={32}
+                        height={32}
+                        alt="Export to ReportPortal"
+                        className="w-8 h-8 mr-2"
+                      />
+                      Export to ReportPortal
+                    </>
+                  )}
                 </scale-button>
               </div>
             </div>

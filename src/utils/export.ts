@@ -242,10 +242,7 @@ export const exportReportPortal = async (
           const msg = typeof data?.error === 'string' ? data.error : `Proxy responded with status ${res.status}`;
           throw new Error(msg);
         }
-
-        alert("Exported to ReportPortal successfully.");
     } catch (err: any) {
         console.error("ReportPortal export failed", err);
-        alert(`Export to ReportPortal failed: ${err?.message || err}`);
     }
 };
