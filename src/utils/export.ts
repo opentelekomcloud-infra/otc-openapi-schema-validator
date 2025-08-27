@@ -244,5 +244,6 @@ export const exportReportPortal = async (
         }
     } catch (err: any) {
         console.error("ReportPortal export failed", err);
+        throw err
     }
 };
