@@ -164,6 +164,17 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                           onClick={handleDeselectAll}
                           variant="secondary"
                           size="m"
+                          style={{
+                            ['--background-secondary' as any]: '#ffffff',
+                            ['--background-secondary-hover' as any]: 'hsla(0, 0%, 0%, 0.07)',
+                            ['--background-secondary-active' as any]: 'hsla(0, 0%, 0%, 0.21)',
+                            ['--border-secondary' as any]: '#000000',
+                            ['--border-secondary-hover' as any]: '#000000',
+                            ['--border-secondary-active' as any]: 'hsla(0, 0%, 0%, 0.21)',
+                            ['--color-secondary' as any]: '#111111',
+                            ['--color-secondary-hover' as any]: '#111111',
+                            ['--color-secondary-active' as any]: '#111111',
+                          }}
                         >
                             Deselect All
                         </scale-button>
