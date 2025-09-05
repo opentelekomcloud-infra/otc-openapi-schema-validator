@@ -1,5 +1,6 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
+import {getSource} from "@/functions/common";
 
 export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -48,7 +49,7 @@ export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
                 to: pathIndex >= 0 ? pathIndex + path.length : content.length,
                 severity: mapSeverity(rule.severity),
                 message: `${rule.message} Missing: ${missingMethods.join(", ")}`,
-                source: rule.id,
+                source: getSource(rule),
             });
         }
     }

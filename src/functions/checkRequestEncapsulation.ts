@@ -1,5 +1,6 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
+import {getSource} from "@/functions/common";
 
 export function checkRequestEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -32,7 +33,7 @@ export function checkRequestEncapsulation(spec: any, content: string, rule: any)
                     to: end,
                     severity: mapSeverity(rule.severity),
                     message: rule.message,
-                    source: rule.id,
+                    source: getSource(rule),
                 });
             }
         }

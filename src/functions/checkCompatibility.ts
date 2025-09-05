@@ -2,6 +2,7 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import { resolveRef, extractAllProperties, extractPropertyTypes, extractEnumIfExist } from "@/utils/schema";
+import {getSource} from "@/functions/common";
 
 const remoteSpecCache: Record<string, any> = {};
 
@@ -23,7 +24,7 @@ function checkDeletedApi(remoteSpec: any, spec: any, content: string, diagnostic
                 to: end,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" was deleted in the new spec.`,
-                source: rule.id,
+                source: getSource(rule),
             });
 
             continue;
@@ -43,7 +44,7 @@ function checkDeletedApi(remoteSpec: any, spec: any, content: string, diagnostic
                     to: end,
                     severity: mapSeverity(rule.severity),
                     message: `${method.toUpperCase()} method at path "${pathKey}" was deleted in the new spec.`,
-                    source: rule.id,
+                    source: getSource(rule),
                 });
             }
         }
@@ -86,7 +87,8 @@ function checkEnumDecrease(remoteSpec: any, spec: any, content: string, diagnost
                                 from: index >= 0 ? index : 0,
                                 to: index >= 0 ? index + pathKey.length : 0,
                                 severity: mapSeverity(rule.severity),
-                                message: `Enum values removed for request body property "${propPath}" in ${method.toUpperCase()} ${pathKey}: ${removed.join(', ')}.`,                                source: rule.id,
+                                message: `Enum values removed for request body property "${propPath}" in ${method.toUpperCase()} ${pathKey}: ${removed.join(', ')}.`,
+                                source: getSource(rule),
                             });
                         }
                     }
@@ -118,7 +120,8 @@ function checkEnumDecrease(remoteSpec: any, spec: any, content: string, diagnost
                                     from: index >= 0 ? index : 0,
                                     to: index >= 0 ? index + pathKey.length : 0,
                                     severity: mapSeverity(rule.severity),
-                                    message: `Enum values removed for response property "${propPath}" (code ${code}) in ${method.toUpperCase()} ${pathKey}: ${removed.join(', ')}.`,                                    source: rule.id,
+                                    message: `Enum values removed for response property "${propPath}" (code ${code}) in ${method.toUpperCase()} ${pathKey}: ${removed.join(', ')}.`,
+                                    source: getSource(rule),
                                 });
                             }
                         }
@@ -159,7 +162,7 @@ function checkDeletedRequestResponseParam(remoteSpec: any, spec: any, content: s
                                 to: index >= 0 ? index + pathKey.length : 0,
                                 severity: mapSeverity(rule.severity),
                                 message: `Request body property "${key}" was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: rule.id,
+                                source: getSource(rule),
                             });
                         }
                     }
@@ -184,7 +187,7 @@ function checkDeletedRequestResponseParam(remoteSpec: any, spec: any, content: s
                                     to: index >= 0 ? index + pathKey.length : 0,
                                     severity: mapSeverity(rule.severity),
                                     message: `Response property "${key}" in code ${code} was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                    source: rule.id,
+                                    source: getSource(rule),
                                 });
                             }
                         }
@@ -225,7 +228,7 @@ function checkAddedRequestBodyParam(remoteSpec: any, spec: any, content: string,
                                 to: index >= 0 ? index + pathKey.length : 0,
                                 severity: mapSeverity(rule.severity),
                                 message: `Request body property "${key}" was added in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: rule.id,
+                                source: getSource(rule),
                             });
                         }
                     }
@@ -270,7 +273,7 @@ function checkDeletedRequestResponseParamTypes(remoteSpec: any, spec: any, conte
                                 to: index >= 0 ? index + pathKey.length : 0,
                                 severity: mapSeverity(rule.severity),
                                 message: `Type of request body property "${propPath}" changed from "${oldType}" to "${newType}" in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: rule.id,
+                                source: getSource(rule),
                             });
                         }
                     }
@@ -301,7 +304,7 @@ function checkDeletedRequestResponseParamTypes(remoteSpec: any, spec: any, conte
                                     to: index >= 0 ? index + pathKey.length : 0,
                                     severity: mapSeverity(rule.severity),
                                     message: `Type of response property "${propPath}" (code ${code}) changed from "${oldType}" to "${newType}" in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                    source: rule.id,
+                                    source: getSource(rule),
                                 });
                             }
                         }
@@ -338,7 +341,7 @@ function checkResponseDeleted(remoteSpec: any, spec: any, content: string, diagn
                             to: index >= 0 ? index + pathKey.length : 0,
                             severity: mapSeverity(rule.severity),
                             message: `Response code ${code} was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
-                            source: rule.id,
+                            source: getSource(rule),
                         });
                     }
                 }
@@ -384,7 +387,7 @@ function checkResponseHeaderChange(remoteSpec: any, spec: any, content: string, 
                                 to: index >= 0 ? index + pathKey.length : 0,
                                 severity: mapSeverity(rule.severity),
                                 message: `Response header "${key}" was deleted for code ${code} in ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: rule.id,
+                                source: getSource(rule),
                             });
                         }
                     }
@@ -398,7 +401,7 @@ function checkResponseHeaderChange(remoteSpec: any, spec: any, content: string, 
                                 to: index >= 0 ? index + pathKey.length : 0,
                                 severity: mapSeverity(rule.severity),
                                 message: `Response header "${key}" was added for code ${code} in ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: rule.id,
+                                source: getSource(rule),
                             });
                         }
                     }

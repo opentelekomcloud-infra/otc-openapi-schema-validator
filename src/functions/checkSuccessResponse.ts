@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodPositionInYaml } from "@/utils/pos";
+import { getSource } from "@/functions/common";
 
 export function checkSuccessResponse(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -31,7 +32,7 @@ export function checkSuccessResponse(spec: any, content: string, rule: any): Dia
                     to,
                     severity: mapSeverity(rule.severity),
                     message: `${rule.message} Missing: ${missingCodes.join(", ")}`,
-                    source: rule.id,
+                    source: getSource(rule),
                 });
             }
         }

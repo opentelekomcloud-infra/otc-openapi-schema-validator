@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import * as YAML from 'yaml';
+import {getSource} from "@/functions/common";
 
 export function checkOASVersion(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -20,7 +21,7 @@ export function checkOASVersion(spec: any, content: string, rule: any): Diagnost
             to: openapiKeyIndex >= 0 ? openapiKeyIndex + 7 : content.length,
             severity: mapSeverity(rule.severity),
             message: `'${rule.message}' Missing 'openapi' field.`,
-            source: rule.id,
+            source: getSource(rule),
         });
         return diagnostics;
     }
@@ -35,7 +36,7 @@ export function checkOASVersion(spec: any, content: string, rule: any): Diagnost
             to: index >= 0 ? index + version.length : content.length,
             severity: mapSeverity(rule.severity),
             message: `'${rule.message}' 'openapi' version '${version}' is not allowed.`,
-            source: rule.id,
+            source: getSource(rule),
         });
     }
 

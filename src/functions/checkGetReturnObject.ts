@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodPositionInYaml } from "@/utils/pos";
+import {getSource} from "@/functions/common";
 
 export function checkGetReturnObject(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -74,7 +75,7 @@ export function checkGetReturnObject(spec: any, content: string, rule: any): Dia
                                     to: end,
                                     severity: mapSeverity(rule.severity),
                                     message: rule.message,
-                                    source: rule.id,
+                                    source: getSource(rule),
                                 });
                                 break;
                             }
@@ -85,7 +86,7 @@ export function checkGetReturnObject(spec: any, content: string, rule: any): Dia
                                 to: end,
                                 severity: mapSeverity(rule.severity),
                                 message: rule.message,
-                                source: rule.id,
+                                source: getSource(rule),
                             });
                             break;
                         }
@@ -107,7 +108,7 @@ export function checkGetReturnObject(spec: any, content: string, rule: any): Dia
                             to: end,
                             severity: mapSeverity(rule.severity),
                             message: rule.message,
-                            source: rule.id,
+                            source: getSource(rule),
                         });
                     }
                 }
