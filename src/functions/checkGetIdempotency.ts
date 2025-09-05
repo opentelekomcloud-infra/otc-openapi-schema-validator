@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodPositionInYaml } from "@/utils/pos";
+import {getSource} from "@/functions/common";
 
 export function checkGetIdempotency(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -28,7 +29,7 @@ export function checkGetIdempotency(spec: any, content: string, rule: any): Diag
                 to: end,
                 severity: mapSeverity(rule.severity),
                 message: rule.message,
-                source: rule.id,
+                source: getSource(rule),
             });
         }
     }

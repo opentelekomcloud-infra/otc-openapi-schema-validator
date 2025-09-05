@@ -9,7 +9,7 @@ import { linter, lintGutter } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
-import { exportPDF, exportReportPortal } from "@/utils/export";
+import {exportJUnit, exportPDF, exportReportPortal} from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
@@ -529,6 +529,22 @@ const HomePage = () => {
                   Export to PDF
                 </scale-button>
                 <scale-button
+                  onClick={async () => {
+                    await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
+                    setShowExportModal(false);
+                  }}
+                  size="m"
+                >
+                  <Image
+                    src="/images/junit5.png"
+                    width={32}
+                    height={32}
+                    alt="Export Issues"
+                    className="w-8 h-8 mr-2"
+                  />
+                  Export to jUnit
+                </scale-button>
+                <scale-button
                   onClick={handleExportReportPortal}
                   disabled={isExporting}
                   variant="secondary"
@@ -548,7 +564,8 @@ const HomePage = () => {
                   {isExporting ? (
                     <>
                       <span className="inline-block mr-2 align-middle">
-                        <span className="animate-spin inline-block h-5 w-5 border-2 border-gray-300 border-t-pink-600 rounded-full" />
+                        <span
+                          className="animate-spin inline-block h-5 w-5 border-2 border-gray-300 border-t-pink-600 rounded-full"/>
                       </span>
                       Exporting…
                     </>

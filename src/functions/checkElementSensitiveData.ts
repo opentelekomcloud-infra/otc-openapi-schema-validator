@@ -2,6 +2,7 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findParameterPositionInYaml } from "@/utils/pos";
 import { matchParameterSchema } from "@/utils/schema";
+import {getSource} from "@/functions/common";
 
 export function checkElementSensitiveData(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -32,7 +33,7 @@ export function checkElementSensitiveData(spec: any, content: string, rule: any)
                         to: end,
                         severity: mapSeverity(rule.severity),
                         message: rule.message,
-                        source: rule.id,
+                        source: getSource(rule),
                     });
                     break;
                 }

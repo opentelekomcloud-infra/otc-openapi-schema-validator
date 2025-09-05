@@ -1,5 +1,6 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
+import {getSource} from "@/functions/common";
 
 export function checkHttpsServers(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -15,7 +16,7 @@ export function checkHttpsServers(spec: any, content: string, rule: any): Diagno
                     to: end,
                     severity: mapSeverity(rule.severity),
                     message: rule.message,
-                    source: rule.id,
+                    source: getSource(rule),
                 });
             }
         });
