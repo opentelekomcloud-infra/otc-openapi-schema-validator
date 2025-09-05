@@ -598,7 +598,7 @@ export const exportReportPortal = async (
     const rootStart = baseMs;
     const rootEnd = runningMs;
     const generated = fmt(baseMs);
-    const robotXml =
+    const xml =
       `<?xml version="1.0" encoding="UTF-8"?>\n` +
       `<robot generator="api-validator" generated="${generated}" rpa="false" schemaversion="4">\n` +
       `  <suite id="${rootId}" name="${xmlEscape(rootName)}" source="${VROOT}">\n` +
@@ -614,7 +614,7 @@ export const exportReportPortal = async (
       method: 'POST',
       headers: { 'Content-Type': 'multipart/form-data' },
       body: JSON.stringify({
-        robotXml,
+        xml,
         launch: config.launch,
         description: config.description,
         attributes: config.attributes,
