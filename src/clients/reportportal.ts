@@ -17,7 +17,7 @@ export class ReportPortalClient {
   }
 
   /**
-   * Import a JUnit XML file using the plugin endpoint (POST /api/v1/plugin/{project}/junit/import) with a ZIP file and launchImportRq.
+   * Import a JUnit XML file using the plugin endpoint (POST /api/v1/plugin/{project}/RobotFramework/import) with a ZIP file and launchImportRq.
    */
   async importLaunch(params: {
     xml: string; // JUnit XML string
@@ -33,7 +33,7 @@ export class ReportPortalClient {
       throw new Error('ReportPortal config missing on server: REPORTPORTAL_ENDPOINT/REPORTPORTAL_API_KEY');
     }
 
-    const url = `${this.endpoint.replace(/\/$/, '')}/plugin/${project}/junit/import`;
+    const url = `${this.endpoint.replace(/\/$/, '')}/plugin/${project}/RobotFramework/import`;
     // Build ZIP with the JUnit XML inside as lint-report.xml
     const zip = new JSZip();
     zip.file('lint-report.xml', xml);
