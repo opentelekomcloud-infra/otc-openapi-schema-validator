@@ -5,7 +5,8 @@ import {getSeverityLabel} from '@/utils/mapSeverity';
 export function buildRobotXml(
   diagnostics: any[],
   selectedRules: Record<string, any>,
-  manualRules: any[]
+  manualRules: any[],
+  content?: string
 ): string {
   // Helpers
   const xmlEscape = (value: any) => {
@@ -87,7 +88,25 @@ export function buildRobotXml(
       const caseStart = runningMs;
       const caseEnd = caseStart + CASE_MS;
 
-      const tName = `Line: N/A`;
+      // Line number: prefer diag.lineNumber; otherwise derive from `content` and `diag.from`
+      let lineNumber: number | string = 'N/A';
+      if (typeof diag?.lineNumber === 'number') {
+        lineNumber = diag.lineNumber;
+      } else if (typeof diag?.from === 'number') {
+        if (typeof content === 'string' && content.length > 0) {
+          const idx = Math.max(0, Math.min(diag.from, content.length));
+          // Count newlines up to the index and add 1 (1-based line numbers)
+          let count = 1;
+          for (let i = 0; i < idx; i++) {
+            if (content.charCodeAt(i) === 10 /* \n */) count++;
+          }
+          lineNumber = count;
+        } else {
+          // Fallback to raw offset if content is unavailable
+          lineNumber = diag.from;
+        }
+      }
+      const tName = `Line: ${lineNumber}`;
       const severity = xmlEscape(getSeverityLabel(diag?.severity));
       const msgText = `${severity}: ${diag?.message ?? ''}`;
       const tId = testId(subSuiteId, ti + 1);

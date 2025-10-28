@@ -185,7 +185,7 @@ export default async function handler(
     if (exportMode === 'xml') {
       // Build Robot XML and send to ReportPortal with default settings (no extra API params)
       const selectedRulesMap: Record<string, any> = Object.fromEntries((auto || []).filter(r => r?.id).map(r => [r.id, r]));
-      const xml = buildRobotXml(diagnostics, selectedRulesMap, manual);
+      const xml = buildRobotXml(diagnostics, selectedRulesMap, manual, specText);
 
       const project = 'openapi';
       const launch = `Service: ${specTitle ?? 'OpenAPI'}`;

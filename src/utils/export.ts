@@ -362,16 +362,6 @@ export const exportJUnit = async (
   link.click();
 };
 
-export type ReportPortalConfig = {
-  endpoint?: string;
-  apiKey?: string;
-  project: string;  // e.g. "openapi"
-  launch: string;   // launch name (we pass filename + ISO timestamp)
-  description?: string;
-  attributes?: Array<{ key?: string; value: string }>;
-  mode?: 'DEFAULT' | 'DEBUG';
-};
-
 export const exportReportPortal = async (
   diagnostics: any[],
   selectedRules: Record<string, any>,
@@ -389,7 +379,8 @@ export const exportReportPortal = async (
 ) => {
   try {
     // Build XML once, shared with server
-    const xml = buildRobotXml(diagnostics, selectedRules, manualRules);
+    const content = editorViewRef?.current?.state?.doc?.toString() ?? '';
+    const xml = buildRobotXml(diagnostics, selectedRules, manualRules, content);
 
     // Send to your Next.js proxy in JSON (not multipart)
     const res = await fetch("/api/reportportal", {
