@@ -5,6 +5,7 @@ import { runLinter } from '@/lib/linter/runLinter';
 import { buildRobotXml } from '@/lib/export/buildRobotXml';
 import { reportPortalClient } from '@/clients/reportportal';
 import yaml from "js-yaml";
+import { getSeverityLabel } from "@/utils/mapSeverity";
 
 // Allow large payloads (YAML specs can be big)
 export const config = {
@@ -19,16 +20,24 @@ export const config = {
  * POST /api/validate
  * Body:
  * {
- *   path: "path_to_yaml_spec",               // required
- *   manual_rules?: ["id_1","id_2",...],      // optional (select subset); loads ALL then filters if provided
- *   auto_rules?: ["id_1","id_2",...],        // optional (select subset); loads ALL then filters if provided
- *   export?: "pdf" | "xml",                  // optional; xml returns JUnit; pdf = not yet implemented server-side
- *   out?: "path_to_out_file"                 // required only for export=pdf (currently returns 501)
+ *   // ONE of the following is required
+ *   path?: string;                 // URL (http/https) OR server path (only if accessible)
+ *   file_content?: string;         // raw YAML string of the spec (preferred when calling from browser)
+ *
+ *   // Selection
+ *   manual_rules?: string[];       // optional (subset); loads ALL then filters if provided
+ *   auto_rules?: string[];         // optional (subset); loads ALL then filters if provided
+ *   ruleset?: string;              // optional; defaults to "default"
+ *
+ *   // Export
+ *   export?: "pdf" | "xml";     // optional; xml pushes Robot XML to ReportPortal; pdf not implemented server-side
+ *   out?: string;                  // required only for export=pdf (currently returns 501)
  * }
  */
 
 interface ValidateRequestBody {
-  path: string;
+  path?: string;
+  file_content?: string;
   manual_rules?: string[];
   auto_rules?: string[];
   ruleset?: string;
@@ -147,19 +156,47 @@ export default async function handler(
       }
     }
 
-    const { path: specPathInput, manual_rules, auto_rules, export: exportMode, out, ruleset = 'default' } = (body || {}) as ValidateRequestBody & Record<string, any>;
+    const { path: specPathInput, file_content, manual_rules, auto_rules, export: exportMode, out, ruleset = 'default' } = (body || {}) as ValidateRequestBody & Record<string, any>;
 
-    // Validate required field
-    if (!specPathInput || (specPathInput.trim() === '')) {
-      return res.status(400).json({ error: 'Missing required "path"' });
+    // Validate required source: either file_content or path/url must be provided
+    if ((!file_content || String(file_content).trim() === '') && (!specPathInput || String(specPathInput).trim() === '')) {
+      return res.status(400).json({ error: 'Provide either "file_content" (preferred) or "path" (URL or server-accessible path).' });
     }
 
-    const specAbs = resolvePath(specPathInput);
     let specText = '';
-    try {
-      specText = await fs.readFile(specAbs, 'utf8');
-    } catch {
-      return res.status(400).json({ error: `Cannot read file: ${specAbs}` });
+    const isHttpUrl = typeof specPathInput === 'string' && /^https?:\/\//i.test(specPathInput);
+
+    if (typeof file_content === 'string' && file_content.trim() !== '') {
+      // Preferred: client provided file content directly
+      specText = file_content;
+    } else if (isHttpUrl) {
+      // URL: fetch the spec
+      try {
+        const resp = await fetch(specPathInput!);
+        if (!resp.ok) {
+          return res.status(400).json({ error: `Failed to fetch spec from URL: HTTP ${resp.status}` });
+        }
+        specText = await resp.text();
+      } catch (e: any) {
+        return res.status(400).json({ error: `Failed to fetch spec from URL: ${e?.message || 'unknown error'}` });
+      }
+    } else if (typeof specPathInput === 'string' && specPathInput.trim() !== '') {
+      // Server path: only attempt if accessible, otherwise ask for file_content
+      const specAbs = resolvePath(specPathInput);
+      try {
+        await fs.access(specAbs);
+      } catch {
+        return res.status(400).json({ error: `Cannot access path on server: ${specPathInput}. Send "file_content" or a URL instead.` });
+      }
+      try {
+        specText = await fs.readFile(specAbs, 'utf8');
+      } catch {
+        return res.status(400).json({ error: `Cannot read file: ${specAbs}` });
+      }
+    }
+
+    if (!specText || specText.trim() === '') {
+      return res.status(400).json({ error: 'Specification content is empty after reading provided source.' });
     }
 
     // Load all rules, then filter if IDs provided
@@ -180,6 +217,23 @@ export default async function handler(
     const auto = filterByIds(allAuto, auto_rules);
     // Run linter
     const { diagnostics, specTitle } = await runLinter(specText, auto);
+
+    // Helper to compute line number (1-based) from character offset
+    const computeLine = (text: string, idx: number) => {
+      if (typeof idx !== 'number' || idx < 0) return 'N/A' as const;
+      const clamped = Math.min(Math.max(0, idx), text.length);
+      let line = 1;
+      for (let i = 0; i < clamped; i++) {
+        if (text.charCodeAt(i) === 10 /* \n */) line++;
+      }
+      return line;
+    };
+
+    const diagnosticsWithLines = (diagnostics || []).map((d: any) => ({
+      ...d,
+      lineNumber: typeof d?.lineNumber === 'number' ? d.lineNumber : computeLine(specText, (d?.from as number) ?? -1),
+      severity: getSeverityLabel(d?.severity),
+    }));
 
     // Export options
     if (exportMode === 'xml') {
@@ -224,8 +278,7 @@ export default async function handler(
 
     // Default JSON response
     return res.status(200).json({
-      spec: path.basename(specAbs),
-      diagnostics,
+      diagnostics: diagnosticsWithLines,
       rules: {
         manual,
         auto,
