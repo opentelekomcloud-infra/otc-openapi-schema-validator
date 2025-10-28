@@ -6,7 +6,8 @@ export function buildRobotXml(
   diagnostics: any[],
   selectedRules: Record<string, any>,
   manualRules: any[],
-  content?: string
+  content?: string,
+  skipManual = false
 ): string {
   // Helpers
   const xmlEscape = (value: any) => {
@@ -206,25 +207,23 @@ export function buildRobotXml(
     const rawMsg = convertMarkdownToPlainText(rule?.message ?? '');
     const tId = testId(manualId, i + 1);
 
-    if (isPass) {
+    if (skipManual) {
       manualInner +=
         `    <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-        `      <msg timestamp="${fmt(caseStart)}" level="INFO">Verified</msg>\n` +
-        `      <status status="PASS" starttime="${fmt(
-          caseStart
-        )}" endtime="${fmt(caseEnd)}"/>\n` +
+        `      <msg timestamp="${fmt(caseStart)}" level="INFO">Skipped in API export:\n ${xmlEscape(rule?.option ?? '')} — ${xmlEscape(rawMsg)}</msg>\n` +
+        `      <status status="SKIP" starttime="${fmt(caseStart)}" endtime="${fmt(caseEnd)}"/>\n` +
+        `    </test>\n`;
+    } else if (isPass) {
+      manualInner +=
+        `    <test id="${tId}" name="${xmlEscape(tName)}">\n` +
+        `      <msg timestamp="${fmt(caseStart)}" level="INFO">Verified:\n ${xmlEscape(rule?.option ?? '')} — ${xmlEscape(rawMsg)}</msg>\n` +
+        `      <status status="PASS" starttime="${fmt(caseStart)}" endtime="${fmt(caseEnd)}"/>\n` +
         `    </test>\n`;
     } else {
       manualInner +=
         `    <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-        `      <msg timestamp="${fmt(
-          caseStart
-        )}" level="FAIL">Manual rule not verified: ${xmlEscape(
-          rule?.option ?? ''
-        )} — ${xmlEscape(rawMsg)}</msg>\n` +
-        `      <status status="FAIL" starttime="${fmt(
-          caseStart
-        )}" endtime="${fmt(caseEnd)}"/>\n` +
+        `      <msg timestamp="${fmt(caseStart)}" level="FAIL">Manual rule not verified:\n ${xmlEscape(rule?.option ?? '')} — ${xmlEscape(rawMsg)}</msg>\n` +
+        `      <status status="FAIL" starttime="${fmt(caseStart)}" endtime="${fmt(caseEnd)}"/>\n` +
         `    </test>\n`;
       manualFailTotal += 1;
     }
@@ -234,9 +233,7 @@ export function buildRobotXml(
   const manualEnd = runningMs;
   const manualSuiteXml =
     `  <suite id="${manualId}" name="${xmlEscape(manualName)}" source="${VROOT}/Manual_Checklist">\n` +
-    `    <status status="${
-      manualFailTotal > 0 ? 'FAIL' : 'PASS'
-    }" starttime="${fmt(manualStart)}" endtime="${fmt(manualEnd)}"/>\n` +
+    `    <status status="${skipManual ? 'SKIP' : (manualFailTotal > 0 ? 'FAIL' : 'PASS')}" starttime="${fmt(manualStart)}" endtime="${fmt(manualEnd)}"/>\n` +
     manualInner +
     `  </suite>\n`;
 
@@ -247,7 +244,7 @@ export function buildRobotXml(
     `<robot generator="api-validator" generated="${generated}" rpa="false" schemaversion="4">\n` +
     `  <suite id="${rootId}" name="${xmlEscape(rootName)}" source="${VROOT}">\n` +
     `    <status status="${
-      autoFailTotal + manualFailTotal > 0 ? 'FAIL' : 'PASS'
+      (autoFailTotal + (skipManual ? 0 : manualFailTotal)) > 0 ? 'FAIL' : 'PASS'
     }" starttime="${fmt(rootStart)}" endtime="${fmt(rootEnd)}"/>\n` +
     automatedSuiteXml +
     manualSuiteXml +
