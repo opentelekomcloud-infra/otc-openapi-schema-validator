@@ -38,23 +38,31 @@ export function buildRobotXml(
       .replace(/\s+/g, '_')
       .replace(/[^\w\-\.]/g, '');
 
+  const extractRuleId = (raw: any): string | undefined => {
+    if (typeof raw !== 'string') return undefined;
+    // Direct ID like "2.4.1.5"
+    let m = raw.match(/^(\d+(?:\.\d+)+)\b/);
+    if (m) return m[1];
+    // Phrases like "Rule 2.4.1.5 - ..."
+    m = raw.match(/\bRule\s+(\d+(?:\.\d+)+)\b/i);
+    if (m) return m[1];
+    return undefined;
+  };
+
   const VROOT = 'virtual:///Compliance_Validation';
   const suiteId = (...segments: number[]) => `s${segments.join('-s')}`;
   const testId = (suiteIdStr: string, idx: number) => `${suiteIdStr}-t${idx}`;
 
-  // Group diagnostics by source (rule id)
   const grouped: Record<string, any[]> = {};
+  const failedRuleIds = new Set<string>();
   diagnostics.forEach((diag) => {
-    const key = diag?.source ? String(diag.source) : 'unknown';
+    const key = extractRuleId((diag as any)?.ruleId ?? (diag as any)?.source ?? (diag as any)?.message) || 'unknown';
+    if (key !== 'unknown') failedRuleIds.add(key);
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(diag);
   });
 
-  const failedRuleIds = new Set(diagnostics.map((d) => d.source));
-  const passedRules: any[] = Object.values(selectedRules || {}).filter(
-    (rule: any) => !failedRuleIds.has(rule.id)
-  );
-
+  const passedRules: any[] = Object.values(selectedRules || {}).filter((rule: any) => !failedRuleIds.has(rule.id));
   // Timing model
   const CASE_MS = 200;
   const GAP_MS = 500;
