@@ -200,7 +200,19 @@ export default async function handler(
         mode,
       });
 
-      return res.status(200).json({ success: true, message: result });
+      let payload: any = result;
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload);
+        } catch {
+          payload = { raw: payload };
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        launch: payload,
+      });
     }
 
     if (exportMode === 'pdf') {
