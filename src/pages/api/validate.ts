@@ -6,6 +6,7 @@ import { buildRobotXml } from '@/lib/export/buildRobotXml';
 import { reportPortalClient } from '@/clients/reportportal';
 import yaml from "js-yaml";
 import { getSeverityLabel } from "@/utils/mapSeverity";
+import { giteaClient } from '@/clients/gitea';
 
 // Allow large payloads (YAML specs can be big)
 export const config = {
@@ -105,6 +106,21 @@ function safeJoin(base: string, segment: string) {
   return resolved.slice(0, -1); // remove trailing sep we added
 }
 
+function parseGiteaUrl(rawUrl: string): { repo: string; path: string } | null {
+  try {
+    const u = new URL(rawUrl);
+    const seg = u.pathname.split('/').filter(Boolean);
+    if (seg.length >= 5 && (seg[2] === 'src' || seg[2] === 'raw')) {
+      const repoName = seg[1];
+      const filePath = seg.slice(4).join('/');
+      return { repo: `${repoName}`, path: `${filePath}` };
+    }
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
 async function loadAllAutoRules(ruleset: string = 'default'): Promise<AutoRule[]> {
   const rootAll = path.join(process.cwd(), 'public', 'rulesets');
   const root = safeJoin(rootAll, ruleset);
@@ -170,15 +186,41 @@ export default async function handler(
       // Preferred: client provided file content directly
       specText = file_content;
     } else if (isHttpUrl) {
-      // URL: fetch the spec
+      // If base URL belongs to internal Gitea (e.g., gitea.eco.*), use giteaClient
       try {
-        const resp = await fetch(specPathInput!);
-        if (!resp.ok) {
-          return res.status(400).json({ error: `Failed to fetch spec from URL: HTTP ${resp.status}` });
+        const u = new URL(specPathInput!);
+        const hostLc = u.host.toLowerCase();
+        const isInternalGitea = hostLc.includes('gitea') && hostLc.includes('eco');
+
+        if (isInternalGitea) {
+          const parsed = parseGiteaUrl(specPathInput!);
+          if (!parsed) {
+            return res.status(400).json({ error: 'Unable to parse Gitea URL. Provide a URL like /:owner/:repo/src/:branch/path/to/file.yaml' });
+          }
+          try {
+            console.log(parsed.repo, parsed.path)
+            const fileData: any = await giteaClient.fetchYamlFile(parsed.repo, parsed.path);
+            if (typeof fileData === 'string') {
+              specText = fileData;
+            } else if (fileData && typeof fileData === 'object') {
+              // Client may already parse YAML; convert back to text so line numbers can be calculated downstream
+              specText = yaml.dump(fileData);
+            } else {
+              return res.status(400).json({ error: 'Gitea client returned empty or unsupported content.' });
+            }
+          } catch (e: any) {
+            return res.status(400).json({ error: `Failed to load spec from Gitea: ${e?.message || 'unknown error'}` });
+          }
+        } else {
+          // Fallback: direct fetch
+          const resp = await fetch(specPathInput!);
+          if (!resp.ok) {
+            return res.status(400).json({ error: `Failed to fetch spec from URL: HTTP ${resp.status}` });
+          }
+          specText = await resp.text();
         }
-        specText = await resp.text();
       } catch (e: any) {
-        return res.status(400).json({ error: `Failed to fetch spec from URL: ${e?.message || 'unknown error'}` });
+        return res.status(400).json({ error: `Invalid URL: ${e?.message || 'unknown error'}` });
       }
     } else if (typeof specPathInput === 'string' && specPathInput.trim() !== '') {
       // Server path: only attempt if accessible, otherwise ask for file_content
