@@ -1,0 +1,12 @@
+rules:
+  - id: PUB-020-01-2507-2507-M
+    title: Registering Endpoints with IAM
+    message: |
+      When third-party platforms, command lines, and SDKs in the industry use IAM APIs to obtain tokens, IAM returns a catalog, which is a service catalog, including the name, type, and endpoint of a service.
+      These tools obtain the endpoint based on the service type and add the URI of the resource object to access the APIs of related services.
+      Therefore, all services that provide APIs must be registered with IAM.
+      
+      **(1)** Mandatory for the OpenStack service. 
+      **(2)** Non-OpenStack services: Mandatory for Open Telekom Cloud (registration is required) except for other scenarios such as HUAWEI CLOUD (registration is not required).
+    task: Ensure that the provided APIs are registered with IAM.
+    option: Mandatory
