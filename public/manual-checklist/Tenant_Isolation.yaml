@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.4
+  - id: "BAS-040-01-2507-2507-M"
     title: For non-global APIs, tenant isolation must be considered in API design
     message: |
       **For non-global APIs, APIs must support multiple tenants to ensure resource isolation between tenants.**

@@ -1,5 +1,5 @@
 rules:
-  - id: 2.4.1.1
+  - id: "STC-010-01-2507-2507-M-1"
     title: Complete CRUD Support for Created Resources
     message: |
       Each resource-creating path (POST) must have corresponding GET, PUT and DELETE operations for the same resource.
@@ -19,7 +19,7 @@ rules:
     status: implemented
     severity: high
   
-  - id: 2.4.1.2
+  - id: "STC-010-01-2507-2507-M-2"
     title: GET operations must return 200 on success
     message: |
       All GET operations must return status code 200 (OK) on success.
@@ -35,7 +35,7 @@ rules:
     status: implemented
     severity: critical
 
-  - id: 2.4.1.3
+  - id: "STC-010-01-2507-2507-M-3"
     title: GET operations must be secure and idempotent
     message: |
       GET operations must not modify server-side data or state. They must not have a request body or have action keywords in path.
@@ -61,7 +61,7 @@ rules:
     status: implemented
     severity: critical
 
-  - id: 2.4.1.4
+  - id: "STC-010-01-2507-2507-M-4"
     title: GET single resource must return an object
     message: |
       GET requests that return a single resource must not return a list or array. The top-level schema type must be object.
@@ -80,7 +80,7 @@ rules:
     status: implemented
     severity: critical
 
-  - id: 2.4.1.5
+  - id: "STC-010-01-2507-2507-M-5"
     title: GET list operations must return an array
     message: |
       GET methods used to retrieve a list of resources must return a top-level array (e.g. []).

@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.5
+  - id: "BAS-050-01-2507-2507-M"
     title: "Consistency: Interoperability between APIs and consoles"
     message: |
       "The capabilities provided by the service on the public cloud console must also provide corresponding APIs. Users can perform operations and query on the console, and use the APIs provided by the service to call the corresponding APIs.

@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.6
+  - id: "BAS-070-01-2507-2507-M"
     title: "Experience: The API design must consider the ease of use for developers"
     message: |
       "The input parameters of API design must be easy to obtain and the output parameters must be easy to understand. This feature reduces the cost of using APIs and improves API user experience. Do not obtain the input parameters of the API through the query of the precondition API for multiple times.

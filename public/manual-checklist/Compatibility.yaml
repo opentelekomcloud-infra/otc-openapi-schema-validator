@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.7
+  - id: "BAS-080-01-2507-2507-M"
     title: "Compatibility: The interfaces must be compatible"
     message: |
       "APIs are external facades and cannot be modified once released. Compatibility is a top priority in API design. When modifying an API, you must consider the impact of the released API on users.

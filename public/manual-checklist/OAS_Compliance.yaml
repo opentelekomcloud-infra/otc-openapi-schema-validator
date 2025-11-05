@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.10
+  - id: "BAS-110-01-2507-2507-M"
     title: The API description file complies with the OAS 2.0/3.0 design specifications
     message: |
       The API design deliverables are transferred to the backend through YAML files for subsequent activities such as development, test, and documentation delivery.

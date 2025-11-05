@@ -1,5 +1,5 @@
 rules:
-  - id: PUB-020-01-2507-2507-M
+  - id: "PUB-020-01-2507-2507-M"
     title: Registering Endpoints with IAM
     message: |
       When third-party platforms, command lines, and SDKs in the industry use IAM APIs to obtain tokens, IAM returns a catalog, which is a service catalog, including the name, type, and endpoint of a service.

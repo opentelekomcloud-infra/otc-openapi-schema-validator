@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.1
+  - id: "BAS-010-01-2507-2507-M"
     title: "Open API type: The API design meets the open type definition requirements."
     message: |
       Open APIs are APIs that can be invoked by tenants or cloud services using tenant credentials.

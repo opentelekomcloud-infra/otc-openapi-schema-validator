@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.2
+  - id: "BAS-020-01-2507-2507-O"
     title: "Idempotent: API design must follow idempotent."
     message: |
       "**API design must follow several idempotent scenarios**

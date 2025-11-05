@@ -1,5 +1,5 @@
 rules:
-  - id: "2.3.1"
+  - id: "COD-010-01-2507-2507-M"
     title: "Transmission Protocol Requirements"
     message: "All tenant-oriented APIs must use the HTTPS protocol."
     option: Mandatory

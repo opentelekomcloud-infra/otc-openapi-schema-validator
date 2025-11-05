@@ -1,5 +1,5 @@
 rules:
-  - id: "2.3.3"
+  - id: "COD-030-01-2507-2507-M"
     title: "Support JSON/BSON Encapsulation in Request Body"
     message: "The request body must support both JSON and BSON encapsulation."
     option: Mandatory

@@ -1,5 +1,5 @@
 rules:
-  - id: PUB-041-01-2507-2507-M
+  - id: "PUB-041-01-2507-2507-M"
     title: Requirements in the registration phase
     message: |
       Register API Gateway in the production-like environment to ensure its validity. 

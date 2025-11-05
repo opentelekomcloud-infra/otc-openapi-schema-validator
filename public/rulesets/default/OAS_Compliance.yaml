@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.10.1
+  - id: "BAS-110-01-2507-2507-M"
     title: The API description file complies with the OAS 3.0.+ design specifications.
     option: Mandatory
     message: OpenAPI specification must be compliant with OAS 3.0.+
@@ -14,7 +14,7 @@ rules:
     status: implemented
     severity: critical
 
-  - id: 2.1.10.2
+  - id: "BAS-110-01-2507-2507-M-1"
     title: The API description file complies with the OAS 3.0 design specifications
     option: Mandatory
     message: The deliverables must meet the specifications and must be checked in the tool. Complying with the YAML interface definition design specifications for cloud services.

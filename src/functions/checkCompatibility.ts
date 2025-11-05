@@ -426,25 +426,25 @@ export async function checkCompatibility(spec: any, content: string, rule: any):
     }
 
     switch (rule.id) {
-        case '2.1.7.1':
+        case 'BAS-080-01-2507-2507-M':
             checkDeletedApi(remoteSpec, spec, content, diagnostics, rule,);
             break;
-        case '2.1.7.2':
+        case 'BAS-080-01-2507-2507-M-1':
             checkDeletedRequestResponseParam(remoteSpec, spec, content, diagnostics, rule);
             break;
-        case '2.1.7.3':
+        case 'BAS-080-01-2507-2507-M-2':
             checkAddedRequestBodyParam(remoteSpec, spec, content, diagnostics, rule);
             break;
-        case '2.1.7.4':
+        case 'BAS-080-01-2507-2507-M-3':
             checkDeletedRequestResponseParamTypes(remoteSpec, spec, content, diagnostics, rule);
             break;
-        case '2.1.7.5':
+        case 'BAS-080-01-2507-2507-M-4':
             checkEnumDecrease(remoteSpec, spec, content, diagnostics, rule);
             break;
-        case '2.1.7.6':
+        case 'BAS-080-01-2507-2507-M-5':
             checkResponseDeleted(remoteSpec, spec, content, diagnostics, rule);
             break
-        case '2.1.7.7':
+        case 'BAS-080-01-2507-2507-M-6':
             checkResponseHeaderChange(remoteSpec, spec, content, diagnostics, rule);
             break
         default:
