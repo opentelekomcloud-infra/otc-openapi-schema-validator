@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.9.1
+  - id: "BAS-100-01-2507-2507-M"
     title: "Security: APIs must meet security design requirements, such as authentication and authorization"
     message: Do not transfer sensitive data parameters in URLs.
     option: Mandatory
@@ -18,7 +18,7 @@ rules:
     status: implemented
     severity: critical
 
-  - id: 2.1.9.2
+  - id: "BAS-100-01-2507-2507-M-1"
     title: "Security: APIs must meet security design requirements, such as authentication and authorization"
     message: Token authentication uses X-Auth-Token request header to carry authentication information
     option: Mandatory
@@ -40,9 +40,9 @@ rules:
     status: implemented
     severity: critical
 
-  - id: 2.1.9.3
+  - id: "BAS-100-01-2507-2507-M-2"
     title: "Security: APIs must meet security design requirements, such as authentication and authorization"
-    message: For RESTFull API resource operations, the service side can select one or more types of GET/POST/PUT/PATCH/HEAD/DELETE based on the actual user permission. Insecure resource operations are not exposed.
+    message: For RESTFull API resource operations, the service side can select one or more types of GET POST PUT PATCH HEAD or DELETE based on the actual user permission. Insecure resource operations are not exposed.
     option: Mandatory
     location: paths
     element: path

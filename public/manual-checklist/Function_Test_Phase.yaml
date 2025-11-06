@@ -1,5 +1,5 @@
 rules:
-  - id: PUB-042-01-2507-2507-M
+  - id: "PUB-042-01-2507-2507-M"
     title: Requirements in the function test phase
     message: Use the automatic or manual test script to test the APIs. All APIs open to tenants must pass the test before being released.
     task:

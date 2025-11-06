@@ -375,12 +375,12 @@ const HomePage = () => {
               {filteredDiagnostics.length === 0 ? (
                 <p className="text-gray-500">No lint issues.</p>
               ) : (
-                <table className="w-full border-collapse rounded-t-lg rounded-b-lg overflow-hidden">
+                <table className="w-full border-collapse table-fixed rounded-t-lg rounded-b-lg overflow-hidden">
                   <thead>
                   <tr>
                     <th
                       scope="col"
-                      className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300"
+                      className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300 w-[5%]"
                       aria-sort={ariaSortFor("line")}
                       onKeyUp={(e) => handleHeaderKeyUp(e, "line")}
                     >
@@ -394,7 +394,7 @@ const HomePage = () => {
                     </th>
                     <th
                       scope="col"
-                      className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300"
+                      className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300 w-[20%]"
                       aria-sort={ariaSortFor("id")}
                       onKeyUp={(e) => handleHeaderKeyUp(e, "id")}
                     >
@@ -408,7 +408,7 @@ const HomePage = () => {
                     </th>
                     <th
                       scope="col"
-                      className="px-2 py-1 w-5/8 bg-gray-200 cursor-pointer hover:bg-gray-300"
+                      className="px-2 py-1 w-5/8 bg-gray-200 cursor-pointer hover:bg-gray-300 w-[40%]"
                       aria-sort={ariaSortFor("summary")}
                       onKeyUp={(e) => handleHeaderKeyUp(e, "summary")}
                     >

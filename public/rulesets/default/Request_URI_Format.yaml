@@ -1,5 +1,5 @@
 rules:
-  - id: URI-010-01-2507-2507-M
+  - id: "URI-010-01-2507-2507-M"
     title: The request line must be designed in the format defined by the Uniform Resource Identifier.
     message: |
       The request line is mainly a requirement for a uniform resource identifier (URI).
@@ -25,7 +25,7 @@ rules:
     status: planned
     severity: high
   
-  - id: URI-010-01-2507-2507-M-1
+  - id: "URI-010-01-2507-2507-M-1"
     title: The request line must be designed in the format defined by the Uniform Resource Identifier.
     message: |
       The request line is mainly a requirement for a uniform resource identifier (URI).
@@ -50,7 +50,7 @@ rules:
     status: planned
     severity: high
   
-  - id: URI-020-01-2507-2507-M-1
+  - id: "URI-020-01-2507-2507-M-1"
     title: URIs allow only nouns and use lowercase letters. Use few concatenated words.
     message: |
       (1) The total length of the URI and parameters after URI encoding does not exceed 2048 bytes.
@@ -66,7 +66,7 @@ rules:
     status: planned
     severity: critical
 
-  - id: URI-020-01-2507-2507-M-2
+  - id: "URI-020-01-2507-2507-M-2"
     title: URIs allow only nouns and use lowercase letters. Use few concatenated words.
     message: |
       (2) Do not use unnecessary abbreviations in URIs (Unless the abbreviation is commonly used in the industry and accompanied by proof of its origin, abbreviations without clear evidence of their source are not permitted.). Ensure that the names of URIs are "Know the meanings of Wangwen" to avoid understanding obstacles. Do not use unusual abbreviations. Use correct words and words with the same meaning across APIs. Helps developers understand APIs.
@@ -83,7 +83,7 @@ rules:
     status: planned
     severity: critical
 
-  - id: URI-020-01-2507-2507-M-3
+  - id: "URI-020-01-2507-2507-M-3"
     title: URIs allow only nouns and use lowercase letters. Use few concatenated words.
     message: |
       (3) Resource names in URIs must be separated by hyphens (-) and all letters must be lowercase.
@@ -100,7 +100,7 @@ rules:
     status: planned
     severity: critical
 
-  - id: URI-030-01-2507-2507-M-1
+  - id: "URI-030-01-2507-2507-M-1"
     title: If a URI contains special characters for special purposes, escape the characters (% hexadecimal code).
     message: |
       Note: Some characters have special meanings or are reserved by the system and are easily blocked by the network firewall.
@@ -126,7 +126,7 @@ rules:
     status: planned
     severity: critical
 
-  - id: URI-030-01-2507-2507-M-2
+  - id: "URI-030-01-2507-2507-M-2"
     title: If a URI contains special characters for special purposes, escape the characters (% hexadecimal code).
     message: |
       Note: Some characters have special meanings or are reserved by the system and are easily blocked by the network firewall.
@@ -145,7 +145,7 @@ rules:
     status: planned
     severity: critical
 
-  - id: URI-030-01-2507-2507-M-3
+  - id: "URI-030-01-2507-2507-M-3"
     title: If a URI contains special characters for special purposes, escape the characters (% hexadecimal code).
     message: |
       Note: Some characters have special meanings or are reserved by the system and are easily blocked by the network firewall.
@@ -161,7 +161,7 @@ rules:
     status: planned
     severity: critical
 
-  - id: URI-040-01-2507-2507-M
+  - id: "URI-040-01-2507-2507-M"
     title: Resources must use plurals for API 
     message: |
       Note: The resource name in the URI must be in plural form. For modifying, deleting, or querying a specified resource, add the resource_id to the end of resources.
@@ -178,7 +178,7 @@ rules:
     status: planned
     severity: critical
 
-  - id: URI-050-01-2507-2507-M-1
+  - id: "URI-050-01-2507-2507-M-1"
     title: URI design is simple and clear
     message: |
       Note: Cloud Service APIs follow the Restful style. The URI is designed according to the standard format (URI-010-01-2507-2507-M).
@@ -201,7 +201,7 @@ rules:
     status: planned
     severity: critical
 
-  - id: URI-050-01-2507-2507-M-2
+  - id: "URI-050-01-2507-2507-M-2"
     title: URI design is simple and clear
     message: |
       Incorrect URI format: {version} parameter must be always followed by {project_id} parameter in case such parameter is present in URI.

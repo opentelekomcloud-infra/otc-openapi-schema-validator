@@ -1,5 +1,5 @@
 rules:
-  - id: 2.1.9
+  - id: "BAS-100-01-2507-2507-M"
     title: "Security: APIs must meet security design requirements, such as authentication and authorization"
     message: |
       "In principle, the request parameters of query and deletion APIs need to be checked. If the parameter is invalid, an error is reported.
