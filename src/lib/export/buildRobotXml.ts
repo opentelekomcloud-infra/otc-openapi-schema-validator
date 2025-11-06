@@ -41,13 +41,27 @@ export function buildRobotXml(
 
   const extractRuleId = (raw: any): string | undefined => {
     if (typeof raw !== 'string') return undefined;
-    // Direct ID like "2.4.1.5"
-    let m = raw.match(/^(\d+(?:\.\d+)+)\b/);
-    if (m) return m[1];
-    // Phrases like "Rule 2.4.1.5 - ..."
-    m = raw.match(/\bRule\s+(\d+(?:\.\d+)+)\b/i);
-    if (m) return m[1];
-    return undefined;
+
+    const patterns: RegExp[] = [
+      /\b([A-Z]{2,}[A-Z0-9]*(?:-[A-Z0-9]+)+)\b/i,            // direct hyphenated ID
+      /\bRule\s+([A-Z]{2,}[A-Z0-9]*(?:-[A-Z0-9]+)+)\b/i,     // "Rule <hyphenated>"
+      /(\d+(?:\.\d+)+)\b/,                                  // direct dotted numeric ID
+      /\bRule\s+(\d+(?:\.\d+)+)\b/i                        // "Rule <dotted>"
+    ];
+
+    let best: { value: string; index: number } | undefined;
+
+    for (const re of patterns) {
+      const m = re.exec(raw);
+      if (m && m[1]) {
+        const idx = (m as any).index ?? raw.indexOf(m[0]);
+        if (best === undefined || idx < best.index) {
+          best = { value: m[1], index: idx };
+        }
+      }
+    }
+
+    return best?.value;
   };
 
   const VROOT = 'virtual:///Compliance_Validation';

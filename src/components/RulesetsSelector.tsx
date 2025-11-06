@@ -195,15 +195,15 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
                         </div>
                     </div>
 
-                    <table className="w-full border-collapse rounded-t-lg rounded-b-lg overflow-hidden">
+                    <table className="w-full border-collapse table-fixed rounded-t-lg rounded-b-lg overflow-hidden">
                         <thead>
                         <tr>
-                            <th className="px-2 py-1 bg-gray-200"></th>
-                            <th className="px-2 py-1 bg-gray-200">ID</th>
+                            <th className="px-2 py-1 bg-gray-200 w-[5%]"></th>
+                            <th className="px-2 py-1 bg-gray-200 w-[20%]">ID</th>
                             <th className="px-2 py-1 bg-gray-200">Title</th>
                             <th className="px-2 py-1 bg-gray-200">Message</th>
-                            <th className="px-2 py-1 bg-gray-200">Option</th>
-                            <th className="px-2 py-1 bg-gray-200">Severity</th>
+                            <th className="px-2 py-1 bg-gray-200 w-[15%]">Option</th>
+                            <th className="px-2 py-1 bg-gray-200 w-[12%]">Severity</th>
                         </tr>
                         </thead>
                         <tbody>
