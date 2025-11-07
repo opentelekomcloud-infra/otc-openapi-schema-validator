@@ -14,13 +14,13 @@ rules:
     severity: "critical"
   - id: "2.10.3.2"
     title: "Sorting Parameter Default Direction"
-    message: "Sorting direction must be descending by default if not specified."
+    message: "Sorting direction must be ascending by default if not specified."
     option: Mandatory
     location: query
     element: url
     call: {
       function: CheckURLSortingDefaultDirection,
-      functionParams: {"desc"}
+      functionParams: {"asc"}
     }
     severity: "critical"
   - id: "2.10.3.3"
