@@ -1,5 +1,5 @@
 rules:
-  - id: "1.2.5.1"
+  - id: "SLA-010-01-2507-2507-M"
     title: "Response time requirement"
     message: |
       **The response time for an API call does not exceed 3s.**
@@ -11,7 +11,7 @@ rules:
       - **(2)** It is recommended that each API provided by the service provide a baseline time consumption in typical scenarios.
     option: Mandatory
 
-  - id: "1.2.5.2"
+  - id: "SLA-020-01-2507-2507-O"
     title: "Availability requirements"
     message: |
       **Each API must design an availability value.**
@@ -28,7 +28,7 @@ rules:
       For details, see the service commitment.
     option: Recommend
 
-  - id: "1.2.5.3"
+  - id: "SLA-030-01-2507-2507-O"
     title: "Throughput requirements"
     message: |
       **The number of requests that can be processed by the interface per unit time must be considered during API design.**

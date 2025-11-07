@@ -1,0 +1,13 @@
+rules:
+  - id: "COD-010-01-2507-2507-M"
+    title: "Transmission Protocol Requirements"
+    message: "All tenant-oriented APIs must use the HTTPS protocol."
+    option: Mandatory
+    location: servers
+    element: url
+    call: {
+      function: checkHttpsServers,
+      functionParams: {}
+    }
+    severity: high
+    status: implemented

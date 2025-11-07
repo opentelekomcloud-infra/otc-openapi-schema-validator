@@ -1,0 +1,12 @@
+rules:
+  - id: "PUB-041-01-2507-2507-M"
+    title: Requirements in the registration phase
+    message: |
+      Register API Gateway in the production-like environment to ensure its validity. 
+      
+      **(1)** Ensure that the API registration file provided by the cloud service is correct.
+      **(2)** Ensure the consistency of APIs, test cases, and reference documents provided by cloud services.
+    task:
+      - Perform the test (dialing test) before the release (in the production-like environment) and after the release (in the production environment).
+      - Ensure the validity of the published API.
+    option: Mandatory

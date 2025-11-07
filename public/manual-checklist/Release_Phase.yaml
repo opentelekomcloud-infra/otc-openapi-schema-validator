@@ -1,0 +1,8 @@
+rules:
+  - id: "PUB-044-01-2507-2507-M"
+    title: Requirements in the release phase
+    message: "Commercial use capability: APIs that have been fully tested and accepted by reference documents"
+    task:
+      - Ensure that the API is consistent with the document.
+      - Ensure that the published APIs are available.
+    option: Mandatory

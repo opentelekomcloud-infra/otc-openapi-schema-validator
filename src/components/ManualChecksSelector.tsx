@@ -141,49 +141,83 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
             rule.id === ruleId ? { ...rule, verified: !rule.verified } : rule
         );
         setManualRules(updatedRules);
-        console.log("Updated manual rules:", updatedRules);
     };
 
     if (loading) return <p>Loading rulesets...</p>;
     if (error) return <p>Error: {error}</p>;
 
     return (
-        <table className="w-full border-collapse">
-            <thead>
-            <tr>
-                <th className="border px-2 py-1"></th>
-                <th className={`border px-2 py-1 ${styles.wordBreak} w-1/9`}>ID</th>
-                <th className={`border px-2 py-1 ${styles.wordBreak} w-1/9`}>Title</th>
-                <th className={`border px-2 py-1 ${styles.wordBreak} w-6/9`}>Message</th>
-                <th className={`border px-2 py-1 ${styles.wordBreak} w-1/9`}>Option</th>
+        <div>
+            <div className="flex items-center space-x-4 mb-2">
+                <scale-button
+                  onClick={() => {
+                      const updated = manualRules.map(rule => ({...rule, verified: true}));
+                      setManualRules(updated);
+                  }}
+                  variant="primary"
+                  size="m"
+                >
+                    Select All
+                </scale-button>
+                <scale-button
+                  onClick={() => {
+                      const updated = manualRules.map(rule => ({...rule, verified: false}));
+                      setManualRules(updated);
+                  }}
+                  variant="secondary"
+                  size="m"
+                  style={{
+                      ['--background-secondary' as any]: '#ffffff',
+                      ['--background-secondary-hover' as any]: 'hsla(0, 0%, 0%, 0.07)',
+                      ['--background-secondary-active' as any]: 'hsla(0, 0%, 0%, 0.21)',
+                      ['--border-secondary' as any]: '#000000',
+                      ['--border-secondary-hover' as any]: '#000000',
+                      ['--border-secondary-active' as any]: 'hsla(0, 0%, 0%, 0.21)',
+                      ['--color-secondary' as any]: '#111111',
+                      ['--color-secondary-hover' as any]: '#111111',
+                      ['--color-secondary-active' as any]: '#111111',
+                  }}
+                >
+                    Deselect All
+                </scale-button>
+            </div>
+            <table className="w-full border-collapse table-fixed rounded-t-lg rounded-b-lg overflow-hidden">
+                <thead>
+                <tr>
+                    <th className="px-2 py-1 bg-gray-200 w-[5%]"></th>
+                    <th className={`px-2 py-1 ${styles.wordBreak} bg-gray-200 w-[20%]`}>ID</th>
+                    <th className={`px-2 py-1 ${styles.wordBreak} bg-gray-200`}>Title</th>
+                    <th className={`px-2 py-1 ${styles.wordBreak} bg-gray-200 w-[40%]`}>Message</th>
+                <th className={`px-2 py-1 ${styles.wordBreak} bg-gray-200 w-[15%]`}>Option</th>
             </tr>
             </thead>
             <tbody>
             {manualRules.map((rule) => {
                 // Set row color based on verified state
                 const rowClass = rule.verified
-                    ? "bg-green-200"
-                    : "odd:bg-blue-200 even:bg-blue-100";
+                    ? "bg-green-50"
+                    : "odd:bg-white even:bg-gray-100";
                 return (
-                    <tr key={rule.id} className={`border ${rowClass}`}>
-                        <td className="border px-2 py-1 text-center">
+                    <tr key={rule.id} className={`${rowClass}`}>
+                        <td className="px-2 py-1 text-center">
                             <input
                                 type="checkbox"
                                 checked={!!rule.verified}
                                 onChange={() => handleRuleToggle(rule.id)}
                             />
                         </td>
-                        <td className="border px-2 py-1">{rule.id}</td>
-                        <td className="border px-2 py-1">{rule.title}</td>
-                        <td className="border px-2 py-1 whitespace-normal break-all">
+                        <td className="px-2 py-1">{rule.id}</td>
+                        <td className="px-2 py-1">{rule.title}</td>
+                        <td className="px-2 py-1 whitespace-normal break-all">
                             <ReactMarkdown>{rule.message}</ReactMarkdown>
                         </td>
-                        <td className="border px-2 py-1">{rule.option}</td>
+                        <td className="px-2 py-1">{rule.option}</td>
                     </tr>
                 );
             })}
             </tbody>
-        </table>
+            </table>
+        </div>
     );
 };
 

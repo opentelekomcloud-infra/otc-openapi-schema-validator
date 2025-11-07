@@ -1,0 +1,21 @@
+rules:	
+  - id: "COD-040-01-2507-2507-M"
+    title: "Response Body JSON/BSON Encapsulation"
+    message: "The response body must support JSON or BSON encapsulation. If a body is present, the Content-Type must be application/json or application/bson."
+    option: Mandatory
+    location: paths
+    element: responses
+    call:
+      function: checkResponseEncapsulation
+      functionParams:
+        headers:
+          - Content-Type
+        content:
+          - application/json
+          - application/bson
+        methods:
+          - "post"
+          - "put"
+          - "delete"
+    severity: "medium"
+    status: implemented

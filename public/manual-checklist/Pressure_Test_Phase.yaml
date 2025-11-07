@@ -1,0 +1,6 @@
+rules:
+  - id: "PUB-043-01-2507-2507-M"
+    title: Requirements in the pressure test phase
+    message: Test the maximum load of the API and set a proper flow control value based on the load.
+    task: Ensure that the flow control value is proper.
+    option: Mandatory

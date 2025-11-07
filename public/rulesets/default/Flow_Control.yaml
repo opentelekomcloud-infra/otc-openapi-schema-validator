@@ -1,0 +1,15 @@
+rules:
+  - id: "BAS-090-01-2507-2507-M"
+    title: "Flow control design: Flow control must be considered during API design."
+    message: All APIs must have x-apigateway-ratelimit defined.
+    option: Mandatory
+    location: paths
+    call:
+      function: checkParamElementPresence
+      functionParams:
+        headers:
+          - name: "x-apigateway-ratelimit"
+            valueType: string
+            in: header
+    severity: low
+    status: implemented

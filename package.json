@@ -1,28 +1,33 @@
 {
   "name": "otc-openapi-schema-validator",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
   "scripts": {
     "dev": "next dev --turbopack",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -p 3000",
     "lint": "next lint"
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.3",
     "@codemirror/lang-yaml": "^6.1.2",
+    "@telekom/scale-components": "^3.0.0-beta.156",
     "@uiw/react-codemirror": "^4.23.10",
+    "axios": "^1.12.0",
     "js-yaml": "^4.1.0",
-    "jspdf": "^3.0.1",
+    "jspdf": "^3.0.2",
     "jspdf-autotable": "^5.0.2",
+    "jszip": "^3.10.1",
     "marked": "^15.0.7",
-    "next": "^15.2.3",
+    "next": "^15.4.7",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "react-markdown": "^10.1.0"
+    "react-markdown": "^10.1.0",
+    "yaml": "^2.7.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@next/bundle-analyzer": "^15.4.5",
     "@tailwindcss/postcss": "^4",
     "@types/js-yaml": "^4.0.9",
     "@types/node": "^20",

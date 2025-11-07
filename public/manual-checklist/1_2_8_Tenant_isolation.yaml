@@ -1,6 +1,0 @@
-rules:
-  - id: "1.2.8.1"
-    title: "For non-global APIs, tenant isolation must be considered in API design"
-    message: |
-      **For non-global APIs, APIs must support multiple tenants to ensure resource isolation between tenants.**
-    option: Mandatory

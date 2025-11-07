@@ -9,7 +9,27 @@ import { linter, lintGutter } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
-import {exportPDF} from "@/utils/export";
+import {exportJUnit, exportPDF, exportReportPortal} from "@/utils/export";
+import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
+import "@telekom/scale-components/dist/scale-components/scale-components.css";
+import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
+declare module 'react' {
+  // eslint-disable-next-line @typescript-eslint/no-namespace
+  namespace JSX {
+    interface IntrinsicElements {
+      'scale-button': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        variant?: string;
+        size?: string;
+        disabled?: boolean;
+      };
+      'scale-card': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+      'scale-tag': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement>;
+      'scale-logo': React.DetailedHTMLProps<React.HTMLAttributes<HTMLElement>, HTMLElement> & {
+        variant?: string;
+      };
+    }
+  }
+}
 
 interface Diagnostic {
     from: number;
@@ -24,28 +44,77 @@ const HomePage = () => {
     const [showScrollButton, setShowScrollButton] = useState(false);
     const scrollRef = useRef<HTMLElement | null>(null);
     const editorViewRef = useRef<EditorView | null>(null);
+    const fileInputRef = useRef<HTMLInputElement | null>(null);
     const [selectedRules, setSelectedRules] = useState<Record<string, any>>({});
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
     const prevDiagsRef = useRef<Diagnostic[]>([]);
     const [severityFilter, setSeverityFilter] = useState<string>("all");
     const [manualsIsOpen, setManualsIsOpen] = useState(true);
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
+    const [showExportModal, setShowExportModal] = useState(false);
+    const [sort, setSort] = useState<{ key: 'line' | 'id' | 'summary' | 'severity'; dir: 'asc' | 'desc' }>({ key: 'severity', dir: 'desc' });
+
+    const [editorHeight, setEditorHeight] = useState<number>(0);
+    const [specTitle, setSpecTitle] = useState<string | null>(null);
+    const headerRef = useRef<HTMLDivElement>(null);
+    const footerRef = useRef<HTMLDivElement>(null);
+    const [isExporting, setIsExporting] = useState(false);
+
+    useEffect(() => {
+      const calc = () => {
+        const headerH = headerRef.current?.offsetHeight ?? 0;
+        const footerH = footerRef.current?.offsetHeight ?? 0;
+        setEditorHeight(window.innerHeight - headerH - footerH);
+      };
+      calc();
+      window.addEventListener('resize', calc);
+      return () => window.removeEventListener('resize', calc);
+    }, []);
 
     const filteredDiagnostics = diagnostics.filter((diag) =>
-        severityFilter === "all" ? true : diag.severity === severityFilter
+        severityFilter === "all" ? true : diag.severity === severityToDiagnosticMap[severityFilter]
     );
+
+    const toggleSort = (key: 'line' | 'id' | 'summary' | 'severity') =>
+      setSort((s) => ({ key, dir: s.key === key && s.dir === 'asc' ? 'desc' : 'asc' }));
+
+    const sortedDiagnostics = useMemo(() => {
+      const arr = [...filteredDiagnostics];
+      const order = sort.dir === 'asc' ? 1 : -1;
+      const rank = (s: string) => ({ error: 3, warning: 2, info: 1, hint: 0 }[s] ?? -1);
+      return arr.sort((a, b) => {
+        if (sort.key === 'line') {
+          const la = editorViewRef.current?.state.doc.lineAt(a.from).number ?? 0;
+          const lb = editorViewRef.current?.state.doc.lineAt(b.from).number ?? 0;
+          return la === lb ? 0 : la > lb ? order : -order;
+        }
+        if (sort.key === 'id') return ((a.source || '').localeCompare(b.source || '')) * order;
+        if (sort.key === 'summary') return a.message.localeCompare(b.message) * order;
+        // severity
+        return (rank(a.severity) - rank(b.severity)) * order;
+      });
+    }, [filteredDiagnostics, sort]);
 
     const diagnosticsListenerExtension = useMemo(
         () =>
-            EditorView.updateListener.of((update) => {
-                const newDiags = openApiLinter(selectedRules)(update.view);
+            EditorView.updateListener.of(async (update) => {
+                const { diagnostics: newDiags, specTitle: newTitle } = await openApiLinter(selectedRules)(update.view);
+                if (newTitle !== specTitle) {
+                  setSpecTitle(newTitle ?? null);
+                }
                 if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
                     prevDiagsRef.current = newDiags;
                     setDiagnostics(newDiags);
                 }
             }),
-        [selectedRules]
+        [selectedRules, specTitle]
     );
+
+    useEffect(() => {
+      applyPolyfills().then(() => {
+        defineCustomElements(window);
+      });
+    }, []);
 
     const handleEditorCreated = (editorView: EditorView) => {
         editorViewRef.current = editorView;
@@ -99,8 +168,8 @@ const HomePage = () => {
         URL.revokeObjectURL(url);
     };
 
-    const handleExport = async () => {
-        await exportPDF(diagnostics, manualRules, editorViewRef)
+    const handleExport = () => {
+        setShowExportModal(true);
     };
 
     const handleSelectionChange = (newSelection: Record<string, any>) => {
@@ -128,205 +197,397 @@ const HomePage = () => {
         setManualRules(rules);
     };
 
-    return (
-        <div className="flex h-screen flex-col">
-            {/* Header with Upload, Save Button and Severity Legend */}
-            <header className="p-2 bg-gray-200 flex justify-between items-center shadow-lg">
-                <div className="flex space-x-2 items-center">
-                    <label
-                        title="Select a YAML file to load"
-                        className="inline-flex items-center text-white px-0 py-2 rounded cursor-pointer"
-                    >
-                        <Image
-                            src="/images/open-folder.png"
-                            width={32}
-                            height={32}
-                            alt="Load YAML File"
-                            className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
-                        />
-                        <input
-                            type="file"
-                            accept=".yaml,.yml"
-                            className="hidden"
-                            onChange={handleFileUpload}
-                        />
-                    </label>
-                    <label
-                        title="Save modified"
-                        className="inline-flex items-center text-white px-0 py-2 rounded cursor-pointer"
-                    >
-                        <Image
-                            src="/images/save.png"
-                            width={32}
-                            height={32}
-                            alt="Save YAML File"
-                            className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
-                        />
-                        <button onClick={handleSave} className="inline-flex"></button>
-                    </label>
-                    <div className="h-8 border-l border-gray mx-2"></div>
-                    <label
-                        title="Export lint issues"
-                        className="inline-flex items-center text-white px-4 py-2 rounded cursor-pointer"
-                    >
-                        <Image
-                            src="/images/export.png"
-                            width={32}
-                            height={32}
-                            alt="Export Issues"
-                            className="w-8 h-8 mr-2 hover:shadow-lg hover:scale-105 transition duration-200"
-                        />
-                        <button onClick={handleExport} className="inline-flex"></button>
-                    </label>
-                </div>
-                <div className="flex space-x-4">
-                    <div className="flex items-center">
-            <span
-                className="rounded-full mr-1"
-                style={{width: "10px", height: "10px", backgroundColor: "white"}}
-            ></span>
-                        <span>Hint</span>
-                    </div>
-                    <div className="flex items-center">
-            <span
-                className="rounded-full mr-1"
-                style={{width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)"}}
-            ></span>
-                        <span>Info</span>
-                    </div>
-                    <div className="flex items-center">
-            <span
-                className="rounded-full mr-1"
-                style={{width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)"}}
-            ></span>
-                        <span>Warning</span>
-                    </div>
-                    <div className="flex items-center">
-            <span
-                className="rounded-full mr-1"
-                style={{width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)"}}
-            ></span>
-                        <span>Error</span>
-                    </div>
-                </div>
-            </header>
+    // Helper functions for Lint Issues table
+    const ariaSortFor = (key: 'line'|'id'|'summary'|'severity') =>
+      sort.key === key ? (sort.dir === 'asc' ? 'ascending' : 'descending') : undefined;
+    const handleHeaderKeyUp = (e: React.KeyboardEvent, key: 'line'|'id'|'summary'|'severity') => {
+      if (e.key === 'Enter' || e.key === ' ') toggleSort(key);
+    };
 
-            <div className="flex h-screen">
-                {/* Left Panel - Code Editor */}
-                <div className="relative w-1/2 border-r border-gray-300 bg-gray-100 h-full flex flex-col">
-                    <CodeMirror
-                        value={code}
-                        height="100vh"
-                        extensions={[
-                            yaml(),
-                            linter(openApiLinter(selectedRules)),
-                            lintGutter(),
-                            diagnosticsListenerExtension,
-                        ]}
-                        onChange={(value) => setCode(value)}
-                        theme="dark"
-                        basicSetup={{
-                            lineNumbers: true,
-                            foldGutter: true,
-                        }}
-                        onCreateEditor={handleEditorCreated}
-                    />
-                    {showScrollButton && (
-                        <button
-                            onClick={scrollToTop}
-                            className="absolute bottom-10 right-10 bg-blue-500 text-white p-2 rounded shadow-md hover:bg-blue-600 transition"
+    const handleExportReportPortal = async () => {
+      setIsExporting(true);
+      try {
+        await exportReportPortal(diagnostics, selectedRules, manualRules, editorViewRef, {
+          project: "openapi",
+          launch: `Service: ${specTitle ?? 'OpenAPI'}`,
+          description: `Latest launch for ${specTitle ?? 'OpenAPI'} - ${new Date().toISOString()}`,
+          mode: "DEFAULT",
+        });
+        setShowExportModal(false);
+        alert("Exported to ReportPortal successfully.");
+      } catch (err) {
+        console.error(err);
+        alert("Export failed: " + (err as Error).message);
+      } finally {
+        setIsExporting(false);
+      }
+    };
+
+    return (
+      <div className="flex h-screen flex-col">
+        {/* Header with Upload, Save Button and Severity Legend */}
+        <header className="bg-white flex items-center shadow-md z-10" ref={headerRef}>
+          <div
+            className="flex items-center justify-center"
+            style={{backgroundColor: "#e20074", width: "66px", height: "66px"}}
+          >
+            <scale-logo variant="white"></scale-logo>
+          </div>
+          <h1 className="ml-3 font-bold">OpenAPI Specification Validation</h1>
+          <div className="flex gap-3 ml-auto mr-4">
+            {/* Load YAML */}
+            <scale-button
+              onClick={() => fileInputRef.current?.click()}
+              variant="primary"
+              size="m"
+            >
+              <Image
+                src="/images/open-folder.png"
+                width={32}
+                height={32}
+                alt="Load YAML File"
+                className="w-8 h-8 mr-2"
+              />
+              Load
+            </scale-button>
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept=".yaml,.yml"
+              className="hidden"
+              onChange={handleFileUpload}
+            />
+
+            {/* Save */}
+            <scale-button onClick={handleSave} size="m" variant="secondary">
+              <Image
+                src="/images/save.png"
+                width={32}
+                height={32}
+                alt="Save YAML File"
+                className="w-8 h-8 mr-2"
+              />
+              Save
+            </scale-button>
+
+            {/* Export */}
+            <scale-button onClick={handleExport} variant="secondary" size="m">
+              <Image
+                src="/images/export.png"
+                width={32}
+                height={32}
+                alt="Export Issues"
+                className="w-8 h-8 mr-2"
+              />
+              Export
+            </scale-button>
+          </div>
+
+          {/* Severity legend (kept simple, could be replaced by badges later) */}
+          {/*<div className="flex space-x-4 text-sm">*/}
+          {/*  <div className="flex items-center">*/}
+          {/*    <span className="rounded-full mr-1" style={{width: "10px", height: "10px", backgroundColor: "white"}}/>*/}
+          {/*    <span>Low</span>*/}
+          {/*  </div>*/}
+          {/*  <div className="flex items-center">*/}
+          {/*    <span className="rounded-full mr-1"*/}
+          {/*          style={{width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)"}}/>*/}
+          {/*    <span>Medium</span>*/}
+          {/*  </div>*/}
+          {/*  <div className="flex items-center">*/}
+          {/*    <span className="rounded-full mr-1"*/}
+          {/*          style={{width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)"}}/>*/}
+          {/*    <span>High</span>*/}
+          {/*  </div>*/}
+          {/*  <div className="flex items-center">*/}
+          {/*    <span className="rounded-full mr-1"*/}
+          {/*          style={{width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)"}}/>*/}
+          {/*    <span>Critical</span>*/}
+          {/*  </div>*/}
+          {/*</div>*/}
+        </header>
+
+        <div className="flex flex-1 overflow-hidden">
+          {/* Left Panel - Code Editor */}
+          <div className="relative w-1/2 border-r border-gray-300 bg-gray-100 h-full flex flex-col min-h-0">
+            <CodeMirror
+              value={code}
+              height={`${editorHeight}px`}
+              extensions={[
+                yaml(),
+                linter((v) => openApiLinter(selectedRules)(v).then(r => r.diagnostics)),
+                lintGutter(),
+                diagnosticsListenerExtension,
+              ]}
+              onChange={(value) => setCode(value)}
+              theme="dark"
+              basicSetup={{
+                lineNumbers: true,
+                foldGutter: true,
+              }}
+              onCreateEditor={handleEditorCreated}
+            />
+            {showScrollButton && (
+              <scale-button
+                onClick={scrollToTop}
+                className="absolute bottom-10 right-10 text-white p-2 rounded shadow-md transition"
+              >
+                ↑ Top
+              </scale-button>
+            )}
+          </div>
+          {/* Right Panel - Rules Selection and Lint Issues List */}
+          <div className="w-1/2 p-4 bg-white overflow-auto h-full">
+            <scale-card className="block p-4 mb-4">
+              <RulesetsSelector onSelectionChange={handleSelectionChange}/>
+            </scale-card>
+
+            <scale-card className="block p-4 mb-4">
+              <div className="mt-1 hover:shadow-lg transition duration-200">
+                <h3
+                  className="font-bold mb-2 cursor-pointer"
+                  onClick={() => setManualsIsOpen(!manualsIsOpen)}
+                >
+                  Manual Checklist {manualsIsOpen ? '▲' : '▼'}
+                </h3>
+                <div className={manualsIsOpen ? "" : "hidden"}>
+                  <ManualChecksSelector onManualRulesChange={handleManualRulesChange}/>
+                </div>
+              </div>
+            </scale-card>
+
+            <scale-card className="block p-4">
+              <h3 className="font-bold mb-2">Lint Issues</h3>
+              <div className="mb-2">
+                <label className="mr-2 font-semibold">Filter by Severity:</label>
+                <select
+                  className="border p-2 rounded-md"
+                  value={severityFilter}
+                  onChange={(e) => setSeverityFilter(e.target.value)}
+                >
+                  <option value="all">All</option>
+                  <option value="low">Low</option>
+                  <option value="medium">Medium</option>
+                  <option value="high">High</option>
+                  <option value="critical">Critical</option>
+                </select>
+              </div>
+              {filteredDiagnostics.length === 0 ? (
+                <p className="text-gray-500">No lint issues.</p>
+              ) : (
+                <table className="w-full border-collapse table-fixed rounded-t-lg rounded-b-lg overflow-hidden">
+                  <thead>
+                  <tr>
+                    <th
+                      scope="col"
+                      className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300 w-[5%]"
+                      aria-sort={ariaSortFor("line")}
+                      onKeyUp={(e) => handleHeaderKeyUp(e, "line")}
+                    >
+                      <button onClick={() => toggleSort("line")} className="w-full text-left flex items-center group">
+                        #
+                        <span
+                          className={`ml-1 text-xs ${sort.key === "line" ? "inline" : "hidden group-hover:inline"} ${sort.dir === "asc" ? "text-gray-500" : "text-gray-500 rotate-180"} group-hover:text-pink-500`}>
+                                ▲
+                              </span>
+                      </button>
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300 w-[20%]"
+                      aria-sort={ariaSortFor("id")}
+                      onKeyUp={(e) => handleHeaderKeyUp(e, "id")}
+                    >
+                      <button onClick={() => toggleSort("id")} className="w-full text-left flex items-center group">
+                        ID
+                        <span
+                          className={`ml-1 text-xs ${sort.key === "id" ? "inline" : "hidden group-hover:inline"} ${sort.dir === "asc" ? "text-gray-500" : "text-gray-500 rotate-180"} group-hover:text-pink-500`}>
+                                ▲
+                              </span>
+                      </button>
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-2 py-1 w-5/8 bg-gray-200 cursor-pointer hover:bg-gray-300 w-[40%]"
+                      aria-sort={ariaSortFor("summary")}
+                      onKeyUp={(e) => handleHeaderKeyUp(e, "summary")}
+                    >
+                      <button onClick={() => toggleSort("summary")}
+                              className="w-full text-left flex items-center group">
+                        Summary
+                        <span
+                          className={`ml-1 text-xs ${sort.key === "summary" ? "inline" : "hidden group-hover:inline"} ${sort.dir === "asc" ? "text-gray-500" : "text-gray-500 rotate-180"} group-hover:text-pink-500`}>
+                                ▲
+                              </span>
+                      </button>
+                    </th>
+                    <th
+                      scope="col"
+                      className="px-2 py-1 w-1/8 bg-gray-200 cursor-pointer hover:bg-gray-300"
+                      style={{wordBreak: "normal", overflowWrap: "normal"}}
+                      aria-sort={ariaSortFor("severity")}
+                      onKeyUp={(e) => handleHeaderKeyUp(e, "severity")}
+                    >
+                      <button onClick={() => toggleSort("severity")}
+                              className="w-full text-left flex items-center group">
+                        Severity
+                        <span
+                          className={`ml-1 text-xs ${sort.key === "severity" ? "inline" : "hidden group-hover:inline"} ${sort.dir === "asc" ? "text-gray-500" : "text-gray-500 rotate-180"} group-hover:text-pink-500`}>
+                                ▲
+                              </span>
+                      </button>
+                    </th>
+                  </tr>
+                  </thead>
+                  <tbody>
+                  {sortedDiagnostics.map((diag, index) => {
+                    const lineNumber = editorViewRef.current
+                      ? editorViewRef.current.state.doc.lineAt(diag.from).number
+                      : 'N/A';
+                    let severityBg = '';
+                    switch (diag.severity) {
+                      case 'hint':
+                        severityBg = 'bg-white';
+                        break;
+                      case 'info':
+                        severityBg = 'bg-blue-200';
+                        break;
+                      case 'warning':
+                        severityBg = 'bg-yellow-200';
+                        break;
+                      case 'error':
+                        severityBg = 'bg-red-200';
+                        break;
+                      default:
+                        severityBg = 'bg-gray-200';
+                    }
+                    return (
+                      <tr
+                        key={index}
+                        onClick={() => handleDiagnosticClick(diag.from)}
+                        className={`cursor-pointer hover:underline ${severityBg}`}
+                      >
+                        <td className="px-2 py-1 text-center"
+                            style={{wordBreak: "normal", overflowWrap: "normal"}}>{lineNumber}</td>
+                        <td className="px-2 py-1"
+                            style={{wordBreak: "normal", overflowWrap: "normal"}}>{diag.source}</td>
+                        <td className="px-2 py-1"
+                            style={{wordBreak: "normal", overflowWrap: "normal"}}>{diag.message}</td>
+                        <td className="text-center break-words whitespace-normal"
                         >
-                        ↑ Top
-                        </button>
-                    )}
-                </div>
-                {/* Right Panel - Rules Selection and Lint Issues List */}
-                <div className="w-1/2 p-4 bg-white overflow-auto h-full">
-                    <RulesetsSelector onSelectionChange={handleSelectionChange}/>
-                    <div className="mt-1 hover:shadow-lg transition duration-200">
-                        <h3
-                            className="font-bold mb-2 cursor-pointer"
-                            onClick={() => setManualsIsOpen(!manualsIsOpen)}
-                        >Manual Checklist {manualsIsOpen ? '▲' : '▼'} </h3>
-                        <div className={manualsIsOpen ? "" : "hidden"}>
-                            <ManualChecksSelector onManualRulesChange={handleManualRulesChange} />
-                        </div>
-                    </div>
-                    <div className="mt-4 p-4 border block whitespace-normal break-all">
-                        <h3 className="font-bold mb-2">Lint Issues</h3>
-                        {/* Severity Filter Dropdown */}
-                        <div className="mb-2">
-                            <label className="mr-2 font-semibold">Filter by Severity:</label>
-                            <select
-                                className="border p-1"
-                                value={severityFilter}
-                                onChange={(e) => setSeverityFilter(e.target.value)}
-                            >
-                                <option value="all">All</option>
-                                <option value="hint">Hint</option>
-                                <option value="info">Info</option>
-                                <option value="warning">Warning</option>
-                                <option value="error">Error</option>
-                            </select>
-                        </div>
-                        {filteredDiagnostics.length === 0 ? (
-                            <p className="text-gray-500">No lint issues.</p>
-                        ) : (
-                            <table className="w-full border-collapse">
-                                <thead>
-                                <tr>
-                                    <th className="border px-2 py-1 w-1/8">#</th>
-                                    <th className="border px-2 py-1 w-1/8">ID</th>
-                                    <th className="border px-2 py-1 w-5/8">Summary</th>
-                                    <th className="border px-2 py-1 w-1/8" style={{ wordBreak: "normal", overflowWrap: "normal" }}>Severity</th>
-                                </tr>
-                                </thead>
-                                <tbody>
-                                {filteredDiagnostics.map((diag, index) => {
-                                    const lineNumber = editorViewRef.current
-                                        ? editorViewRef.current.state.doc.lineAt(diag.from).number
-                                        : "N/A";
-                                    let severityBg = "";
-                                    switch (diag.severity) {
-                                        case "hint":
-                                            severityBg = "bg-white";
-                                            break;
-                                        case "info":
-                                            severityBg = "bg-blue-200";
-                                            break;
-                                        case "warning":
-                                            severityBg = "bg-yellow-200";
-                                            break;
-                                        case "error":
-                                            severityBg = "bg-red-200";
-                                            break;
-                                        default:
-                                            severityBg = "bg-gray-200";
-                                    }
-                                    return (
-                                        <tr
-                                            key={index}
-                                            onClick={() => handleDiagnosticClick(diag.from)}
-                                            className={`cursor-pointer hover:underline ${severityBg}`}
-                                        >
-                                            <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{lineNumber}</td>
-                                            <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.source}</td>
-                                            <td className="border px-2 py-1" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.message}</td>
-                                            <td className="border px-2 py-1 text-center" style={{ wordBreak: "normal", overflowWrap: "normal" }}>{diag.severity}</td>
-                                        </tr>
-                                    );
-                                })}
-                                </tbody>
-                            </table>
-                        )}
-                    </div>
-                </div>
-            </div>
-            {/* Footer */}
-            <footer className="bg-gray-200 p-4 text-center">
-                © 2025 EcoSystems. All rights reserved.
-            </footer>
+                          <scale-tag>{getSeverityLabel(diag.severity)}</scale-tag>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                  </tbody>
+                </table>
+              )}
+            </scale-card>
+          </div>
         </div>
+        {/* Footer */}
+
+        <footer className="bg-white-200 p-4 text-left text-sm indent-4" ref={footerRef}>
+          © T-Systems International GmbH | 2025 EcoSystems | All rights reserved.
+        </footer>
+
+        {/*Modal for Export Options*/}
+        {showExportModal && (
+          <div className="fixed inset-0 flex items-center justify-center bg-opacity-50 z-50"
+               onClick={() => setShowExportModal(false)}
+          >
+            <div className="bg-white rounded-lg shadow-lg p-6 w-80"
+                 onClick={(e) => e.stopPropagation()}
+            >
+              {/* X button inside modal */}
+              <div className="inset-x-0 top-0 flex justify-end">
+                <button
+                  className="text-black-500 hover:text-black-700 hover:scale-115"
+                  onClick={() => setShowExportModal(false)}
+                >
+                  X
+                </button>
+              </div>
+              <h2 className="text-xl font-bold mb-4">Export</h2>
+              {/* X button on the top right */}
+              <div className="flex flex-col space-y-2">
+                <scale-button
+                  onClick={async () => {
+                    await exportPDF(diagnostics, selectedRules, manualRules, editorViewRef);
+                    setShowExportModal(false);
+                  }}
+                  size="m"
+                >
+                  <Image
+                    src="/images/pdf.png"
+                    width={32}
+                    height={32}
+                    alt="Export Issues"
+                    className="w-8 h-8 mr-2"
+                  />
+                  Export to PDF
+                </scale-button>
+                <scale-button
+                  onClick={async () => {
+                    await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
+                    setShowExportModal(false);
+                  }}
+                  size="m"
+                >
+                  <Image
+                    src="/images/junit5.png"
+                    width={32}
+                    height={32}
+                    alt="Export Issues"
+                    className="w-8 h-8 mr-2"
+                  />
+                  Export to jUnit
+                </scale-button>
+                <scale-button
+                  onClick={handleExportReportPortal}
+                  disabled={isExporting}
+                  variant="secondary"
+                  size="m"
+                  style={{
+                    ['--background-secondary' as any]: '#ffffff',
+                    ['--background-secondary-hover' as any]: 'hsla(0, 0%, 0%, 0.07)',
+                    ['--background-secondary-active' as any]: 'hsla(0, 0%, 0%, 0.21)',
+                    ['--border-secondary' as any]: '#000000',
+                    ['--border-secondary-hover' as any]: '#000000',
+                    ['--border-secondary-active' as any]: 'hsla(0, 0%, 0%, 0.21)',
+                    ['--color-secondary' as any]: '#111111',
+                    ['--color-secondary-hover' as any]: '#111111',
+                    ['--color-secondary-active' as any]: '#111111',
+                  }}
+                >
+                  {isExporting ? (
+                    <>
+                      <span className="inline-block mr-2 align-middle">
+                        <span
+                          className="animate-spin inline-block h-5 w-5 border-2 border-gray-300 border-t-pink-600 rounded-full"/>
+                      </span>
+                      Exporting…
+                    </>
+                  ) : (
+                    <>
+                      <Image
+                        src="/images/rp.png"
+                        width={32}
+                        height={32}
+                        alt="Export to ReportPortal"
+                        className="w-8 h-8 mr-2"
+                      />
+                      Export to ReportPortal
+                    </>
+                  )}
+                </scale-button>
+              </div>
+            </div>
+          </div>
+        )}
+
+      </div>
     );
 };
 

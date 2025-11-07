@@ -1,0 +1,38 @@
+rules:
+  - id: "BAS-110-01-2507-2507-M"
+    title: The API description file complies with the OAS 3.0.+ design specifications.
+    option: Mandatory
+    message: OpenAPI specification must be compliant with OAS 3.0.+
+    location: openapi
+    element: version
+    call:
+      function: checkOASVersion
+      functionParams:
+        allowedVersions:
+          - "3.0"
+    description: This rule checks whether delivered OpenAPI specification complains with OAS 3.0.+ versions.
+    status: implemented
+    severity: critical
+
+  - id: "BAS-110-01-2507-2507-M-1"
+    title: The API description file complies with the OAS 3.0 design specifications
+    option: Mandatory
+    message: The deliverables must meet the specifications and must be checked in the tool. Complying with the YAML interface definition design specifications for cloud services.
+    location: file
+    element: all
+    call:
+      function: checkOASSpec
+      functionParams:
+        requiredValues:
+          - openapi
+          - info
+          - paths
+        optionalValues:
+          - servers
+          - security
+          - tags
+          - externalDocs
+          - components
+    description: This rule checks whether delivered OpenAPI specification is following the agreed template OAS structure
+    status: implemented
+    severity: critical

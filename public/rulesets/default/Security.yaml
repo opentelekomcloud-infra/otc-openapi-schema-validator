@@ -1,0 +1,61 @@
+rules:
+  - id: "BAS-100-01-2507-2507-M"
+    title: "Security: APIs must meet security design requirements, such as authentication and authorization"
+    message: Do not transfer sensitive data parameters in URLs.
+    option: Mandatory
+    location: paths
+    element: path
+    call:
+      function: checkElementSensitiveData
+      functionParams:
+        queryNotAllowed:
+          - "password"
+          - "credential"
+          - "secret"
+          - "apikey"
+          - "token"
+    description: This rule checks whether API path contains sensitive information in query parameters
+    status: implemented
+    severity: critical
+
+  - id: "BAS-100-01-2507-2507-M-1"
+    title: "Security: APIs must meet security design requirements, such as authentication and authorization"
+    message: Token authentication uses X-Auth-Token request header to carry authentication information
+    option: Mandatory
+    location: paths
+    element: parameters
+    call:
+      function: checkParamElementPresence
+      functionParams:
+        headers:
+          - name: "X-Auth-Token"
+            valueType: string
+            in: header
+        exceptionPaths:
+          - "/"
+          - "/{version_id}"
+          - "/rds/{version_id}"
+          - "/{version}"
+    description: This rule checks whether all APIs except version discovery APIs have mandatory request header X-Auth-Token
+    status: implemented
+    severity: critical
+
+  - id: "BAS-100-01-2507-2507-M-2"
+    title: "Security: APIs must meet security design requirements, such as authentication and authorization"
+    message: For RESTFull API resource operations, the service side can select one or more types of GET POST PUT PATCH HEAD or DELETE based on the actual user permission. Insecure resource operations are not exposed.
+    option: Mandatory
+    location: paths
+    element: path
+    call:
+      function: checkAllowedMethods
+      functionParams:
+        methods:
+          - "GET"
+          - "POST"
+          - "PUT"
+          - "PATCH"
+          - "HEAD"
+          - "DELETE"
+    description: This rule checks whether only allowed HTTP methods (GET/POST/PUT/PATCH/HEAD/DELETE) are exposed
+    status: implemented
+    severity: critical

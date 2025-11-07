@@ -1,7 +1,9 @@
 rules:
-  - id: "1.2.7.1"
+  - id: "BAS-030-01-2507-2507-M"
     title: "The API design must ensure atomicity of operations"
     message: |
       **The operation atomicity must be ensured in a single API of a cloud service.
       If an operation fails, junk data generated during the operation can be deleted.**
     option: Mandatory
+    task: Failed resources must be deletable. Subsidiary resources should be automatically deleted in case of a failure during deployment of main resource.
+    severity: high

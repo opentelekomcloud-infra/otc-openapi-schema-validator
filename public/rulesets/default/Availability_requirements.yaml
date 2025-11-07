@@ -1,0 +1,13 @@
+rules:
+  - id: "SLA-020-01-2507-2507-O"
+    title: "Availability requirements: Each API must have an availability value"
+    message: "If a user receives a response indicating a server error for a request, (HTTP code 500 InternalError, HTTP code 503 ServiceUnavailable). If the server error is reported after three retry attempts, the system is unavailable for 1 minute."
+    option: Optional
+    location: response
+    element: statusCodes
+    call:
+      function: availabilityValueCheck
+      functionParams:
+        "StatusCodes": [500, 503]
+    status: "unsupported"
+    severity: "low"

@@ -1,41 +1,10 @@
 import { Diagnostic } from "@codemirror/lint";
-import yaml from "js-yaml";
-import { httpsCheckServers } from "@/functions/httpsCheckServers";
-import { mediaTypeCheck } from "@/functions/mediaTypeCheck";
+import { runLinter } from "@/lib/linter/runLinter";
 
-const functionsMap: { [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] } = {
-    httpsCheckServers,
-    mediaTypeCheck
-};
-
-export function openApiLinter(selectedRules: Record<string, any>) {
-    return (view: any): Diagnostic[] => {
-        let diagnostics: Diagnostic[] = [];
-        const content = view.state.doc.toString();
-
-        try {
-            const spec = yaml.load(content);
-            selectedRules.forEach((rule: { call: { function: any; }; }) => {
-                if (rule.call && rule.call.function) {
-                    const funcName = rule.call.function;
-                    const ruleFunc = functionsMap[funcName];
-                    if (typeof ruleFunc === "function") {
-                        const ruleDiagnostics = ruleFunc(spec, content, rule);
-                        diagnostics = diagnostics.concat(ruleDiagnostics);
-                    } else {
-                        console.error(`No function found for ${funcName}`);
-                    }
-                }
-            });
-        } catch (error: any) {
-            diagnostics.push({
-                from: 0,
-                to: content.length,
-                severity: "error",
-                message: "Specification parsing error: " + error.message,
-            });
-        }
-
-        return diagnostics;
-    };
+export function openApiLinter(selectedRules: any) {
+  return async (view: any): Promise<{ diagnostics: Diagnostic[]; specTitle?: string }> => {
+    const content = view.state.doc.toString();
+    const { diagnostics, specTitle } = await runLinter(content, selectedRules);
+    return { diagnostics, specTitle };
+  };
 }

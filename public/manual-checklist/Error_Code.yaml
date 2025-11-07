@@ -1,0 +1,55 @@
+rules:
+  - id: "ERR-010-01-2507-2507-M"
+    title: "4-Digit Error Code Format"
+    message: |
+      **Error codes must use a 4-digit numeric format (XXXX) prefixed with the service abbreviation.**
+
+      - **(1)** The error code must be exactly 4 numeric digits.
+      - **(2)** A prefix representing the service abbreviation must be added before the numeric code.
+    option: Mandatory
+    task: Check that all error codes use the 4-digit format with the required prefix
+    severity: high
+
+  - id: "ERR-010-01-2507-2507-M-1"
+    title: "6-Digit Error Code Format"
+    message: |
+      **Error codes must use a 6-digit numeric format (XXXXXX) prefixed with the service abbreviation.**
+
+      - **(1)** The error code must be exactly 6 numeric digits.
+      - **(2)** A prefix representing the service abbreviation must be added before the numeric code.
+    option: Mandatory
+    task: Check that all error codes use the 6-digit format with the required prefix
+    severity: high
+
+  - id: "ERR-010-01-2507-2507-M-2"
+    title: "8-Digit Error Code Format"
+    message: |
+      **Error codes must use an 8-digit numeric format (XXXXXXXX) prefixed with the service abbreviation.**
+
+      - **(1)** The error code must be exactly 8 numeric digits.
+      - **(2)** A prefix representing the service abbreviation must be added before the numeric code.
+    option: Mandatory
+    task: Check that all error codes use the 8-digit format with the required prefix
+    severity: high
+
+  - id: "ERR-010-01-2507-2507-M-3"
+    title: "Error Fields in Failed Response"
+    message: |
+      **When the request fails, the response body must contain both `error_code` and `error_msg` fields.**
+
+      - **(1)** The `error_code` must follow the required numeric format with a service prefix.
+      - **(2)** The `error_msg` must describe the error in human-readable text.
+    option: Mandatory
+    task: Verify that failed responses always include `error_code` and `error_msg`
+    severity: critical
+
+  - id: "ERR-010-01-2507-2507-M-4"
+    title: "No Error Fields in Successful Response"
+    message: |
+      **When the request is successful, the response body must not include `error_code` or `error_msg`.**
+
+      - **(1)** Successful responses must not return any error information fields.
+      - **(2)** Only failure responses should contain `error_code` and `error_msg`.
+    option: Mandatory
+    task: Ensure that successful responses do not include `error_code` or `error_msg`
+    severity: critical
