@@ -1,0 +1,6 @@
+rules:
+  - id: "INT-010-01-2507-2507-M"
+    title: "The English information returned by the API must be correct"
+    message: |
+      "The English information returned by the open API must be correct."
+    option: Mandatory

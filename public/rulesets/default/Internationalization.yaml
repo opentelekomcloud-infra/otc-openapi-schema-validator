@@ -1,0 +1,30 @@
+rules:
+  - id: "INT-010-01-2507-2507-M"
+    title: The English information returned by the API must be correct.
+    message: |
+      The English information returned by the open API must be correct. Only English information can be returned, and Chinese information is not allowed.
+    option: Mandatory
+    location:
+      - paths
+      - components
+      - info
+      - tags
+    element:
+      - summary
+      - description
+      - title
+      - responses
+      - requestBody
+      - parameters
+      - schemas
+      - name
+    call:
+      function: verifyEnglishOnly
+      functionParams:
+        allowedLanguages:
+          - "en"
+        forbiddenLanguages:
+          - "zh"
+    descriprion: This rule check specification on allowed languages.
+    status: devel
+    severity: critical
