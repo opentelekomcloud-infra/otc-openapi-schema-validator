@@ -1,0 +1,11 @@
+rules:
+  - id: "QUE-040-01-2507-2507-M"
+    title: "Evaluation of perfomance of resourse query operation"
+    message: |
+      "The impact on the interface performance needs to be evaluated. If the impact on the interface performance is great, it is recommended that an independent API be provided to return the total number of resources"
+    option: Mandatory
+	
+  - id: "QUE-050-01-2507-2507-M"
+    title: "Cloud services must provide APIs for querying their own service quotas"
+    message: |
+      "Services that are not interconnected with Quota Center do not need to provide the Quota API. Services that are interconnected with Quota Center must provide the Quota API."
