@@ -105,6 +105,22 @@ export function buildRobotXml(
     const subSuiteId = `${automatedId}-s${autoSuiteCounter}`;
     const suiteStart = runningMs;
     let testsXml = '';
+    const ruleMeta = (selectedRules || {})[source];
+    const metaTitle =
+      ruleMeta?.title ??
+      ruleMeta?.name ??
+      ruleMeta?.message ??
+      diags?.[0]?.ruleTitle ??
+      diags?.[0]?.ruleName ??
+      diags?.[0]?.ruleId ??
+      diags?.[0]?.message;
+
+    const suiteDisplayName =
+      source === 'unknown'
+        ? (metaTitle || 'Unknown Rule')
+        : metaTitle
+          ? `${source} - ${metaTitle}`
+          : source;
 
     for (let ti = 0; ti < diags.length; ti++) {
       const diag = diags[ti];
@@ -150,7 +166,7 @@ export function buildRobotXml(
 
     const suiteEnd = runningMs;
     autoInner +=
-      `    <suite id="${subSuiteId}" name="${xmlEscape(source)}" source="${VROOT}/Automated_Compliance_Validation_Report/${safePath(source)}.robot">\n` +
+      `    <suite id="${subSuiteId}" name="${xmlEscape(suiteDisplayName)}" source="${VROOT}/Automated_Compliance_Validation_Report/${safePath(source)}.robot">\n` +
       `      <status status="FAIL" starttime="${fmt(
         suiteStart
       )}" endtime="${fmt(suiteEnd)}"/>\n` +
