@@ -10,7 +10,6 @@ rules:
       For APIs that have been released in history, the resource identifier can be defined as follows:
       https://endpoint/{version}/[project_id/tenant_id]/{resources}
       Note: version indicates the interface version, for example, v1. In the inventory resource ID, project_id and tenant_id indicate the project ID.
-
     option: Mandatory
     location: paths
     element: path
@@ -22,7 +21,7 @@ rules:
           - project: "/{version}/{resources}"
           - domain: "/{version}/[project_id/tenant_id]/{resources}"
     description: This rule checks whether defined path is compliant with pred-defined format.
-    status: planned
+    status: implemented
     severity: high
   
   - id: "URI-010-01-2507-2507-M-1"
@@ -36,7 +35,6 @@ rules:
       For APIs that have been released in history, the resource identifier can be defined as follows:
       https://endpoint/{version}/[project_id/tenant_id]/{resources}
       Note: version indicates the interface version, for example, v1. In the inventory resource ID, project_id and tenant_id indicate the project ID.
-
     option: Mandatory
     location: paths
     element: path
@@ -95,7 +93,7 @@ rules:
       function: checkURIContentSyntax
       functionParams:
         requiredPathRegexp:
-          - "^/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\})(?:/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\}))*$"
+#          - "^/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\})(?:/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\}))*$"
     description: Check whether URI contains only lowercase characters separated by hyphens
     status: planned
     severity: critical
