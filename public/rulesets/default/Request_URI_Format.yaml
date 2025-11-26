@@ -6,9 +6,9 @@ rules:
       A URI is one of the most intuitive content for users to view an interface.
       The definition of a URI must be designed according to the specified format. (OpenStack or community APIs are subject to the native definition.)
       The format of the Uniform Resource Identifier is:
-      https://endpoint/{version}/{resources}.
+      /{version}/{resources}.
       For APIs that have been released in history, the resource identifier can be defined as follows:
-      https://endpoint/{version}/[project_id/tenant_id]/{resources}
+      /{version}/{project_id}/{resources}
       Note: version indicates the interface version, for example, v1. In the inventory resource ID, project_id and tenant_id indicate the project ID.
     option: Mandatory
     location: paths
