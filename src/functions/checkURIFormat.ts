@@ -23,11 +23,12 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
     if (!domainPattern) domainPattern = "/{version}/[project_id/tenant_id]/{resources}";
 
     const versionRegex = /^v[0-9]+(\.[0-9]+)?$/;
+    const projectOrTenantRegex = /^\{(project_id|tenant_id)\}$/;
 
     for (const pathKey of Object.keys(spec.paths)) {
-        if (typeof pathKey !== "string" || !pathKey.startsWith("/")) continue;
+        if (!pathKey.startsWith("/")) continue;
 
-        const segments = pathKey.split("/").filter(Boolean);
+        const segments = pathKey.split("/").filter(Boolean); // remove empty segments from leading/trailing slashes
         if (segments.length === 0) continue; // skip root
 
         const versionSegment = segments[0];
@@ -45,19 +46,77 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
             continue;
         }
 
+        // No additional version-like segments are allowed after the first
+        let hasExtraVersion = false;
+        for (let i = 1; i < segments.length; i++) {
+            if (versionRegex.test(segments[i])) {
+                hasExtraVersion = true;
+                break;
+            }
+        }
+
+        if (hasExtraVersion) {
+            const index = content.indexOf(pathKey);
+            diagnostics.push({
+                from: index >= 0 ? index : 0,
+                to: index >= 0 ? index + pathKey.length : 0,
+                severity: mapSeverity(rule.severity),
+                message: `Path "${pathKey}" must not contain additional version segments after the leading /{version}.`,
+                source: rule.id,
+            });
+            continue;
+        }
+
         // Detect if this looks like a "domain"-scope URI:
         //   /{version}/{project_id}/{resources}
         //   /{version}/{tenant_id}/{resources}
         let isDomainScope = false;
-        if (segments.length >= 3) {
+        if (segments.length >= 2) {
             const second = segments[1];
-            if (/^\{(project_id|tenant_id)\}$/.test(second)) {
+            if (projectOrTenantRegex.test(second)) {
                 isDomainScope = true;
             }
         }
 
+        // project_id/tenant_id may appear only as the second segment (domain scope); any further occurrence is invalid
+        let hasMisplacedProjectOrTenant = false;
+        for (let i = 2; i < segments.length; i++) {
+            if (projectOrTenantRegex.test(segments[i])) {
+                hasMisplacedProjectOrTenant = true;
+                break;
+            }
+        }
 
+        if (hasMisplacedProjectOrTenant) {
+            const index = content.indexOf(pathKey);
+            diagnostics.push({
+                from: index >= 0 ? index : 0,
+                to: index >= 0 ? index + pathKey.length : 0,
+                severity: mapSeverity(rule.severity),
+                message: `Path "${pathKey}" must use project_id/tenant_id only immediately after the version segment ("/${versionSegment}/{project_id|tenant_id}/...").`,
+                source: rule.id,
+            });
+            continue;
+        }
+
+        // Domain-scope URIs must have at least one resource segment after {project_id}/{tenant_id}
+        if (isDomainScope && segments.length < 3) {
+            const index = content.indexOf(pathKey);
+            diagnostics.push({
+                from: index >= 0 ? index : 0,
+                to: index >= 0 ? index + pathKey.length : 0,
+                severity: mapSeverity(rule.severity),
+                message: `Path "${pathKey}" must contain at least one resource segment after {project_id|tenant_id} according to URI format ${domainPattern}.`,
+                source: rule.id,
+            });
+            continue;
+        }
+
+        // Validate according to scope rules:
+        // - project scope: /{version}/{resources}  -> at least two segments (version + resource)
+        // - domain scope:  /{version}/[project_id/tenant_id]/{resources} -> at least three segments
         let isValid = false;
+
         if (isDomainScope) {
             // /v1/{project_id}/resources
             if (segments.length >= 3) {
