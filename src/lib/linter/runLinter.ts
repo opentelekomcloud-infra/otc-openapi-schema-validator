@@ -15,6 +15,7 @@ import { checkParamElementAbsence } from '@/functions/checkParamElementAbsence';
 import { checkRequestEncapsulation } from '@/functions/checkRequestEncapsulation';
 import { checkResponseEncapsulation } from '@/functions/checkResponseEncapsulation';
 import { checkCompatibility } from '@/functions/checkCompatibility';
+import { checkURIFormat } from '@/functions/checkURIFormat';
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -33,6 +34,7 @@ export const functionsMap: {
   checkRequestEncapsulation,
   checkResponseEncapsulation,
   checkCompatibility,
+  checkURIFormat,
 };
 
 /**
