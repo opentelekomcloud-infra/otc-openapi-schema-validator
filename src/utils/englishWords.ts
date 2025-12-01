@@ -87,8 +87,8 @@ export function looksLikeUnknownWord(token: string): boolean {
   // Pure acronyms without vowels are suspicious
   if (vowels === 0) return true;
 
-  // Long tokens that are not in the dictionary are suspicious (e.g. actiontrtrtrt)
-  if (token.length >= 8) return true;
+  // Long tokens that are not in the dictionary are suspicious
+  if (token.length >= 6) return true;
 
   // Short tokens (<=4) with at least one vowel (e.g. flow, logs, tags) are considered okay
   if (token.length <= 4 && vowels >= 1) return false;
