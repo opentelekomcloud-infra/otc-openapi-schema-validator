@@ -17,6 +17,7 @@ import { checkResponseEncapsulation } from '@/functions/checkResponseEncapsulati
 import { checkCompatibility } from '@/functions/checkCompatibility';
 import { checkURIFormat } from '@/functions/checkURIFormat';
 import { checkURILength } from '@/functions/checkURILength';
+import { checkURIContentDictionary } from '@/functions/checkURIContentDictionary';
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -36,7 +37,8 @@ export const functionsMap: {
   checkResponseEncapsulation,
   checkCompatibility,
   checkURIFormat,
-  checkURILength
+  checkURILength,
+  checkURIContentDictionary
 };
 
 /**

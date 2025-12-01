@@ -41,8 +41,7 @@ rules:
   - id: "URI-020-01-2507-2507-M-2"
     title: URIs allow only nouns and use lowercase letters. Use few concatenated words.
     message: |
-      (2) Do not use unnecessary abbreviations in URIs (Unless the abbreviation is commonly used in the industry and accompanied by proof of its origin, abbreviations without clear evidence of their source are not permitted.). Ensure that the names of URIs are "Know the meanings of Wangwen" to avoid understanding obstacles. Do not use unusual abbreviations. Use correct words and words with the same meaning across APIs. Helps developers understand APIs.
-
+      Do not use unnecessary abbreviations in URIs (Unless the abbreviation is commonly used in the industry and accompanied by proof of its origin, abbreviations without clear evidence of their source are not permitted.). Ensure that the names of URIs are "Know the meanings of Wangwen" to avoid understanding obstacles. Do not use unusual abbreviations. Use correct words and words with the same meaning across APIs. Helps developers understand APIs.
     option: Mandatory
     location: paths
     element: path
@@ -52,7 +51,7 @@ rules:
         checkAbreviations: True
         checkDictionary: True
     description: Check whether URI contains common abbreviations and/or correct words
-    status: planned
+    status: implemented
     severity: critical
 
   - id: "URI-020-01-2507-2507-M-3"
