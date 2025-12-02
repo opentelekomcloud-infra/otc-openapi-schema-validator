@@ -13,6 +13,7 @@ import {exportJUnit, exportPDF, exportReportPortal} from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
+import {loadAllowedAbbreviationsFromApi} from "@/utils/englishWords";
 declare module 'react' {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace JSX {
@@ -59,6 +60,10 @@ const HomePage = () => {
     const headerRef = useRef<HTMLDivElement>(null);
     const footerRef = useRef<HTMLDivElement>(null);
     const [isExporting, setIsExporting] = useState(false);
+
+    useEffect(() => {
+      loadAllowedAbbreviationsFromApi();
+    }, []);
 
     useEffect(() => {
       const calc = () => {

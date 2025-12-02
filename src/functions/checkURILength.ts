@@ -22,7 +22,7 @@ export function checkURILength(spec: any, content: string, rule: any): Diagnosti
 
     if (!spec?.paths) return diagnostics;
 
-    const maxLength: number = rule?.functionParams?.maxLength ?? 2048;
+    const maxLength: number = rule?.call.functionParams?.maxLength ?? 2048;
 
     for (const pathKey of Object.keys(spec.paths)) {
         // Encode the path as a URI and measure its byte length (UTF-8)

@@ -7,7 +7,7 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
     if (!spec?.paths) return diagnostics;
 
     // Read allowed formats from rule params (if provided) so the rule is configurable
-    const scopeFormats = (rule?.functionParams?.allowedFormats?.scope ?? []) as Array<Record<string, string>>;
+    const scopeFormats = (rule?.call.functionParams?.allowedFormats?.scope ?? []) as Array<Record<string, string>>;
 
     let projectPattern = "";
     let domainPattern = "";
