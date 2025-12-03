@@ -26,22 +26,25 @@ rules:
     call:
       function: CheckTimeFieldNaming
       functionParams:
-        allowedNames:
+        recommendedNames:
+          - "created_at"
+          - "updated_at"
+          - "deleted_at"
+          - "expired_at"
+          - "start_time"
+          - "end_time"
+          - "read_time"
+        notRecommendedNames:
+          - "updated"
+          - "created"
+          - "expired"
+          - "createdAt"
+          - "updatedAt"
           - "create_time"
           - "update_time"
           - "delete_time"
           - "expire_time"
-          - "start_time"
-          - "end_time"
-          - "read_time"
-        disallowedNames:
-          - "updated"
-          - "created"
-          - "createdAt"
-          - "updatedAt"
-          - "created_at"
-          - "updated_at"
           - "begin_time"
     description: This rule checks whether fields include the '_time' suffix and follow naming convention recommendations.
     status: devel
-    severity: high
+    severity: medium
