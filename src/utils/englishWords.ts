@@ -1,30 +1,26 @@
 import englishWords from "an-array-of-english-words";
 
-// Load allowed abbreviations from file in public/lib/allowed_abbreviations
-function loadAllowedAbbreviations(): Set<string> {
-  try {
-    const request = new XMLHttpRequest();
-    request.open("GET", "/lib/allowed_abbreviations", false);
-    request.send(null);
+let ALLOWED_ABBREVIATIONS = new Set<string>();
 
-    if (request.status >= 200 && request.status < 300) {
-      const content = request.responseText;
-      const lines = content
-        .split(/\r?\n/)
-        .map((l) => l.trim().toLowerCase())
-        .filter((l) => !!l && !l.startsWith("#"));
-      return new Set<string>(lines);
-    }
-
-    console.error("Failed to load allowed abbreviations, status:", request.status);
-    return new Set<string>();
-  } catch (err) {
-    console.error("Failed to load allowed abbreviations:", err);
-    return new Set<string>();
-  }
+export function getAllowedAbbreviations(): Set<string> {
+  return ALLOWED_ABBREVIATIONS;
 }
 
-export const ALLOWED_ABBREVIATIONS = loadAllowedAbbreviations();
+export async function loadAllowedAbbreviationsFromApi() {
+  try {
+    const res = await fetch("/api/abbreviations");
+    if (!res.ok) {
+      console.error("Failed to fetch abbreviations:", res.status);
+      return;
+    }
+    const data: string[] = await res.json();
+    ALLOWED_ABBREVIATIONS = new Set(
+      data.map((abbr) => abbr.toLowerCase())
+    );
+  } catch (err) {
+    console.error("Failed to fetch abbreviations:", err);
+  }
+}
 
 // Load full English dictionary from an-array-of-english-words
 const ENGLISH_DICTIONARY = new Set<string>(

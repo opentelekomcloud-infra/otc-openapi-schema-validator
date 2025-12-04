@@ -57,8 +57,7 @@ rules:
   - id: "URI-020-01-2507-2507-M-3"
     title: URIs allow only nouns and use lowercase letters. Use few concatenated words.
     message: |
-      (3) Resource names in URIs must be separated by hyphens (-) and all letters must be lowercase.
-
+      Resource names in URIs must be separated by hyphens (-) and all letters must be lowercase.
     option: Mandatory
     location: paths
     element: path
@@ -66,9 +65,9 @@ rules:
       function: checkURIContentSyntax
       functionParams:
         requiredPathRegexp:
-#          - "^/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\})(?:/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\}))*$"
+          - '^/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\})(?:/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\}))*$'
     description: Check whether URI contains only lowercase characters separated by hyphens
-    status: planned
+    status: implemented
     severity: critical
 
   - id: "URI-030-01-2507-2507-M-1"

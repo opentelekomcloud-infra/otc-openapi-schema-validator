@@ -1,23 +1,23 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
-import { splitPathIntoTokens, looksLikeAbbreviation, looksLikeUnknownWord, ALLOWED_ABBREVIATIONS } from "@/utils/englishWords";
+import { splitPathIntoTokens, looksLikeAbbreviation, looksLikeUnknownWord, getAllowedAbbreviations } from "@/utils/englishWords";
 
 export function checkURIContentDictionary(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     if (!spec?.paths) return diagnostics;
 
-    const checkAbreviations = rule?.functionParams?.checkAbreviations ?? true;
-    const checkDictionary = rule?.functionParams?.checkDictionary ?? true;
+    const checkAbreviations = rule?.call.functionParams?.checkAbreviations ?? true;
+    const checkDictionary = rule?.call.functionParams?.checkDictionary ?? true;
 
-    const allowedAbbrevs = new Set<string>(ALLOWED_ABBREVIATIONS);
+    const allowedAbbrevs = getAllowedAbbreviations();
 
-    if (Array.isArray(rule?.functionParams?.allowedAbbreviations)) {
-        for (const a of rule.functionParams.allowedAbbreviations) {
+    if (Array.isArray(rule?.call.functionParams?.allowedAbbreviations)) {
+        for (const a of rule.call.functionParams.allowedAbbreviations) {
             if (typeof a === "string") allowedAbbrevs.add(a.toLowerCase());
         }
     }
-
+    console.error(allowedAbbrevs)
     for (const pathKey of Object.keys(spec.paths)) {
 
         const tokens = splitPathIntoTokens(pathKey);

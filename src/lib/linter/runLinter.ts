@@ -18,6 +18,7 @@ import { checkCompatibility } from '@/functions/checkCompatibility';
 import { checkURIFormat } from '@/functions/checkURIFormat';
 import { checkURILength } from '@/functions/checkURILength';
 import { checkURIContentDictionary } from '@/functions/checkURIContentDictionary';
+import { checkURIContentSyntax } from '@/functions/checkURIContentSyntax';
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -38,7 +39,8 @@ export const functionsMap: {
   checkCompatibility,
   checkURIFormat,
   checkURILength,
-  checkURIContentDictionary
+  checkURIContentDictionary,
+  checkURIContentSyntax
 };
 
 /**
