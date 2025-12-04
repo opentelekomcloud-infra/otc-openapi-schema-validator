@@ -5,7 +5,6 @@ rules:
       The English information returned by the open API must be correct. Only English information can be returned, and Chinese information is not allowed.
     option: Mandatory
     location:
-      - paths
       - components
       - info
       - tags
@@ -13,10 +12,6 @@ rules:
       - summary
       - description
       - title
-      - responses
-      - requestBody
-      - parameters
-      - schemas
       - name
     call:
       function: verifyEnglishOnly
