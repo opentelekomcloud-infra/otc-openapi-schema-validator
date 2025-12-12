@@ -116,6 +116,8 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
   "file_content": "string (raw YAML/JSON)",
   "manual_rules": ["RULE_ID", "…"],
   "auto_rules": ["RULE_ID", "…"],
+  "exclude_manual_rules": ["RULE_ID", "…"],
+  "exclude_auto_rules": ["RULE_ID", "…"],
   "ruleset": "string (default: \"default\")",
   "export": "xml | pdf",
   "out": "string (required only when export=pdf)"
@@ -176,6 +178,17 @@ curl -X POST http://localhost:3000/api/validate \
   -d '{
     "file_content": "<your YAML here>",
     "export": "xml"
+  }'
+```
+
+Validate with excluded rules:
+```bash
+curl -X POST http://localhost:3000/api/validate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "file_content": "openapi: 3.0.3\ninfo:\n  title: Demo\n  version: 1.0.0\npaths: {}",
+    "ruleset": "default"
+    "exclude_auto_rules": ["COD-020-01-2507-2507-M", "BAS-090-01-2507-2507-M"]
   }'
 ```
 
