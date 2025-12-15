@@ -1,0 +1,43 @@
+rules:
+- id: "3.15.3"
+    title: "Each change in the API reference document must be recorded in the revision history"
+    message: "The change of each interface must be specific to the parameter level"
+    option: Mandatory
+    location: info
+    element: version
+    call:
+      function: RevisionHistoryCheck
+      functionParams:
+        requiredFields:
+          - date
+          - version
+          - description
+          - authors
+    severity: high
+ 
+  - id: "3.15.4"
+    title: "API Reference Document Sample Requirements"
+    message: "POST/PUT/PATCH must have request and response examples. GET must have response example. DELETE must not have an example"
+    option: Mandatory
+    location: paths
+    element:
+      - requestBody
+      - responses
+    call:
+      function: ExamplesFormatCheck
+      functionParams:
+        requiredRequestExamples:
+          - post
+          - put
+          - patch
+        requiredResponseExamples:
+          - get
+          - post
+          - put
+          - patch
+        noExamplesAllowed:
+          - delete
+        validateJsonFormat: true
+        mandatoryParameters: true
+        paramConsistency: true
+    severity: critical
