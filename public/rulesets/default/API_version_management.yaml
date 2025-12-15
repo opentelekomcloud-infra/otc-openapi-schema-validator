@@ -1,0 +1,81 @@
+id: "2.2.1.1"
+title: "API Version Identification"
+message: "Each API must contain a version number defined as vX, where X is an integer."
+option: Mandatory
+location: info
+element: version
+call: {
+  function: apiVersionIdentificationCheck,
+  functionParams: {
+    "versionPattern": "^v[0-9]+$"
+  }
+}
+severity: "critical"
+
+id: "2.2.1.2"
+title: "Version Format Compliance"
+message: "The API version must be in the format vX, vX.Y or vX.Y.Z, where X, Y and Z are integers."
+option: Mandatory
+location: info
+element: version
+call: {
+  function: versionFormatCheck,
+  functionParams: {
+    "versionPattern": "^v[0-9]+(\\.[0-9]+)?(\\.[0-9]+)?$"
+  }
+}
+severity: "critical"
+
+id: "2.2.1.3"
+title: "Maximum API Versions sequences"
+message: "The total number of recommended sequences for API versions must not exceed four."
+option: Mandatory
+location: info
+element: version
+call: {
+  function: maxApiVersionsSequenceCheck,
+  functionParams: {
+    "maxVersions": 4
+  }
+}
+severity: "high"
+
+id: "2.2.1.4"
+title: "Version Normalization"
+message: "The API version number must be normalized to vX in future versions."
+option: Mandatory
+location: info
+element: version
+call: {
+  function: versionNormalizationCheck,
+  functionParams: {
+    "deprecatedPattern": "^v[0-9]+\\.[0-9]+$"
+  }
+}
+severity: "medium"
+
+id: "2.2.1.5"
+title: "Incompatible Changes Versioning"
+message: "For incompatible changes, the version number must be upgraded appropriately."
+option: Mandatory
+location: info
+element: version
+call: {
+  function: incompatibleChangeVersioningCheck,
+  functionParams: {
+    "versionPattern": "^v[0-9]+$"
+  }
+}
+severity: "high"
+
+id: "2.2.1.6"
+title: "Compatibility with Native OpenStack APIs"
+message: "The API must maintain compatibility with native OpenStack APIs."
+option: Mandatory
+location: info
+element: version
+call: {
+  function: openStackCompatibilityCheck,
+  functionParams: {}
+}
+severity: "high"
