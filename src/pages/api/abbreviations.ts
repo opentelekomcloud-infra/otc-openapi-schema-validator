@@ -1,7 +1,7 @@
 import path from "path";
 import fs from "fs/promises";
 import type { NextApiRequest, NextApiResponse } from "next";
-import {requireApiAuth} from "@/lib/apiAuth";
+import { requireApiAuth } from "@/lib/apiAuth";
 
 export default async function handler(
     req: NextApiRequest,
