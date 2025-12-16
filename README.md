@@ -6,6 +6,10 @@ It supports file uploads, URL-based loading (including Internal Gitea-hosted spe
 ---
 
 ## Getting Started
+If you want to enable `ZITADEL` auth please read:
+[Authorization](AUTHORIZATION.md)
+
+Run server with ENABLE_AUTH=false to disable all `ZITADEL` integrations
 
 ### Prerequisites
 - **Node.js 20+**
@@ -49,6 +53,12 @@ npm run build
 ```
 
 ### Start the production server
+
+for full availability of public endpoints during API call need to set variable APP_URL
+```bash
+EXPORT APP_URL=http://localhost:3000
+```
+
 ```bash
 npm start
 ```

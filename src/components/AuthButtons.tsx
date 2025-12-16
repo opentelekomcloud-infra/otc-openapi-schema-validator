@@ -3,7 +3,9 @@
 import { signIn, signOut, useSession } from "next-auth/react";
 
 export default function AuthButtons() {
-  if (process.env.NEXT_PUBLIC_ENABLE_AUTH !== "true") {
+  const authEnabled = process.env.ENABLE_AUTH === "true";
+
+  if (!authEnabled) {
     return null;
   }
 
@@ -12,23 +14,25 @@ export default function AuthButtons() {
 
   if (status === "loading") return null;
 
-  if (!session) {
+  if (!session && authEnabled) {
     return (
-      <button
+      <scale-button
         onClick={() => signIn("zitadel", { redirectTo: "/" })}
-        className="px-3 py-1 border rounded"
+        variant="primary"
+        size="m"
       >
         Sign in
-      </button>
+      </scale-button>
     );
   }
 
-  return (
-    <button
-      onClick={() => signOut({ redirectTo: "/" })}
-      className="px-3 py-1 border rounded"
-    >
-      Logout
-    </button>
-  );
+  if (session && authEnabled) {
+    return (
+      <scale-button onClick={() => signOut({ redirectTo: "/" })} variant="primary" size="m">
+        Logout
+      </scale-button>
+    );
+  }
+
+  return null;
 }

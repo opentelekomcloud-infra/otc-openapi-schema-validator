@@ -12,7 +12,6 @@ export async function middleware(req: NextRequest) {
 
   const { pathname } = req.nextUrl;
 
-
   const isPublicAsset =
     pathname.startsWith("/images/") ||
     pathname.startsWith("/lib/") ||
@@ -24,9 +23,6 @@ export async function middleware(req: NextRequest) {
   }
   // Allow Auth.js endpoints always
   if (pathname.startsWith("/api/auth")) {
-    return NextResponse.next();
-  }
-  if (pathname === "/api/abbreviations" || pathname.startsWith("/api/abbreviations/")) {
     return NextResponse.next();
   }
 
@@ -46,5 +42,5 @@ export async function middleware(req: NextRequest) {
 
 // Protect everything except static files
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+  matcher: ["/((?!api/|_next/static|_next/image|favicon.ico|images/).*)"],
 };

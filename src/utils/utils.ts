@@ -1,6 +1,23 @@
 import { marked } from "marked";
 import yaml from "js-yaml";
 
+/**
+ * In the browser, relative URLs are fine. In Node (API routes / server-side), `fetch` requires an absolute URL.
+ * This helper builds an absolute URL when running server-side.
+ */
+const buildFetchUrl = (pathname: string): string => {
+    const isBrowser = typeof window !== "undefined";
+    if (isBrowser) return pathname;
+
+    const baseUrl =
+        process.env.NEXT_PUBLIC_APP_URL ||
+        process.env.APP_URL ||
+        (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : "") ||
+        "http://localhost:3000";
+
+    return new URL(pathname, baseUrl).toString();
+};
+
 export const convertMarkdownToPlainText = (markdown: string) => {
     try {
         // Use marked to get HTML, then convert to plain text.
@@ -56,8 +73,10 @@ export const convertImageFromLinkToBase64 = async (imageUrl: string): Promise<st
 };
 
 export async function fetchRepoMap(spec: any): Promise<Record<string, string> | null> {
+    const url = buildFetchUrl("/gitea/repositories.yaml");
+
     try {
-        const response = await fetch('/gitea/repositories.yaml');
+        const response = await fetch(url);
         const text = await response.text();
 
         const parsed = yaml.load(text) as { services: Record<string, string>[] };
@@ -71,7 +90,8 @@ export async function fetchRepoMap(spec: any): Promise<Record<string, string> | 
 
 export async function fetchSpecFromGitea(repo: string, path: string): Promise<any | null> {
     try {
-        const response = await fetch(`/api/gitea?repo=${repo}&path=${path}`);
+        const url = buildFetchUrl(`/api/gitea?repo=${encodeURIComponent(repo)}&path=${encodeURIComponent(path)}`);
+        const response = await fetch(url);
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to fetch YAML');
         return data.yaml;
