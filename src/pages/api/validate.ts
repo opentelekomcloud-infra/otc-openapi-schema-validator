@@ -7,6 +7,7 @@ import { reportPortalClient } from '@/clients/reportportal';
 import yaml from "js-yaml";
 import { getSeverityLabel } from "@/utils/mapSeverity";
 import { giteaClient } from '@/clients/gitea';
+import { requireApiAuth } from "@/lib/apiAuth";
 
 // Allow large payloads (YAML specs can be big)
 export const config = {
@@ -156,6 +157,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const principal = await requireApiAuth(req);
+  if (!principal) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }

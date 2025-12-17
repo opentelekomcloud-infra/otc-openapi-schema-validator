@@ -17,7 +17,7 @@ export function checkURIContentDictionary(spec: any, content: string, rule: any)
             if (typeof a === "string") allowedAbbrevs.add(a.toLowerCase());
         }
     }
-    console.error(allowedAbbrevs)
+    // console.debug("allowedAbbrevs size:", allowedAbbrevs.size, "values:", Array.from(allowedAbbrevs));
     for (const pathKey of Object.keys(spec.paths)) {
 
         const tokens = splitPathIntoTokens(pathKey);

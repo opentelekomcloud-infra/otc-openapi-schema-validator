@@ -13,7 +13,9 @@ import {exportJUnit, exportPDF, exportReportPortal} from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
-import {loadAllowedAbbreviationsFromApi} from "@/utils/englishWords";
+import { loadAllowedAbbreviationsFromApi } from "@/utils/englishWords";
+import AuthButtons from "@/components/AuthButtons";
+
 declare module 'react' {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace JSX {
@@ -286,6 +288,10 @@ const HomePage = () => {
               />
               Export
             </scale-button>
+
+            <div className="flex gap-3 ml-auto mr-4 items-center">
+              <AuthButtons/>
+            </div>
           </div>
 
           {/* Severity legend (kept simple, could be replaced by badges later) */}

@@ -1,14 +1,20 @@
 import path from "path";
 import fs from "fs/promises";
 import type { NextApiRequest, NextApiResponse } from "next";
+import { requireApiAuth } from "@/lib/apiAuth";
 
 export default async function handler(
     req: NextApiRequest,
     res: NextApiResponse<string[] | { error: string }>
 ) {
+    const principal = await requireApiAuth(req);
+    if (!principal) {
+        return res.status(401).json({ error: "Unauthorized" });
+    }
+
     try {
         // Build absolute path to the abbreviations file under public/lib
-        const filePath = path.join(process.cwd(), "public", "lib", "allowed_abbreviations");
+        const filePath = path.join(process.cwd(), "public", "lib", "allowed_abbreviations.txt");
 
         const content = await fs.readFile(filePath, "utf-8");
         const abbreviations: string[] = [];

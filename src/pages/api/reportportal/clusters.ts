@@ -1,7 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { reportPortalClient } from '@/clients/reportportal';
+import { requireApiAuth } from "@/lib/apiAuth";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+
+  const principal = await requireApiAuth(req);
+  if (!principal) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
