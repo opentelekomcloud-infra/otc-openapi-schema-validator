@@ -2,13 +2,6 @@
 
 import { signIn, signOut, useSession } from "next-auth/react";
 
-const log = {
-  debug: (...args: any[]) => console.debug("[buttons]", ...args),
-  info: (...args: any[]) => console.info("[buttons]", ...args),
-  warn: (...args: any[]) => console.warn("[buttons]", ...args),
-  error: (...args: any[]) => console.error("[buttons]", ...args),
-};
-
 export default function AuthButtons() {
   const authEnabled = process.env.NEXT_PUBLIC_ENABLE_AUTH === "true";
 
@@ -33,7 +26,6 @@ export default function AuthButtons() {
   }
 
   if (session && authEnabled) {
-    log.debug("render logout button");
     return (
       <scale-button onClick={() => signOut({ redirectTo: "/" })} variant="primary" size="m">
         Logout
