@@ -88,11 +88,21 @@ export async function fetchRepoMap(spec: any): Promise<Record<string, string> | 
     }
 }
 
-export async function fetchSpecFromGitea(repo: string, path: string): Promise<any | null> {
+export async function fetchSpecFromGitea(repo: string, path: string, headers?: Record<string, string>): Promise<any | null> {
     try {
         const url = buildFetchUrl(`/api/gitea?repo=${encodeURIComponent(repo)}&path=${encodeURIComponent(path)}`);
-        const response = await fetch(url);
-        const data = await response.json();
+
+        const internalKey =
+          typeof window === "undefined" ? process.env.ZITADEL_X_INTERNAL_API_KEY : undefined;
+
+        const mergedHeaders: Record<string, string> = {
+            ...(headers ?? {}),
+            ...(internalKey ? { "x-internal-api-key": internalKey } : {}),
+        };
+
+        const response = await fetch(url, {
+            headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined,
+        });        const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to fetch YAML');
         return data.yaml;
     } catch (error) {

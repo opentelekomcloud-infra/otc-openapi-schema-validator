@@ -13,6 +13,8 @@ All mentioned variables below need to be set for proper functioning:
 ### Server-side flag (used in API, middleware, server components)
 `ENABLE_AUTH=false`
 
+`NEXT_PUBLIC_ENABLE_AUTH=true` - always, for proper UI handling
+
 ### Used to sign/encrypt session cookies
 `AUTH_SECRET=supperSecret+UNnf4WnoLz9=`
 

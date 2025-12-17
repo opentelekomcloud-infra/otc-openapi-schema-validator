@@ -15,6 +15,7 @@ export async function middleware(req: NextRequest) {
   const isPublicAsset =
     pathname.startsWith("/images/") ||
     pathname.startsWith("/lib/") ||
+    pathname.startsWith("/gitea/") ||
     pathname === "/favicon.ico" ||
     /\.(png|jpg|jpeg|gif|svg|webp|ico|css|js|map|txt|xml)$/.test(pathname);
 
