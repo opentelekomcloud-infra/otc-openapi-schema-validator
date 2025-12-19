@@ -15,7 +15,7 @@ rules:
     element: path
     call:
       function: checkURIFormat
-      functionParams: 
+      functionParams:
         allowedFormats:
           scope:
           - project: "/{version}/{resources}"
@@ -23,7 +23,7 @@ rules:
     description: This rule checks whether defined path is compliant with pred-defined format.
     status: implemented
     severity: high
-  
+
   - id: "URI-020-01-2507-2507-M-1"
     title: URIs allow only nouns and use lowercase letters. Use few concatenated words.
     message: The total length of the URI and parameters after URI encoding does not exceed 2048 bytes.
@@ -83,7 +83,6 @@ rules:
       : – Reserved to delimit the scheme, user/password, and host/port components
       $, + – Reserved
       @, &, = – Reserved because they have special meaning in the context of some schemes
-
     option: Mandatory
     location: paths
     element: path
@@ -91,9 +90,9 @@ rules:
       function: checkURIContentSpecial
       functionParams:
         forbiddenChars:
-          - ".#?;:$+@&="
+          - '.#?;:$+@&='
     description: Check whether URI contains some forbidden special characters.
-    status: planned
+    status: implemented
     severity: critical
 
   - id: "URI-030-01-2507-2507-M-2"
@@ -132,7 +131,7 @@ rules:
     severity: critical
 
   - id: "URI-040-01-2507-2507-M"
-    title: Resources must use plurals for API 
+    title: Resources must use plurals for API
     message: |
       Note: The resource name in the URI must be in plural form. For modifying, deleting, or querying a specified resource, add the resource_id to the end of resources.
             New APIs must be implemented according to the specifications. Existing APIs that involve compatibility changes can remain unchanged.
