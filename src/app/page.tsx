@@ -500,7 +500,7 @@ const HomePage = () => {
         {/* Footer */}
 
         <footer className="bg-white-200 p-4 text-left text-sm indent-4" ref={footerRef}>
-          © T-Systems International GmbH | 2025 EcoSystems | All rights reserved. | v{process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}
+          © T-Systems International GmbH | 2026 EcoSystems | All rights reserved. | v{process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}
         </footer>
 
         {/*Modal for Export Options*/}
