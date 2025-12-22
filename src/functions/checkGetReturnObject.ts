@@ -20,6 +20,68 @@ export function checkGetReturnObject(spec: any, content: string, rule: any): Dia
         ? requiredPathRegexp.map((r: string) => new RegExp(r))
         : [];
 
+    const resolveRef = (schemaLike: any): any => {
+        let schema = schemaLike;
+        if (schema?.["$ref"]) {
+            const refPath = schema["$ref"].slice(2).split("/");
+            let resolved: any = spec;
+            for (const part of refPath) {
+                if (resolved instanceof Map) {
+                    resolved = resolved.get(part);
+                } else if (typeof resolved === "object" && resolved !== null) {
+                    resolved = resolved[part];
+                } else {
+                    resolved = undefined;
+                    break;
+                }
+            }
+            schema = resolved;
+        }
+        return schema;
+    };
+
+    const isArrayLikeWrapperObject = (schema: any): boolean => {
+        if (!schema || schema.type !== "object") return false;
+        const props = schema.properties;
+        if (!props || typeof props !== "object") return false;
+
+        const hasPagingMeta =
+            Object.prototype.hasOwnProperty.call(props, "page") ||
+            Object.prototype.hasOwnProperty.call(props, "page_info") ||
+            Object.prototype.hasOwnProperty.call(props, "count");
+
+        const entries = Object.entries(props);
+        if (entries.length === 0) return false;
+
+        const anyArrayProp = entries.some(([, v]) => {
+            const s = resolveRef(v);
+            return s?.type === "array";
+        });
+
+        const firstPropIsArray = (() => {
+            const first = entries[0]?.[1];
+            const s = resolveRef(first);
+            return s?.type === "array";
+        })();
+
+        // Accept as "array-like" if it looks like a paged-list wrapper and has an array payload,
+        // OR if the first property itself is an array (common wrapper pattern).
+        return (hasPagingMeta && anyArrayProp) || firstPropIsArray;
+    };
+
+    const matchesRequiredType = (schemaLike: any): boolean => {
+        const schema = resolveRef(schemaLike);
+        if (!schema) return false;
+
+        if (requiredResponseType === "array") {
+            if (schema.type === "array") return true;
+            if (schema.type === "object" && isArrayLikeWrapperObject(schema)) return true;
+            return false;
+        }
+
+        return schema.type === requiredResponseType;
+    };
+
     for (const path in spec.paths) {
         if (exceptionPatterns.some(re => re.test(path))) continue;
         if (!requiredPatterns.some(re => re.test(path))) continue;
@@ -42,44 +104,12 @@ export function checkGetReturnObject(spec: any, content: string, rule: any): Dia
                 const media = contentEntry[mediaType];
                 let schema = media.schema;
 
-                if (schema?.["$ref"]) {
-                    const refPath = schema["$ref"].slice(2).split("/");
-                    let resolved = spec;
-                    for (const part of refPath) {
-                        if (resolved instanceof Map) {
-                            resolved = resolved.get(part);
-                        } else if (typeof resolved === "object") {
-                            resolved = resolved[part];
-                        }
-                    }
-                    schema = resolved;
-                }
+                schema = resolveRef(schema);
 
                 if (schema?.oneOf || schema?.anyOf) {
                     const variants = schema.oneOf || schema.anyOf;
                     for (const variant of variants) {
-                        if (variant?.["$ref"]) {
-                            const refPath = variant["$ref"].slice(2).split("/");
-                            let resolved = spec;
-                            for (const part of refPath) {
-                                if (resolved instanceof Map) {
-                                    resolved = resolved.get(part);
-                                } else if (typeof resolved === "object") {
-                                    resolved = resolved[part];
-                                }
-                            }
-                            if (resolved?.type !== requiredResponseType) {
-                                const { start, end } = findMethodPositionInYaml(content, path, method);
-                                diagnostics.push({
-                                    from: start,
-                                    to: end,
-                                    severity: mapSeverity(rule.severity),
-                                    message: rule.message,
-                                    source: getSource(rule),
-                                });
-                                break;
-                            }
-                        } else if (variant?.type !== requiredResponseType) {
+                        if (!matchesRequiredType(variant)) {
                             const { start, end } = findMethodPositionInYaml(content, path, method);
                             diagnostics.push({
                                 from: start,
@@ -91,10 +121,10 @@ export function checkGetReturnObject(spec: any, content: string, rule: any): Dia
                             break;
                         }
                     }
-                } else if (!schema || schema.type !== requiredResponseType) {
+                } else if (!schema || !matchesRequiredType(schema)) {
                     let fallbackAllowed = false;
                     if (
-                        rule.id === "2.4.1.5" &&
+                        rule.id === "STC-010-01-2507-2507-M-5" &&
                         schema?.type === "object" &&
                         Array.isArray(schema.required)
                     ) {
