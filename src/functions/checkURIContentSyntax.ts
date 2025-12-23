@@ -1,5 +1,6 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
+import { findInvalidPercentEscape } from "@/utils/strings";
 
 
 export function checkURIContentSyntax(spec: any, content: string, rule: any): Diagnostic[] {
@@ -26,8 +27,18 @@ export function checkURIContentSyntax(spec: any, content: string, rule: any): Di
     if (!regexes.length) return diagnostics;
 
     for (const pathKey of Object.keys(spec.paths)) {
-        // Check if this path matches at least one of the allowed patterns
         const isValid = regexes.some((re) => re.test(pathKey));
+        const checkInvalidPercentEscape = Boolean(rule?.call?.functionParams?.checkInvalidPercentEscape);
+
+        if (checkInvalidPercentEscape) {
+            const hasPercent = pathKey.includes('%');
+            const invalidEscape = findInvalidPercentEscape(pathKey);
+
+            if (hasPercent && !invalidEscape) {
+                continue;
+            }
+        }
+
         if (!isValid) {
             const index = content.indexOf(pathKey);
             diagnostics.push({

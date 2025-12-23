@@ -20,6 +20,7 @@ import { checkURILength } from '@/functions/checkURILength';
 import { checkURIContentDictionary } from '@/functions/checkURIContentDictionary';
 import { checkURIContentSyntax } from '@/functions/checkURIContentSyntax';
 import { checkURIContentSpecial } from '@/functions/checkURIContentSpecial';
+import { checkURIContentUnicode } from '@/functions/checkURIContentUnicode';
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -42,7 +43,8 @@ export const functionsMap: {
   checkURILength,
   checkURIContentDictionary,
   checkURIContentSyntax,
-  checkURIContentSpecial
+  checkURIContentSpecial,
+  checkURIContentUnicode
 };
 
 /**
