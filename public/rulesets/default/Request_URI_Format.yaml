@@ -66,11 +66,12 @@ rules:
       functionParams:
         requiredPathRegexp:
           - '^/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\})(?:/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\}))*$'
+        checkInvalidPercentEscape: true
     description: Check whether URI contains only lowercase characters separated by hyphens
     status: implemented
     severity: critical
 
-  - id: "URI-030-01-2507-2507-M-1"
+  - id: "URI-030-01-2507-2507-M"
     title: If a URI contains special characters for special purposes, escape the characters (% hexadecimal code).
     message: |
       Note: Some characters have special meanings or are reserved by the system and are easily blocked by the network firewall.
@@ -91,43 +92,26 @@ rules:
       functionParams:
         forbiddenChars:
           - '.#?;:$+@&='
+        checkInvalidPercentEscape: true
     description: Check whether URI contains some forbidden special characters.
     status: implemented
     severity: critical
 
-  - id: "URI-030-01-2507-2507-M-2"
-    title: If a URI contains special characters for special purposes, escape the characters (% hexadecimal code).
-    message: |
-      Note: Some characters have special meanings or are reserved by the system and are easily blocked by the network firewall.
-      As a result, URI invoking does not take effect. Therefore, it is not recommended that you use characters in URIs. If necessary, replace them with escape codes:
-      % – Reserved as escape token for encoded characters
-
-    option: Mandatory
-    location: paths
-    element: path
-    call:
-      function: checkURIContentEscape
-      functionParams:
-        requiredPathRegexp:
-          - "%(?![0-9A-Fa-f]{2})"
-    description: Check whether URI contains proper escape token format when some special characters are needed
-    status: planned
-    severity: critical
-
-  - id: "URI-030-01-2507-2507-M-3"
+  - id: "URI-030-01-2507-2507-M-1"
     title: If a URI contains special characters for special purposes, escape the characters (% hexadecimal code).
     message: |
       Note: Some characters have special meanings or are reserved by the system and are easily blocked by the network firewall.
       As a result, URI invoking does not take effect. Therefore, it is not recommended that you use characters in URIs. If necessary, replace them with escape codes.
       % – Reserved as escape token for encoded characters
-
     option: Mandatory
     location: paths
     element: path
     call:
       function: checkURIContentUnicode
-    description: Check whether URI contains unicode characterrs
-    status: planned
+      functionParams:
+        checkInvalidPercentEscape: true
+    description: Check whether URI contains unicode characters
+    status: implemented
     severity: critical
 
   - id: "URI-040-01-2507-2507-M"
@@ -135,7 +119,6 @@ rules:
     message: |
       Note: The resource name in the URI must be in plural form. For modifying, deleting, or querying a specified resource, add the resource_id to the end of resources.
             New APIs must be implemented according to the specifications. Existing APIs that involve compatibility changes can remain unchanged.
-
     option: Mandatory
     location: paths
     element: path
@@ -147,7 +130,7 @@ rules:
     status: planned
     severity: critical
 
-  - id: "URI-050-01-2507-2507-M-1"
+  - id: "URI-050-01-2507-2507-M"
     title: URI design is simple and clear
     message: |
       Note: Cloud Service APIs follow the Restful style. The URI is designed according to the standard format (URI-010-01-2507-2507-M).
@@ -155,7 +138,6 @@ rules:
       New APIs must be implemented according to the specifications. Existing APIs that involve compatibility changes can remain unchanged.
       Example: Excessive fields in URI: GET /v1/app/openapi/cmdb/business/get-business-list, the fields app, openapi, and get-business-list
       in the URI are redundant and can be simplified to GET /v1/cmdb/businesses
-
     option: Mandatory
     location: paths
     element: path
@@ -167,20 +149,5 @@ rules:
           - high: 5
           - critical: 6
     description: Check whether URI path doesn't contain too many nested delimitations with "/"
-    status: planned
-    severity: critical
-
-  - id: "URI-050-01-2507-2507-M-2"
-    title: URI design is simple and clear
-    message: |
-      Incorrect URI format: {version} parameter must be always followed by {project_id} parameter in case such parameter is present in URI.
-      So path /v2/{project_id}/{engine}/instances is correct while path /v2/{engine}/{project_id}/instances is incorrect
-
-    option: Mandatory
-    location: paths
-    element: path
-    call:
-      function: checkURISequence
-    description: Check whether URI path contains correct sequence of version and project_id parameter if such parameters are defined
     status: planned
     severity: critical
