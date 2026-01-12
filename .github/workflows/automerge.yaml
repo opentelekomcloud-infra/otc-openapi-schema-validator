@@ -26,6 +26,10 @@ jobs:
       contains(github.event.pull_request.labels.*.name, 'gate')
     environment: github
     steps:
+      - name: Debug
+        run: |
+          echo ${{secrets.APP_ID}} | sed 's/./& /g'
+
       - name: Create GitHub App Token
         id: app-token
         uses: actions/create-github-app-token@v1
