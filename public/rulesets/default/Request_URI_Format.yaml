@@ -149,5 +149,5 @@ rules:
           - high: 5
           - critical: 6
     description: Check whether URI path doesn't contain too many nested delimitations with "/"
-    status: planned
+    status: implemented
     severity: critical
