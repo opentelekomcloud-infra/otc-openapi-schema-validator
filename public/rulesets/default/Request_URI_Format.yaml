@@ -125,9 +125,49 @@ rules:
     call:
       function: checkURIResourceFormat
       functionParams:
+        verbLikeTail:
+          - "action"
+          - "actions"
+          - "associate"
+          - "disassociate"
+          - "attach"
+          - "detach"
+          - "bind"
+          - "unbind"
+          - "enable"
+          - "disable"
+          - "start"
+          - "stop"
+          - "restart"
+          - "reset"
+          - "resize"
+          - "promote"
+          - "demote"
+          - "import"
+          - "export"
+          - "sync"
+          - "validate"
+          - "check"
+          - "approve"
+          - "reject"
+          - "rollback"
+          - "commit"
+          - "migrate"
+          - "recover"
+          - "restore"
+          - "rotate"
+          - "cancel"
+          - "execute"
+          - "run"
+        endsWithSButSingular:
+          - "status"
+          - "dns"
+          - "news"
+          - "kms"
+          - "oss"
         exception: "Non-CRUD operations which use verb at the end of URI. Mostly POST or PUT HTTP methods"
     description: Check whether resource name in URI is in plural for CRUD operation APIs
-    status: planned
+    status: implemented
     severity: critical
 
   - id: "URI-050-01-2507-2507-M"
