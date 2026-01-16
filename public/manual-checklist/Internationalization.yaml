@@ -4,3 +4,4 @@ rules:
     message: |
       "The English information returned by the open API must be correct."
     option: Mandatory
+    severity: critical
