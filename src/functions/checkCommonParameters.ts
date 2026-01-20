@@ -17,7 +17,9 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
     const HTTP_METHODS = new Set(["get", "put", "post", "patch", "delete", "head", "options", "trace"]);
 
     const params = rule?.call?.functionParams ?? {};
-    const methodsToCheck: string[] = Array.isArray(params.methods) ? params.methods : [];
+    const methodsToCheck: string[] = Array.isArray(params.methods)
+        ? params.methods.map((m: any) => String(m).trim().toLowerCase()).filter(Boolean)
+        : [];
 
     const allowedNameArr: string[] = Array.isArray(params.allowedName) ? params.allowedName : [];
     const notAllowedArr: string[] = Array.isArray(params.notAllowedNames) ? params.notAllowedNames : [];
@@ -26,6 +28,8 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
     const notAllowedNames = new Set<string>(notAllowedArr.map((s) => String(s).trim().toLowerCase()));
 
     const allowedAbbrevs = getAllowedAbbreviations();
+    const tokenCache = new Map<string, string[]>();
+    const suspiciousCache = new Map<string, { badTokens: string[]; reasons: string[] }>();
 
     function decodeJsonPointerToken(token: string): string {
         return token.replace(/~1/g, "/").replace(/~0/g, "~");
@@ -70,18 +74,29 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
     }
 
     function splitIdentifierToTokens(name: string): string[] {
-        const base = name
+        const key = String(name);
+        const cached = tokenCache.get(key);
+        if (cached) return cached;
+
+        const base = key
             .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
             .replace(/[-_]/g, " ")
             .toLowerCase();
-        return base.split(/\s+/).filter(Boolean);
+
+        const tokens = base.split(/\s+/).filter(Boolean);
+        tokenCache.set(key, tokens);
+        return tokens;
     }
 
     function isSuspiciousName(name: string): { badTokens: string[]; reasons: string[] } {
+        const key = String(name);
+        const cached = suspiciousCache.get(key);
+        if (cached) return cached;
+
         const badTokens: string[] = [];
         const reasons: string[] = [];
 
-        const tokens = splitIdentifierToTokens(name);
+        const tokens = splitIdentifierToTokens(key);
         for (const t of tokens) {
             if (looksLikeAbbreviation(t, allowedAbbrevs)) {
                 badTokens.push(t);
@@ -94,7 +109,9 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
             }
         }
 
-        return { badTokens: Array.from(new Set(badTokens)), reasons: Array.from(new Set(reasons)) };
+        const result = { badTokens: Array.from(new Set(badTokens)), reasons: Array.from(new Set(reasons)) };
+        suspiciousCache.set(key, result);
+        return result;
     }
 
     function pushDiagnosticAtRange(from: number, to: number, msg: string, dedupeKey: string) {
@@ -135,13 +152,13 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
     }
 
     function findKeyRangeInContent(key: string, searchStart?: number): { from: number; to: number } {
-        const needles = [`\n${key}:`, `${key}:`, `\n\"${key}\":`, `\"${key}\":`];
+        const needles = [`\n${key}:`, `${key}:`];
 
         if (typeof searchStart === "number" && searchStart >= 0) {
             for (const n of needles) {
                 const idx = content.indexOf(n, searchStart);
                 if (idx >= 0) {
-                    const start = idx + (n.startsWith("\n") ? 1 : 0) + (n.includes('"') ? 1 : 0);
+                    const start = idx + (n.startsWith("\n") ? 1 : 0);
                     return { from: start, to: start + key.length };
                 }
             }
@@ -150,7 +167,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         for (const n of needles) {
             const idx = content.indexOf(n);
             if (idx >= 0) {
-                const start = idx + (n.startsWith("\n") ? 1 : 0) + (n.includes('"') ? 1 : 0);
+                const start = idx + (n.startsWith("\n") ? 1 : 0);
                 return { from: start, to: start + key.length };
             }
         }
@@ -190,28 +207,15 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
     }
 
     function findRefUsageRangeInOperation(pathKey: string, method: string, ref: string): { from: number; to: number } {
-        const pathNeedles = [`\n  ${pathKey}:`, `\n  "${pathKey}":`, `\n${pathKey}:`, `\n"${pathKey}":`];
-        let pathIdx = -1;
-        for (const n of pathNeedles) {
-            pathIdx = content.indexOf(n);
-            if (pathIdx >= 0) break;
-        }
-        const searchFromPath = pathIdx >= 0 ? pathIdx : 0;
+        // Reuse cached operation anchor to avoid repeated scanning.
+        const opAnchor = findOperationAnchorIndex(pathKey, method);
 
-        const methodNeedles = [`\n    ${method}:`, `\n  ${method}:`];
-        let methodIdx = -1;
-        for (const n of methodNeedles) {
-            methodIdx = content.indexOf(n, searchFromPath);
-            if (methodIdx >= 0) break;
-        }
-        const searchFromMethod = methodIdx >= 0 ? methodIdx : searchFromPath;
-
-        const idx = content.indexOf(ref, searchFromMethod);
+        const idx = content.indexOf(ref, opAnchor);
         if (idx >= 0) {
             return { from: idx, to: idx + ref.length };
         }
 
-        const refKeyIdx = content.indexOf("$ref", searchFromMethod);
+        const refKeyIdx = content.indexOf("$ref", opAnchor);
         if (refKeyIdx >= 0) {
             return { from: refKeyIdx, to: refKeyIdx + 4 };
         }

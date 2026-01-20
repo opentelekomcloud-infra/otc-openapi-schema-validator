@@ -3,7 +3,7 @@ rules:
     title: "Common parameter design"
     message: |
       Common parameters should be named according to the common standard words.
-    option: Optional
+    option: Mandatory
     location:
       - paths
     call:

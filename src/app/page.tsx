@@ -63,7 +63,26 @@ const HomePage = () => {
     const footerRef = useRef<HTMLDivElement>(null);
     const [isExporting, setIsExporting] = useState(false);
 
-    useEffect(() => {
+    const { selectedRulesCount, totalRulesCount } = useMemo(() => {
+      const entries = Object.entries(selectedRules ?? {});
+      const total = entries.length;
+      const selected = entries.reduce((acc, [, v]) => (v ? acc + 1 : acc), 0);
+      return { selectedRulesCount: selected, totalRulesCount: total };
+    }, [selectedRules]);
+
+    const { selectedManualRulesCount, totalManualRulesCount } = useMemo(() => {
+      const total = manualRules?.length ?? 0;
+      const selected = (manualRules ?? []).reduce((acc, r) => {
+        const anyR = r as any;
+        const isSelected =
+          anyR?.verified ??
+          false;
+        return isSelected ? acc + 1 : acc;
+      }, 0);
+      return { selectedManualRulesCount: selected, totalManualRulesCount: total };
+    }, [manualRules]);
+
+  useEffect(() => {
       loadAllowedAbbreviationsFromApi();
     }, []);
 
@@ -350,11 +369,19 @@ const HomePage = () => {
           {/* Right Panel - Rules Selection and Lint Issues List */}
           <div className="w-1/2 p-4 bg-white overflow-auto h-full">
             <scale-card className="block p-4 mb-4">
+                          <span className="mr-2 font-semibold inline-flex items-center gap-2">
+              <span className="text-xs font-normal text-gray-600">
+                    Rules selected: {selectedRulesCount}/{totalRulesCount}
+              </span>
+            </span>
               <RulesetsSelector onSelectionChange={handleSelectionChange}/>
             </scale-card>
 
             <scale-card className="block p-4 mb-4">
               <div className="mt-1 hover:shadow-lg transition duration-200">
+                <span className="text-xs font-normal text-gray-600">
+                  Rules selected: {selectedManualRulesCount}/{totalManualRulesCount}
+                </span>
                 <h3
                   className="font-bold mb-2 cursor-pointer"
                   onClick={() => setManualsIsOpen(!manualsIsOpen)}
@@ -500,7 +527,8 @@ const HomePage = () => {
         {/* Footer */}
 
         <footer className="bg-white-200 p-4 text-left text-sm indent-4" ref={footerRef}>
-          © T-Systems International GmbH | 2026 EcoSystems | All rights reserved. | v{process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}
+          © T-Systems International GmbH | 2026 EcoSystems | All rights reserved. |
+          v{process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}
         </footer>
 
         {/*Modal for Export Options*/}
