@@ -6,10 +6,15 @@ import { getSource } from "@/functions/common";
 
 export function checkCommonParameters(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
+    const source = getSource(rule);
 
     if (!spec?.paths) return diagnostics;
 
     const reported = new Set<string>();
+    const opAnchorCache = new Map<string, number>();
+    const refCache = new Map<string, any>();
+
+    const HTTP_METHODS = new Set(["get", "put", "post", "patch", "delete", "head", "options", "trace"]);
 
     const params = rule?.call?.functionParams ?? {};
     const methodsToCheck: string[] = Array.isArray(params.methods) ? params.methods : [];
@@ -32,6 +37,11 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
 
         while (curObj && typeof curObj === "object" && typeof curObj.$ref === "string") {
             const ref: string = curObj.$ref;
+            const cached = refCache.get(ref);
+            if (cached) {
+                curObj = cached;
+                continue;
+            }
             if (!ref.startsWith("#/")) return curObj;
             if (seen.has(ref)) return curObj;
             seen.add(ref);
@@ -52,6 +62,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
             }
 
             if (!resolved) return curObj;
+            refCache.set(ref, resolved);
             curObj = resolved;
         }
 
@@ -87,7 +98,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
     }
 
     function pushDiagnosticAtRange(from: number, to: number, msg: string, dedupeKey: string) {
-        const key = `${getSource(rule)}|${dedupeKey}`;
+        const key = `${source}|${dedupeKey}`;
         if (reported.has(key)) return;
         reported.add(key);
 
@@ -96,11 +107,14 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
             to,
             severity: mapSeverity(rule.severity),
             message: msg,
-            source: getSource(rule),
+            source,
         });
     }
 
     function findOperationAnchorIndex(pathKey: string, method: string): number {
+        const cacheKey = `${pathKey}#${method}`;
+        const cached = opAnchorCache.get(cacheKey);
+        if (typeof cached === "number") return cached;
         const pathNeedles = [`\n  ${pathKey}:`, `\n${pathKey}:`];
         let pathIdx = -1;
         for (const n of pathNeedles) {
@@ -115,7 +129,9 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
             methodIdx = content.indexOf(n, searchFromPath);
             if (methodIdx >= 0) break;
         }
-        return methodIdx >= 0 ? methodIdx : searchFromPath;
+        const anchor = methodIdx >= 0 ? methodIdx : searchFromPath;
+        opAnchorCache.set(cacheKey, anchor);
+        return anchor;
     }
 
     function findKeyRangeInContent(key: string, searchStart?: number): { from: number; to: number } {
@@ -143,7 +159,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
     }
 
     function evaluateName(nameRaw: string, range?: { from: number; to: number }, searchStart?: number, dedupeContext?: string) {
-        const name = String(nameRaw).toLowerCase();
+        const name = String(nameRaw).trim().toLowerCase();
         if (!name) return;
 
         if (allowedNames.has(name)) {
@@ -237,12 +253,12 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         visitor: (propName: string) => void,
         searchStart?: number,
         dedupeContext?: string,
-        seen = new Set<any>()
+        seen = new WeakSet<object>()
     ) {
         const s = resolveRef(schema);
         if (!s || typeof s !== "object") return;
-        if (seen.has(s)) return;
-        seen.add(s);
+        if (seen.has(s as object)) return;
+        seen.add(s as object);
 
         if (s.allOf && Array.isArray(s.allOf)) {
             for (const sub of s.allOf) schemaWalk(sub, visitor, searchStart, dedupeContext, seen);
@@ -271,11 +287,11 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         }
     }
 
-    function exampleWalk(example: any, visitor: (propName: string) => void, seen = new Set<any>()) {
+    function exampleWalk(example: any, visitor: (propName: string) => void, seen = new WeakSet<object>()) {
         if (example === null || example === undefined) return;
         if (typeof example !== "object") return;
-        if (seen.has(example)) return;
-        seen.add(example);
+        if (seen.has(example as object)) return;
+        seen.add(example as object);
 
         if (Array.isArray(example)) {
             for (const item of example) {
@@ -366,9 +382,11 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         const pathItem = spec.paths[pathKey];
         if (!pathItem || typeof pathItem !== "object") continue;
 
-        const opMethods = methodsToCheck.length ? methodsToCheck : Object.keys(pathItem);
-        for (const method of opMethods) {
-            const m = String(method).toLowerCase();
+        const opMethodsRaw = methodsToCheck.length ? methodsToCheck : Object.keys(pathItem);
+        for (const method of opMethodsRaw) {
+            const m = String(method).trim().toLowerCase();
+            if (!HTTP_METHODS.has(m)) continue;
+
             const operation = pathItem[m];
             if (!operation || typeof operation !== "object") continue;
 
