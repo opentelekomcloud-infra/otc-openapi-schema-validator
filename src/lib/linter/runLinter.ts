@@ -24,6 +24,7 @@ import { checkURIContentUnicode } from '@/functions/checkURIContentUnicode';
 import { checkURIContentComplexity } from '@/functions/checkURIContentComplexity';
 import { checkURIResourceFormat } from '@/functions/checkURIResourceFormat';
 import { checkInternationalization } from '@/functions/checkInternationalization';
+import { checkCommonParameters } from "@/functions/checkCommonParameters";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -50,7 +51,8 @@ export const functionsMap: {
   checkURIContentUnicode,
   checkURIContentComplexity,
   checkURIResourceFormat,
-  checkInternationalization
+  checkInternationalization,
+  checkCommonParameters
 };
 
 /**

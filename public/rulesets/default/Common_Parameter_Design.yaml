@@ -1,0 +1,73 @@
+rules:
+  - id: "COM-010-01-2507-2509-M"
+    title: "Common parameter design"
+    message: |
+      Common parameters should be named according to the common standard words.
+    option: Mandatory
+    location:
+      - paths
+    call:
+      function: checkCommonParameters
+      functionParams:
+        methods:
+          - "get"
+          - "put"
+          - "post"
+          - "patch"
+          - "delete"
+        allowedName:
+          - "name"
+          - "create_time"
+          - "update_time"
+          - "delete_time"
+          - "expire_time"
+          - "start_time"
+          - "end_time"
+          - "read_time"
+          - "time_zone"
+          - "region_code"
+          - "language_code"
+          - "mime_type"
+          - "display_name"
+          - "title"
+          - "description"
+          - "filter"
+          - "query"
+          - "count"
+          - "order_by"
+          - "request_id"
+          - "deleted"
+          - "show_deleted"
+          - "dry_run"
+          - "charge_mode"
+          - "period_type"
+          - "period_num"
+          - "is_auto_renew"
+          - "is_auto_pay"
+          - "limit"
+          - "offset"
+          - "sort_key"
+          - "sort_dir"
+          - "tag"
+          - "availability_zone_id"
+          - "virsubnet_id"
+          - "tags"
+        notAllowedNames:
+          - "descp"
+          - "locale"
+          - "gmt_create_timestamp"
+          - "gmt_modify_timestamp"
+          - "gmt_create"
+          - "gmt_modify"
+          - "total_count"
+          - "page"
+          - "gmt_modify"
+          - "ok"
+          - "total"
+          - "tag_list"
+          - "host_group_tag"
+          - "access_config_tag_list"
+          - "access_config_tag_list"
+    description: This rule checks if the names of common parameters match common reserved standard words.
+    status: implemented
+    severity: critical
