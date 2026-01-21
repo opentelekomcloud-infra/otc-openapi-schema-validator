@@ -39,9 +39,53 @@ jobs:
           password: ${{ secrets.REGISTRY_PASSWORD }}
 
       - name: Build and push
+        id: build
         uses: docker/build-push-action@v5
         with:
           context: .
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           push: true
+
+      - name: Choose image ref for SBOM scan
+        id: img
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            echo "ref=${{ secrets.REGISTRY }}/${{ env.ORG }}/${{ env.PROJECT }}:${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "ref=${{ secrets.REGISTRY }}/${{ env.ORG }}/${{ env.PROJECT }}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate SBOM
+        uses: aquasecurity/trivy-action@0.33.1
+        with:
+          version: "v0.68.2"
+          scan-type: image
+          image-ref: "${{ steps.img.outputs.ref }}"
+          format: cyclonedx
+          output: bom.json
+          exit-code: 0
+          scanners: vuln
+
+      - name: Choose Dependency-Track project version
+        id: dt
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [[ "${GITHUB_EVENT_NAME}" == "release" ]]; then
+            echo "version=${{ github.event.release.tag_name }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "version=${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Upload SBOM to Dependency-Track
+        uses: DependencyTrack/gh-upload-sbom@v3
+        with:
+          serverHostname: ${{ secrets.DEPENDENCYTRACK_PREPROD_HOSTNAME }}
+          apiKey: ${{ secrets.DEPENDENCYTRACK_PREPROD_APIKEY }}
+          projectName: "${{ env.ORG }}/${{ env.PROJECT }}"
+          projectVersion: "${{ steps.dt.outputs.version }}"
+          bomFilename: "bom.json"
+          autoCreate: true
