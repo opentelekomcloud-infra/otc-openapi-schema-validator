@@ -103,14 +103,35 @@ export async function requireApiAuth(req: NextApiRequest): Promise<ApiPrincipal 
   if (!isAuthEnabled) return { mode: "disabled" };
 
   // Cookie/session auth (UI -> API)
-  const sessionToken = await getToken({
-    // @ts-expect-error The expected type comes from property req which is declared here on type GetTokenParams<false>
-    req,
-    secret: process.env.AUTH_SECRET,
-  });
-  if (sessionToken) {
-    log.debug("Authenticated via NextAuth session cookie");
-    return { mode: "session", token: sessionToken };
+  const authSecret = process.env.AUTH_SECRET;
+  if (!authSecret) {
+    log.error("AUTH_SECRET is not set; cannot validate session cookies");
+  } else {
+    const cookieNames = [
+      // Auth.js v5 cookies
+      "__Secure-authjs.session-token",
+      "authjs.session-token",
+      // Legacy NextAuth cookies
+      "__Secure-next-auth.session-token",
+      "next-auth.session-token",
+    ];
+
+    for (const cookieName of cookieNames) {
+      const token = await getToken({
+        // @ts-expect-error next-auth types may not include NextApiRequest in this version
+        req,
+        secret: authSecret,
+        cookieName,
+      }).catch((e) => {
+        log.debug(`getToken failed for cookieName=${cookieName}`, e);
+        return null;
+      });
+
+      if (token) {
+        log.debug(`Authenticated via session cookie (${cookieName})`);
+        return { mode: "session", token };
+      }
+    }
   }
 
   log.debug("No session cookie found, checking Bearer token");

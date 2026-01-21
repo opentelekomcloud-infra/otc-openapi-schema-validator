@@ -380,7 +380,7 @@ const HomePage = () => {
             <scale-card className="block p-4 mb-4">
               <div className="mt-1 hover:shadow-lg transition duration-200">
                 <span className="text-xs font-normal text-gray-600">
-                  Rules selected: {selectedManualRulesCount}/{totalManualRulesCount}
+                  Rules verified: {selectedManualRulesCount}/{totalManualRulesCount}
                 </span>
                 <h3
                   className="font-bold mb-2 cursor-pointer"
