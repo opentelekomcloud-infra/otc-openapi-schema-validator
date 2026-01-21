@@ -58,7 +58,7 @@ jobs:
             echo "ref=${{ secrets.REGISTRY }}/${{ env.ORG }}/${{ env.PROJECT }}:${GITHUB_REF_NAME}" >> "$GITHUB_OUTPUT"
           fi
 
-      - name: Generate SBOM (Trivy, CycloneDX)
+      - name: Generate SBOM
         uses: aquasecurity/trivy-action@0.33.1
         with:
           version: "v0.68.2"
