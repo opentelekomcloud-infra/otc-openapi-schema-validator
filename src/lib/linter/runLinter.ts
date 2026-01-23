@@ -25,6 +25,8 @@ import { checkURIContentComplexity } from '@/functions/checkURIContentComplexity
 import { checkURIResourceFormat } from '@/functions/checkURIResourceFormat';
 import { checkInternationalization } from '@/functions/checkInternationalization';
 import { checkCommonParameters } from "@/functions/checkCommonParameters";
+import { checkTimeZoneFormat } from "@/functions/checkTimeZoneFormat";
+import { checkTimeFieldNaming } from "@/functions/checkTimeFieldNaming";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -52,7 +54,9 @@ export const functionsMap: {
   checkURIContentComplexity,
   checkURIResourceFormat,
   checkInternationalization,
-  checkCommonParameters
+  checkCommonParameters,
+  checkTimeZoneFormat,
+  checkTimeFieldNaming
 };
 
 /**

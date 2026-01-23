@@ -118,3 +118,27 @@ export function violatingIndexRange(
 
     return { from: 0, to: Math.max(0, fallbackLen) };
 }
+
+export function findKeyRangeInContent(content: string, key: string, searchStart?: number): { from: number; to: number } {
+    const needles = [`\n${key}:`, `${key}:`];
+
+    if (typeof searchStart === "number" && searchStart >= 0) {
+        for (const n of needles) {
+            const idx = content.indexOf(n, searchStart);
+            if (idx >= 0) {
+                const start = idx + (n.startsWith("\n") ? 1 : 0);
+                return { from: start, to: start + key.length };
+            }
+        }
+    }
+
+    for (const n of needles) {
+        const idx = content.indexOf(n);
+        if (idx >= 0) {
+            const start = idx + (n.startsWith("\n") ? 1 : 0);
+            return { from: start, to: start + key.length };
+        }
+    }
+
+    return { from: 0, to: 0 };
+}
