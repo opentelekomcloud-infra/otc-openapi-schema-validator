@@ -1,8 +1,9 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { looksLikeAbbreviation, looksLikeUnknownWord, getAllowedAbbreviations } from "@/utils/englishWords";
-import { findParameterPositionInYaml } from "@/utils/pos";
+import {findKeyRangeInContent, findParameterPositionInYaml} from "@/utils/pos";
 import { getSource } from "@/functions/common";
+import { resolveRefDeep } from "@/utils/schema";
 
 export function checkCommonParameters(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -30,48 +31,6 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
     const allowedAbbrevs = getAllowedAbbreviations();
     const tokenCache = new Map<string, string[]>();
     const suspiciousCache = new Map<string, { badTokens: string[]; reasons: string[] }>();
-
-    function decodeJsonPointerToken(token: string): string {
-        return token.replace(/~1/g, "/").replace(/~0/g, "~");
-    }
-
-    function resolveRef(obj: any): any {
-        let curObj: any = obj;
-        const seen = new Set<string>();
-
-        while (curObj && typeof curObj === "object" && typeof curObj.$ref === "string") {
-            const ref: string = curObj.$ref;
-            const cached = refCache.get(ref);
-            if (cached) {
-                curObj = cached;
-                continue;
-            }
-            if (!ref.startsWith("#/")) return curObj;
-            if (seen.has(ref)) return curObj;
-            seen.add(ref);
-
-            const parts = ref
-                .slice(2)
-                .split("/")
-                .filter(Boolean)
-                .map(decodeJsonPointerToken);
-
-            let resolved: any = spec;
-            for (const p of parts) {
-                if (!resolved || typeof resolved !== "object") {
-                    resolved = null;
-                    break;
-                }
-                resolved = resolved[p];
-            }
-
-            if (!resolved) return curObj;
-            refCache.set(ref, resolved);
-            curObj = resolved;
-        }
-
-        return curObj;
-    }
 
     function splitIdentifierToTokens(name: string): string[] {
         const key = String(name);
@@ -151,29 +110,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         return anchor;
     }
 
-    function findKeyRangeInContent(key: string, searchStart?: number): { from: number; to: number } {
-        const needles = [`\n${key}:`, `${key}:`];
 
-        if (typeof searchStart === "number" && searchStart >= 0) {
-            for (const n of needles) {
-                const idx = content.indexOf(n, searchStart);
-                if (idx >= 0) {
-                    const start = idx + (n.startsWith("\n") ? 1 : 0);
-                    return { from: start, to: start + key.length };
-                }
-            }
-        }
-
-        for (const n of needles) {
-            const idx = content.indexOf(n);
-            if (idx >= 0) {
-                const start = idx + (n.startsWith("\n") ? 1 : 0);
-                return { from: start, to: start + key.length };
-            }
-        }
-
-        return { from: 0, to: 0 };
-    }
 
     function evaluateName(nameRaw: string, range?: { from: number; to: number }, searchStart?: number, dedupeContext?: string) {
         const name = String(nameRaw).trim().toLowerCase();
@@ -184,7 +121,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         }
 
         if (notAllowedNames.has(name)) {
-            const r = range ?? findKeyRangeInContent(nameRaw, searchStart);
+            const r = range ?? findKeyRangeInContent(content, nameRaw, searchStart);
             pushDiagnosticAtRange(
                 r.from,
                 r.to,
@@ -196,7 +133,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
 
         const suspicious = isSuspiciousName(nameRaw);
         if (suspicious.badTokens.length) {
-            const r = range ?? findKeyRangeInContent(nameRaw, searchStart);
+            const r = range ?? findKeyRangeInContent(content, nameRaw, searchStart);
             pushDiagnosticAtRange(
                 r.from,
                 r.to,
@@ -233,7 +170,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
 
         for (const p of opParams) {
             const ref = typeof p?.$ref === "string" ? p.$ref : null;
-            const resolved = resolveRef(p);
+            const resolved = resolveRefDeep(p, refCache, spec);
             const name = resolved?.name;
             if (typeof name !== "string") continue;
 
@@ -259,7 +196,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         dedupeContext?: string,
         seen = new WeakSet<object>()
     ) {
-        const s = resolveRef(schema);
+        const s = resolveRefDeep(schema, refCache, spec);
         if (!s || typeof s !== "object") return;
         if (seen.has(s as object)) return;
         seen.add(s as object);
@@ -331,7 +268,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
 
         // requestBody
         if (operation?.requestBody) {
-            const rb = resolveRef(operation.requestBody);
+            const rb = resolveRefDeep(operation.requestBody, refCache, spec);
             const contentObj = rb?.content;
             if (contentObj && typeof contentObj === "object") {
                 for (const media of Object.values<any>(contentObj)) {
@@ -357,7 +294,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         // responses
         if (operation?.responses && typeof operation.responses === "object") {
             for (const [, resp] of Object.entries<any>(operation.responses)) {
-                const r = resolveRef(resp);
+                const r = resolveRefDeep(resp, refCache, spec);
                 const contentObj = r?.content;
                 if (contentObj && typeof contentObj === "object") {
                     for (const media of Object.values<any>(contentObj)) {

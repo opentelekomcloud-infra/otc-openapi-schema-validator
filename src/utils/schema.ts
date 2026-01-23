@@ -163,3 +163,45 @@ export function extractEnumIfExist(schema: any, spec: any, basePath = ''): Map<s
     walk(schema, basePath);
     return enums;
 }
+
+function decodeJsonPointerToken(token: string): string {
+    return token.replace(/~1/g, "/").replace(/~0/g, "~");
+}
+
+export function resolveRefDeep(obj: any, refCache: any, spec: any): any {
+    let curObj: any = obj;
+    const seen = new Set<string>();
+
+    while (curObj && typeof curObj === "object" && typeof curObj.$ref === "string") {
+        const ref: string = curObj.$ref;
+        const cached = refCache.get(ref);
+        if (cached) {
+            curObj = cached;
+            continue;
+        }
+        if (!ref.startsWith("#/")) return curObj;
+        if (seen.has(ref)) return curObj;
+        seen.add(ref);
+
+        const parts = ref
+          .slice(2)
+          .split("/")
+          .filter(Boolean)
+          .map(decodeJsonPointerToken);
+
+        let resolved: any = spec;
+        for (const p of parts) {
+            if (!resolved || typeof resolved !== "object") {
+                resolved = null;
+                break;
+            }
+            resolved = resolved[p];
+        }
+
+        if (!resolved) return curObj;
+        refCache.set(ref, resolved);
+        curObj = resolved;
+    }
+
+    return curObj;
+}
