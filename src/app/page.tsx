@@ -176,7 +176,12 @@ const HomePage = () => {
             const file = target.files[0];
             if (file.name.endsWith(".yaml") || file.name.endsWith(".yml")) {
                 const reader = new FileReader();
-                reader.onload = (e) => setCode(e.target?.result as string);
+                reader.onload = (e) => {
+                  prevDiagsRef.current = [];
+                  setDiagnostics([]);
+                  setSpecTitle(null);
+                  setCode(e.target?.result as string);
+                };
                 reader.readAsText(file);
             } else {
                 alert("Please upload a valid .yaml or .yml file.");
@@ -312,29 +317,6 @@ const HomePage = () => {
               <AuthButtons/>
             </div>
           </div>
-
-          {/* Severity legend (kept simple, could be replaced by badges later) */}
-          {/*<div className="flex space-x-4 text-sm">*/}
-          {/*  <div className="flex items-center">*/}
-          {/*    <span className="rounded-full mr-1" style={{width: "10px", height: "10px", backgroundColor: "white"}}/>*/}
-          {/*    <span>Low</span>*/}
-          {/*  </div>*/}
-          {/*  <div className="flex items-center">*/}
-          {/*    <span className="rounded-full mr-1"*/}
-          {/*          style={{width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)"}}/>*/}
-          {/*    <span>Medium</span>*/}
-          {/*  </div>*/}
-          {/*  <div className="flex items-center">*/}
-          {/*    <span className="rounded-full mr-1"*/}
-          {/*          style={{width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)"}}/>*/}
-          {/*    <span>High</span>*/}
-          {/*  </div>*/}
-          {/*  <div className="flex items-center">*/}
-          {/*    <span className="rounded-full mr-1"*/}
-          {/*          style={{width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)"}}/>*/}
-          {/*    <span>Critical</span>*/}
-          {/*  </div>*/}
-          {/*</div>*/}
         </header>
 
         <div className="flex flex-1 overflow-hidden">
