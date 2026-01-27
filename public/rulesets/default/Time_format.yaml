@@ -12,6 +12,14 @@ rules:
     call:
       function: checkTimeZoneFormat
       functionParams:
+        parameterNames:
+          - "created_at"
+          - "updated_at"
+          - "deleted_at"
+          - "expired_at"
+          - "start_time"
+          - "end_time"
+          - "read_time"
         preferredFormat: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[\\+\\-]\\d{2}:\\d{2})$"
     description: This rule checks time format of date-time elements.
     status: implemented
