@@ -1,0 +1,61 @@
+rules:
+  - id: "QUE-040-01-2507-2507-M"
+    title: "The total number of resources that meet the query conditions is returned when the resource list is queried."
+    message: The API response must include the total number of matching resources using the field 'count'.
+    option: Mandatory
+    description: This rule checks that GET list query responses include the total number of resources using the standardized 'count' field.
+    location: paths
+    element: responses
+    call:
+      function: CheckResponseIncludesCount
+      functionParams:
+        method: "get"
+        pathMustNotContainPathParams: true
+        responseCode: "200"
+        responseContainArray: true
+        fieldName: "count"
+        fieldType: "integer"
+        required: true
+        allowedNames:
+          - "count"
+        disallowedNames:
+          - "total"
+          - "total_count"
+    severity: high
+    status: devel
+
+  - id: "QUE-050-01-2507-2507-M"
+    title: "Cloud services must provide APIs for querying their own service quotas."
+    message: Service must expose a quota query endpoint like GET /v1/quotas.
+    option: Mandatory
+    description: Checks that a service exposes a quota query endpoint, e.g. GET /v1/quotas.
+    location: paths
+    element: path
+    call:
+      function: CheckQuotaApiPresence
+      functionParams:
+        pathPattern: "/v1/quotas"
+        method: "get"
+    severity: high
+    status: devel
+
+  - id: "QUE-060-01-2507-2507-M"
+    title: "Querying resource details requires returning creation and modification time parameters"
+    message: Resourse detail query APIs must return 'create_time' and 'update_time' fields in the response.
+    option: Mandatory
+    description: Verifies that resource detail GET endpoints with path parameters (e.g., /resource/{id}) return 'create_time' and 'update_time' fields.
+    location: paths
+    element: responses
+    call:
+      function: CheckTimeFieldsInDetailQuery
+      functionParams:
+        method: "get"
+        pathMustContainPathParameter: "id"
+        responseCode: "200"
+        requiredFields:
+          - "create_time"
+          - "update_time"
+          - "created_at"
+          - "updated_at"
+    severity: high
+    status: devel
