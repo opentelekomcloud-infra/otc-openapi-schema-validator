@@ -10,9 +10,10 @@ Authentication can be fully disabled via environment configuration and is design
 ---
 ## Environment variables
 All mentioned variables below need to be set for proper functioning:
-### Server-side flag (used in API, middleware, server components)
+### Server-side flag (used in API, proxy, server components)
 `ENABLE_AUTH=false`
-
+`AUTH_TRUST_HOST=true`
+`NEXTAUTH_URL=https://localhost:3000`
 `NEXT_PUBLIC_ENABLE_AUTH=true` - always, for proper UI handling
 
 ### Used to sign/encrypt session cookies
@@ -86,7 +87,7 @@ ENABLE_AUTH=true
 ## API Authorization Model
 
 ### Design principles
-- UI redirects are handled in **middleware**
+- UI redirects are handled in **proxy**
 - API routes never redirect
 - API routes always return JSON errors (`401 Unauthorized`)
 - Authorization logic lives **inside API handlers**
@@ -203,13 +204,13 @@ Without this scope, introspection will return:
 
 ---
 
-## Middleware Behavior
+## Proxy Behavior
 
-### What middleware does
+### What proxy does
 - Protects **UI routes only**
 - Redirects unauthenticated users to `/api/auth/signin`
 
-### What middleware does NOT do
+### What proxy does NOT do
 - Does not protect `/api/*`
 - Does not return JSON errors
 - Does not validate tokens
