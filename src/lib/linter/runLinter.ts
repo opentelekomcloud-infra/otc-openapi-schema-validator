@@ -27,6 +27,7 @@ import { checkInternationalization } from '@/functions/checkInternationalization
 import { checkCommonParameters } from "@/functions/checkCommonParameters";
 import { checkTimeZoneFormat } from "@/functions/checkTimeZoneFormat";
 import { checkTimeFieldNaming } from "@/functions/checkTimeFieldNaming";
+import { checkResponseIncludesCount } from "@/functions/checkResponseIncludesCount";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -56,7 +57,8 @@ export const functionsMap: {
   checkInternationalization,
   checkCommonParameters,
   checkTimeZoneFormat,
-  checkTimeFieldNaming
+  checkTimeFieldNaming,
+  checkResponseIncludesCount
 };
 
 /**

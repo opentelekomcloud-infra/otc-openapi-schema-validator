@@ -7,10 +7,10 @@ rules:
     location: paths
     element: responses
     call:
-      function: CheckResponseIncludesCount
+      function: checkResponseIncludesCount
       functionParams:
         method: "get"
-        pathMustNotContainPathParams: true
+        pathMustNotContainPathParams: false
         responseCode: "200"
         responseContainArray: true
         fieldName: "count"
@@ -22,7 +22,7 @@ rules:
           - "total"
           - "total_count"
     severity: high
-    status: devel
+    status: implemented
 
   - id: "QUE-050-01-2507-2507-M"
     title: "Cloud services must provide APIs for querying their own service quotas."
