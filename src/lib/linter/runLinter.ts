@@ -28,6 +28,7 @@ import { checkCommonParameters } from "@/functions/checkCommonParameters";
 import { checkTimeZoneFormat } from "@/functions/checkTimeZoneFormat";
 import { checkTimeFieldNaming } from "@/functions/checkTimeFieldNaming";
 import { checkResponseIncludesCount } from "@/functions/checkResponseIncludesCount";
+import { checkQuotaApiPresence } from "@/functions/checkQuotaApiPresence";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -58,7 +59,8 @@ export const functionsMap: {
   checkCommonParameters,
   checkTimeZoneFormat,
   checkTimeFieldNaming,
-  checkResponseIncludesCount
+  checkResponseIncludesCount,
+  checkQuotaApiPresence
 };
 
 /**
