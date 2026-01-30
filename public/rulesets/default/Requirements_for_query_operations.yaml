@@ -32,12 +32,12 @@ rules:
     location: paths
     element: path
     call:
-      function: CheckQuotaApiPresence
+      function: checkQuotaApiPresence
       functionParams:
-        pathPattern: "/v1/quotas"
+        pathPattern: "/quotas"
         method: "get"
     severity: high
-    status: devel
+    status: implemented
 
   - id: "QUE-060-01-2507-2507-M"
     title: "Querying resource details requires returning creation and modification time parameters"
