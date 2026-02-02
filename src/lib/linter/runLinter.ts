@@ -29,6 +29,7 @@ import { checkTimeZoneFormat } from "@/functions/checkTimeZoneFormat";
 import { checkTimeFieldNaming } from "@/functions/checkTimeFieldNaming";
 import { checkResponseIncludesCount } from "@/functions/checkResponseIncludesCount";
 import { checkQuotaApiPresence } from "@/functions/checkQuotaApiPresence";
+import { checkTimeFieldsInDetailQuery } from "@/functions/checkTimeFieldsInDetailQuery";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -60,7 +61,8 @@ export const functionsMap: {
   checkTimeZoneFormat,
   checkTimeFieldNaming,
   checkResponseIncludesCount,
-  checkQuotaApiPresence
+  checkQuotaApiPresence,
+  checkTimeFieldsInDetailQuery
 };
 
 /**
