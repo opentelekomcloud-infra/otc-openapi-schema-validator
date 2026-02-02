@@ -41,13 +41,13 @@ rules:
 
   - id: "QUE-060-01-2507-2507-M"
     title: "Querying resource details requires returning creation and modification time parameters"
-    message: Resourse detail query APIs must return 'create_time' and 'update_time' fields in the response.
+    message: Resource detail query APIs must return 'create_time' and 'update_time' fields in the response.
     option: Mandatory
     description: Verifies that resource detail GET endpoints with path parameters (e.g., /resource/{id}) return 'create_time' and 'update_time' fields.
     location: paths
     element: responses
     call:
-      function: CheckTimeFieldsInDetailQuery
+      function: checkTimeFieldsInDetailQuery
       functionParams:
         method: "get"
         pathMustContainPathParameter: "id"
@@ -58,4 +58,4 @@ rules:
           - "created_at"
           - "updated_at"
     severity: high
-    status: devel
+    status: implemented
