@@ -63,12 +63,14 @@ const HomePage = () => {
     const footerRef = useRef<HTMLDivElement>(null);
     const [isExporting, setIsExporting] = useState(false);
 
-    const { selectedRulesCount, totalRulesCount } = useMemo(() => {
+    const [totalAvailableRules, setTotalAvailableRules] = useState<number>(0);
+
+    const selectedRulesCount = useMemo(() => {
       const entries = Object.entries(selectedRules ?? {});
-      const total = entries.length;
-      const selected = entries.reduce((acc, [, v]) => (v ? acc + 1 : acc), 0);
-      return { selectedRulesCount: selected, totalRulesCount: total };
+      return entries.reduce((acc, [, v]) => (v ? acc + 1 : acc), 0);
     }, [selectedRules]);
+
+    const totalRulesCount = totalAvailableRules;
 
     const { selectedManualRulesCount, totalManualRulesCount } = useMemo(() => {
       const total = manualRules?.length ?? 0;
@@ -356,7 +358,10 @@ const HomePage = () => {
                     Rules selected: {selectedRulesCount}/{totalRulesCount}
               </span>
             </span>
-              <RulesetsSelector onSelectionChange={handleSelectionChange}/>
+              <RulesetsSelector
+                onSelectionChange={handleSelectionChange}
+                onTotalRulesChange={setTotalAvailableRules}
+              />
             </scale-card>
 
             <scale-card className="block p-4 mb-4">

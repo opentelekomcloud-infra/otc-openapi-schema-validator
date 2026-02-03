@@ -22,9 +22,10 @@ export type Rule = {
 
 type RulesetsSelectorProps = {
     onSelectionChange?: (selectedRules: Rule[]) => void;
+    onTotalRulesChange?: (total: number) => void;
 };
 
-const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
+const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSelectorProps) => {
     const [rulesets, setRulesets] = useState<RulesetsStructure>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
@@ -73,6 +74,10 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
             }
             const implementedRules = rulesArray.filter(rule => rule.status === "implemented");
             setAllRules(implementedRules);
+
+            // report total available rules (independent of selection / severity filter)
+            onTotalRulesChange?.(implementedRules.length);
+
             const mandatoryRules = implementedRules.filter(
                 (rule) => rule.option.toLowerCase() === "mandatory"
             );
@@ -87,6 +92,7 @@ const RulesetsSelector = ({ onSelectionChange }: RulesetsSelectorProps) => {
         } else {
             setAllRules([]);
             setSelectedRules([]);
+            onTotalRulesChange?.(0);
         }
     }, [selectedRuleset, rulesets]);
 
