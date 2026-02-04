@@ -140,7 +140,8 @@ export function buildRobotXml(
     const breaches = diags
       .map((d: any) => {
         const ln = computeLineNumber(d);
-        return `- Line ${ln}: ${d?.message ?? ''}`;
+        const sev = getSeverityLabel(d?.severity);
+        return `- ${sev} | Line ${ln}: ${d?.message ?? ''}`;
       })
       .join('\n');
 
