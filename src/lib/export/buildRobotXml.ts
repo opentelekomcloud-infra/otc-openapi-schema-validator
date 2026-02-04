@@ -1,5 +1,5 @@
 import {convertMarkdownToPlainText} from '@/utils/utils';
-import {getSeverityLabel} from '@/utils/mapSeverity';
+import { getSeverityLabel } from '@/utils/mapSeverity';
 
 // Build Robot Framework compliant XML (schema v4) from diagnostics + rules
 export function buildRobotXml(
@@ -33,12 +33,6 @@ export function buildRobotXml(
     return `${y}${M}${D} ${h}:${m}:${s}.${ms3}`;
   };
 
-  const safePath = (s: string) =>
-    String(s ?? '')
-      .trim()
-      .replace(/\s+/g, '_')
-      .replace(/[^\w\-\.]/g, '');
-
   const extractRuleId = (raw: any): string | undefined => {
     if (typeof raw !== 'string') return undefined;
 
@@ -62,6 +56,28 @@ export function buildRobotXml(
     }
 
     return best?.value;
+  };
+
+  const findRuleMeta = (id: string): any => {
+    const direct = (selectedRules || {})[id];
+    if (direct) return direct;
+    return Object.values(selectedRules || {}).find((r: any) => r?.id === id);
+  };
+
+  const computeLineNumber = (diag: any): number | string => {
+    if (typeof diag?.lineNumber === 'number') return diag.lineNumber;
+    if (typeof diag?.from === 'number') {
+      if (typeof content === 'string' && content.length > 0) {
+        const idx = Math.max(0, Math.min(diag.from, content.length));
+        let count = 1;
+        for (let i = 0; i < idx; i++) {
+          if (content.charCodeAt(i) === 10) count++;
+        }
+        return count;
+      }
+      return diag.from;
+    }
+    return 'N/A';
   };
 
   const VROOT = 'virtual:///Compliance_Validation';
@@ -93,125 +109,97 @@ export function buildRobotXml(
 
   // Automated subtree
   let autoInner = '';
-  let autoSuiteCounter = 0;
   let autoFailTotal = 0;
   let runningMs = baseMs;
 
   const groupKeys = Object.keys(grouped);
-  for (let gi = 0; gi < groupKeys.length; gi++) {
-    const source = groupKeys[gi];
-    const diags = grouped[source];
-    autoSuiteCounter += 1;
-    const subSuiteId = `${automatedId}-s${autoSuiteCounter}`;
-    const suiteStart = runningMs;
-    let testsXml = '';
-    const ruleMeta = (selectedRules || {})[source];
-    const metaTitle =
-      ruleMeta?.title ??
-      ruleMeta?.name ??
-      ruleMeta?.message ??
-      diags?.[0]?.ruleTitle ??
-      diags?.[0]?.ruleName ??
-      diags?.[0]?.ruleId ??
-      diags?.[0]?.message;
 
-    const suiteDisplayName =
+  // Failed Rules suite: one test per unique failed rule; message includes rule.message + breaches list
+  let failedRulesInner = '';
+  let failedRulesCount = 0;
+
+  const failedSuiteId = `${automatedId}-s1`;
+  const failedSuiteStart = runningMs;
+
+  for (let i = 0; i < groupKeys.length; i++) {
+    const source = groupKeys[i];
+    const diags = grouped[source] || [];
+
+    const meta = source === 'unknown' ? undefined : findRuleMeta(source);
+    const title = meta?.title ?? meta?.name ?? '';
+    const messageHeader = meta?.message ?? title ?? meta?.name ?? '';
+
+    const caseStart = runningMs;
+    const caseEnd = caseStart + CASE_MS;
+
+    const testName =
       source === 'unknown'
-        ? (metaTitle || 'Unknown Rule')
-        : metaTitle
-          ? `${source} - ${metaTitle}`
-          : source;
+        ? (title || 'Unknown Rule')
+        : `Rule ${source}${title ? ` - ${title}` : ''}`;
 
-    for (let ti = 0; ti < diags.length; ti++) {
-      const diag = diags[ti];
-      const caseStart = runningMs;
-      const caseEnd = caseStart + CASE_MS;
+    const breaches = diags
+      .map((d: any) => {
+        const ln = computeLineNumber(d);
+        return `- Line ${ln}: ${d?.message ?? ''}`;
+      })
+      .join('\n');
 
-      // Line number: prefer diag.lineNumber; otherwise derive from `content` and `diag.from`
-      let lineNumber: number | string = 'N/A';
-      if (typeof diag?.lineNumber === 'number') {
-        lineNumber = diag.lineNumber;
-      } else if (typeof diag?.from === 'number') {
-        if (typeof content === 'string' && content.length > 0) {
-          const idx = Math.max(0, Math.min(diag.from, content.length));
-          // Count newlines up to the index and add 1 (1-based line numbers)
-          let count = 1;
-          for (let i = 0; i < idx; i++) {
-            if (content.charCodeAt(i) === 10 /* \n */) count++;
-          }
-          lineNumber = count;
-        } else {
-          // Fallback to raw offset if content is unavailable
-          lineNumber = diag.from;
-        }
-      }
-      const tName = `Line: ${lineNumber}`;
-      const severity = xmlEscape(getSeverityLabel(diag?.severity));
-      const msgText = `${severity}: ${diag?.message ?? ''}`;
-      const tId = testId(subSuiteId, ti + 1);
+    const fullMsg = `${messageHeader || ''}${(messageHeader && breaches) ? '\n' : ''}${breaches}`;
 
-      testsXml +=
-        `      <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-        `        <msg timestamp="${fmt(caseStart)}" level="${
-          severity === 'ERROR' || severity === 'CRITICAL' ? 'ERROR' : 'FAIL'
-        }">${xmlEscape(msgText)}</msg>\n` +
-        `        <status status="FAIL" starttime="${fmt(
-          caseStart
-        )}" endtime="${fmt(caseEnd)}"/>\n` +
-        `      </test>\n`;
+    const tId = testId(failedSuiteId, i + 1);
+    failedRulesInner +=
+      `      <test id="${tId}" name="${xmlEscape(testName)}">\n` +
+      `        <msg timestamp="${fmt(caseStart)}" level="FAIL">${xmlEscape(fullMsg)}</msg>\n` +
+      `        <status status="FAIL" starttime="${fmt(caseStart)}" endtime="${fmt(caseEnd)}"/>\n` +
+      `      </test>\n`;
 
-      autoFailTotal += 1;
-      runningMs = caseEnd;
-    }
-
-    const suiteEnd = runningMs;
-    autoInner +=
-      `    <suite id="${subSuiteId}" name="${xmlEscape(suiteDisplayName)}" source="${VROOT}/Automated_Compliance_Validation_Report/${safePath(source)}.robot">\n` +
-      `      <status status="FAIL" starttime="${fmt(
-        suiteStart
-      )}" endtime="${fmt(suiteEnd)}"/>\n` +
-      testsXml +
-      `    </suite>\n`;
-
-    runningMs += GAP_MS;
+    failedRulesCount += 1;
+    autoFailTotal += 1;
+    runningMs = caseEnd;
   }
+
+  const failedSuiteEnd = runningMs;
+  autoInner +=
+    `    <suite id="${failedSuiteId}" name="Failed Rules" source="${VROOT}/Automated_Compliance_Validation_Report/Failed_Rules.robot">\n` +
+    `      <status status="${failedRulesCount > 0 ? 'FAIL' : 'PASS'}" starttime="${fmt(failedSuiteStart)}" endtime="${fmt(failedSuiteEnd)}"/>\n` +
+    failedRulesInner +
+    `    </suite>\n`;
+
+  runningMs += GAP_MS;
 
   // Passed Rules suite
-  if (passedRules.length > 0) {
-    autoSuiteCounter += 1;
-    const subSuiteId = `${automatedId}-s${autoSuiteCounter}`;
-    const suiteStart = runningMs;
-    let testsXml = '';
+  const subSuiteId = `${automatedId}-s2`;
+  const suiteStart = runningMs;
+  let testsXml = '';
 
-    for (let i = 0; i < passedRules.length; i++) {
-      const rule = passedRules[i];
-      const caseStart = runningMs;
-      const caseEnd = caseStart + CASE_MS;
-      const tName = `Rule ${rule.id} - ${rule.title ?? rule.message ?? ''}`;
-      const tId = testId(subSuiteId, i + 1);
+  for (let i = 0; i < passedRules.length; i++) {
+    const rule = passedRules[i];
+    const caseStart = runningMs;
+    const caseEnd = caseStart + CASE_MS;
+    const tName = `Rule ${rule.id} - ${rule.title ?? rule.message ?? ''}`;
+    const tId = testId(subSuiteId, i + 1);
 
-      testsXml +=
-        `      <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-        `        <msg timestamp="${fmt(caseStart)}" level="INFO">Passed</msg>\n` +
-        `        <status status="PASS" starttime="${fmt(
-          caseStart
-        )}" endtime="${fmt(caseEnd)}"/>\n` +
-        `      </test>\n`;
+    testsXml +=
+      `      <test id="${tId}" name="${xmlEscape(tName)}">\n` +
+      `        <msg timestamp="${fmt(caseStart)}" level="INFO">Passed</msg>\n` +
+      `        <status status="PASS" starttime="${fmt(
+        caseStart
+      )}" endtime="${fmt(caseEnd)}"/>\n` +
+      `      </test>\n`;
 
-      runningMs = caseEnd;
-    }
-
-    const suiteEnd = runningMs;
-    autoInner +=
-      `    <suite id="${subSuiteId}" name="Passed Rules" source="${VROOT}/Automated_Compliance_Validation_Report/Passed_Rules.robot">\n` +
-      `      <status status="PASS" starttime="${fmt(
-        suiteStart
-      )}" endtime="${fmt(suiteEnd)}"/>\n` +
-      testsXml +
-      `    </suite>\n`;
-
-    runningMs += GAP_MS;
+    runningMs = caseEnd;
   }
+
+  const suiteEnd = runningMs;
+  autoInner +=
+    `    <suite id="${subSuiteId}" name="Passed Rules" source="${VROOT}/Automated_Compliance_Validation_Report/Passed_Rules.robot">\n` +
+    `      <status status="PASS" starttime="${fmt(
+      suiteStart
+    )}" endtime="${fmt(suiteEnd)}"/>\n` +
+    testsXml +
+    `    </suite>\n`;
+
+  runningMs += GAP_MS;
 
   const automatedStart = baseMs;
   const automatedEnd = runningMs;
