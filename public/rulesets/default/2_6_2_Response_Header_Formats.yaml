@@ -1,0 +1,51 @@
+rules:
+  - id: "2.6.2.1"
+    title: "Content-Type Header Requirement for Response"
+    message: "Content-Type must be set to application/json;charset=UTF-8 if the body is present in the response."
+    option: Conditional
+    location: parameters
+    element:
+      - headers
+    call:
+      function: headerCheck
+      functionParams:
+        header: "Content-Type"
+        default_value: "application/json"
+        allowed_values:
+          - "application/json"
+          - "application/octet-stream"
+          - "multipart/form-data"
+        condition:
+          property: "content"
+          exists: true
+    severity: "medium"
+
+  - id: "2.6.2.2"
+    title: "X-Request-Id Header Validation for Response"
+    message: "X-Request-Id is required for task tracking in the response header. It must follow the format: request_id-timestamp-hostname."
+    option: Conditional
+    location: parameters
+    element:
+      - headers
+    call:
+      function: headerCheck
+      functionParams:
+        header: "X-Request-Id"
+        regex: "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+        condition:
+          property: "content"
+          exists: true
+    severity: "medium"
+
+  - id: "2.6.2.3"
+    title: "Custom Header Naming and Format Validation"
+    message: "Custom message headers must follow the industry standards, with a naming format starting with 'X', separating words with hyphens (-), and using large camel case."
+    option: Optional
+    location: paths
+    element:
+      - headers
+    call:
+      function: headerCheck
+      functionParams:
+        header_format: "(X-[A-Z][a-z0-9]*(-[A-Z][a-z0-9]*)*|content-type|host)"
+    severity: "medium"
