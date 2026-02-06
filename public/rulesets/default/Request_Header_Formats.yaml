@@ -1,34 +1,34 @@
 rules:
-  - id: "2.6.1.1"
+  - id: "HDR-010-01-2507-2507-M-1"
     title: "Content-Type Header Requirement"
     message: "Content-Type must be set to application/json if the body is present."
     option: Conditional
     location: paths
-    element: 
-      - headers 
-    call: 
+    element:
+      - headers
+    call:
       function: headerCheck
-      functionParams: 
+      functionParams:
         header: "Content-Type"
         default_value: "application/json"
         type: "string"
-        allowed_values: 
+        allowed_values:
           - "application/json"
           - "application/octet-stream"
           - "multipart/form-data"
-        condition: 
+        condition:
             - property: "requestBody",
               exists: true
     severity: "medium"
- 
-  - id: "2.6.1.2"
+
+  - id: "HDR-010-01-2507-2507-M-2"
     title: "X-SDK-Date Header Requirement"
     message: "X-SDK-Date must follow format YYYYMMDD'T'HHMMSS'Z' if AK/SK authentication is used."
     option: Conditional
     location: paths
     element:
       - headers
-    call: 
+    call:
       function: headerCheck
       functionParams:
         header: "X-SDK-Date"
@@ -40,8 +40,8 @@ rules:
             contains:
               - akSkAuth: []
     severity: "medium"
-  
-  - id: "2.6.1.3"
+
+  - id: "HDR-010-01-2507-2507-M-3"
     title: "Authorization Header Requirement"
     message: "Authorization header must be present if AK/SK authentication is used."
     option: Conditional
@@ -65,7 +65,7 @@ rules:
               matches: "^[a-zA-Z0-9+/=]+$"
     severity: "medium"
 
-  - id: "2.6.1.5"
+  - id: "HDR-010-01-2507-2507-M-4"
     title: "X-Auth-Token Header Requirement"
     message: "X-Auth-Token must be present if PKIToken authentication is used."
     option: Conditional
@@ -84,7 +84,7 @@ rules:
             - pkiTokenAuth: []
     severity: "medium"
 
-  - id: "2.6.1.4"
+  - id: "HDR-010-01-2507-2507-M-5"
     title: "Host Header Requirement"
     message: "Host header must be present and contain the requested server information, including hostname and optional port."
     option: Conditional
@@ -105,8 +105,8 @@ rules:
             - property: "requestHeaders.Host"
               exists: true
     severity: "medium"
-  
-  - id: "2.6.1.6"
+
+  - id: "HDR-010-01-2507-2507-M-6"
     title: "X-Project-Id Header Requirement"
     message: "X-Project-Id must be present if the API request uses AK/SK authentication in the DeC or multi-project scenario."
     option: Conditional
@@ -128,7 +128,7 @@ rules:
               in: ["DeC", "multi-project"]
     severity: "medium"
 
-  - id: "2.6.1.7"
+  - id: "HDR-010-01-2507-2507-M-7"
     title: "X-Domain-Id Header Requirement"
     message: "X-Domain-Id is optional for global services authenticated by IAM 3.0."
     option: Conditional
@@ -147,7 +147,7 @@ rules:
             - iam3Auth: []
     severity: "medium"
 
-  - id: "2.6.1.8"
+  - id: "HDR-010-01-2507-2507-M-8"
     title: "X-Security-Token Header Requirement"
     message: "X-Security-Token is mandatory when using temporary AK/SK authentication for signature."
     option: Conditional

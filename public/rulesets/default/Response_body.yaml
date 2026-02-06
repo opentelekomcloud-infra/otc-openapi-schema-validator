@@ -1,7 +1,7 @@
-rules:	
+rules:
   - id: "COD-040-01-2507-2507-M"
-    title: "Response Body JSON/BSON Encapsulation"
-    message: "The response body must support JSON or BSON encapsulation. If a body is present, the Content-Type must be application/json or application/bson."
+    title: "Response Body JSON/BSON/XML/Octet Encapsulation"
+    message: "The response body must support JSON/BSON/XML/Octet encapsulation. If a body is present, the Content-Type must be application/json, application/bson, application/xml or application/octet-stream."
     option: Mandatory
     location: paths
     element: responses
@@ -13,6 +13,10 @@ rules:
         content:
           - application/json
           - application/bson
+        excludeContent:
+          - application/xml
+          - application/octet-stream
+          - application/xml;charset=UTF-8
         methods:
           - "post"
           - "put"

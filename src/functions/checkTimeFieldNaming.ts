@@ -33,7 +33,12 @@ export function checkTimeFieldNaming(spec: any, content: string, rule: any): Dia
         ["begin_time", "start_time"],
     ]);
 
-    const timeCandidateRe = /(?:^|[_-])(time|timestamp)(?:$|[_-])|(?:created|updated|deleted|expired|expire|start|end|read|begin)(?:$|[_-])|(?:At$)/i;
+    const timeCandidateRe = /(?:^|[_-])(time|timestamp)(?:$|[_-])|(?:^|[_-])(created|updated|deleted|expired|expire)(?:$|[_-])|(?:_at$)/i;
+
+    // CamelCase variants like createdAt/updatedAt. Case-sensitive to avoid matching words like "Format".
+    const camelCaseAtRe = /[a-z]At$/;
+
+    const startEndReadWithTimeRe = /(?:^|[_-])(start|end|read)(?:$|[_-]).*(?:^|[_-])(time|timestamp)(?:$|[_-])/i;
 
     // Ref resolution caches
     const refCache = new Map<string, any>();
@@ -61,7 +66,15 @@ export function checkTimeFieldNaming(spec: any, content: string, rule: any): Dia
         if (!name) return false;
         if (recommended.has(name)) return false;
         if (notRecommended.has(name)) return true;
-        return timeCandidateRe.test(name);
+
+        const n = String(name);
+
+        if (/^x-/i.test(n) && n.includes("-")) {
+            return /(time|timestamp)/i.test(n) || /(_at$)/i.test(n) || camelCaseAtRe.test(n);
+        }
+
+        if (startEndReadWithTimeRe.test(n)) return true;
+        return timeCandidateRe.test(n) || camelCaseAtRe.test(n);
     }
 
     function evaluateName(nameRaw: string, range?: { from: number; to: number }, searchStart?: number) {

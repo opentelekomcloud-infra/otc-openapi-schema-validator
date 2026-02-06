@@ -1,5 +1,5 @@
 rules:
-  - id: "2.6.2.1"
+  - id: "HDR-020-01-2507-2507-M-1"
     title: "Content-Type Header Requirement for Response"
     message: "Content-Type must be set to application/json;charset=UTF-8 if the body is present in the response."
     option: Conditional
@@ -20,7 +20,7 @@ rules:
           exists: true
     severity: "medium"
 
-  - id: "2.6.2.2"
+  - id: "HDR-020-01-2507-2507-M-2"
     title: "X-Request-Id Header Validation for Response"
     message: "X-Request-Id is required for task tracking in the response header. It must follow the format: request_id-timestamp-hostname."
     option: Conditional
@@ -37,7 +37,7 @@ rules:
           exists: true
     severity: "medium"
 
-  - id: "2.6.2.3"
+  - id: "HDR-020-01-2507-2507-M-3"
     title: "Custom Header Naming and Format Validation"
     message: "Custom message headers must follow the industry standards, with a naming format starting with 'X', separating words with hyphens (-), and using large camel case."
     option: Optional

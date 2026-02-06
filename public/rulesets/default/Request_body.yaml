@@ -1,7 +1,7 @@
 rules:
   - id: "COD-030-01-2507-2507-M"
-    title: "Support JSON/BSON Encapsulation in Request Body"
-    message: "The request body must support both JSON and BSON encapsulation."
+    title: "Support JSON/BSON/XML/Octet Encapsulation in Request Body"
+    message: "The request body must support both JSON/BSON/XML/Octet encapsulation."
     option: Mandatory
     location: paths
     element: requestBody
@@ -11,5 +11,7 @@ rules:
         content:
           - application/json
           - application/bson
+          - application/xml
+          - application/octet-stream
     severity: "high"
     status: implemented
