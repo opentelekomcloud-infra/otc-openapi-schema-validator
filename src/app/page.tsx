@@ -65,6 +65,8 @@ const HomePage = () => {
 
     const [totalAvailableRules, setTotalAvailableRules] = useState<number>(0);
 
+    const lintRunIdRef = useRef(0);
+
     const selectedRulesCount = useMemo(() => {
       const entries = Object.entries(selectedRules ?? {});
       return entries.reduce((acc, [, v]) => (v ? acc + 1 : acc), 0);
@@ -124,18 +126,29 @@ const HomePage = () => {
     }, [filteredDiagnostics, sort]);
 
     const diagnosticsListenerExtension = useMemo(
-        () =>
-            EditorView.updateListener.of(async (update) => {
-                const { diagnostics: newDiags, specTitle: newTitle } = await openApiLinter(selectedRules)(update.view);
-                if (newTitle !== specTitle) {
-                  setSpecTitle(newTitle ?? null);
-                }
-                if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
-                    prevDiagsRef.current = newDiags;
-                    setDiagnostics(newDiags);
-                }
-            }),
-        [selectedRules, specTitle]
+      () =>
+        EditorView.updateListener.of(async (update) => {
+          const runIdAtStart = lintRunIdRef.current;
+          const docLenAtStart = update.view.state.doc.length;
+
+          const { diagnostics: newDiags, specTitle: newTitle } =
+            await openApiLinter(selectedRules)(update.view);
+
+          // If we loaded a new spec while this lint was running, ignore these results.
+          if (lintRunIdRef.current !== runIdAtStart) return;
+
+          // If the editor doc changed while awaiting lint, positions may be invalid.
+          if (update.view.state.doc.length !== docLenAtStart) return;
+
+          if (newTitle !== specTitle) {
+            setSpecTitle(newTitle ?? null);
+          }
+          if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
+            prevDiagsRef.current = newDiags;
+            setDiagnostics(newDiags);
+          }
+        }),
+      [selectedRules, specTitle]
     );
 
     useEffect(() => {
@@ -182,6 +195,7 @@ const HomePage = () => {
                   prevDiagsRef.current = [];
                   setDiagnostics([]);
                   setSpecTitle(null);
+                  lintRunIdRef.current += 1;
                   setCode(e.target?.result as string);
                 };
                 reader.readAsText(file);
