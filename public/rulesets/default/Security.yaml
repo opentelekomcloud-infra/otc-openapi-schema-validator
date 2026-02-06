@@ -31,6 +31,8 @@ rules:
           - name: "X-Auth-Token"
             valueType: string
             in: header
+        fallBackNames:
+          - "Authorization"
         exceptionPaths:
           - "/"
           - "/{version_id}"
