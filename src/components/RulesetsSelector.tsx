@@ -35,6 +35,42 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSel
     const [selectedRules, setSelectedRules] = useState<Rule[]>([]);
     const [severityFilter, setSeverityFilter] = useState<string>("all");
 
+    const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+    const [activeMessage, setActiveMessage] = useState<string>("");
+
+    const MESSAGE_PREVIEW_LIMIT = 100;
+
+    const openMessageModal = (message: string) => {
+        setActiveMessage(message ?? "");
+        setIsMessageModalOpen(true);
+    };
+
+    const closeMessageModal = () => {
+        setIsMessageModalOpen(false);
+        setActiveMessage("");
+    };
+
+    const renderMessageCell = (message: string) => {
+        const safe = message ?? "";
+        const needsTruncate = safe.length > MESSAGE_PREVIEW_LIMIT;
+        const preview = needsTruncate ? safe.slice(0, MESSAGE_PREVIEW_LIMIT) : safe;
+
+        return (
+            <span>
+                {preview}
+                {needsTruncate && (
+                    <button
+                        type="button"
+                        onClick={() => openMessageModal(safe)}
+                        className="ml-2 underline text-gray-600 hover:text-gray-800"
+                    >
+                        ..show more
+                    </button>
+                )}
+            </span>
+        );
+    };
+
     useEffect(() => {
         async function fetchRulesets() {
             try {
@@ -224,7 +260,7 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSel
                                 </td>
                                 <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.id}</td>
                                 <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.title}</td>
-                                <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.message}</td>
+                                <td className={`px-2 py-1 ${styles.wordBreak}`}>{renderMessageCell(rule.message)}</td>
                                 <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.option}</td>
                                 <td className={`px-2 py-1 ${styles.wordBreak}`}>{rule.severity}</td>
                             </tr>
@@ -232,6 +268,33 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSel
                         </tbody>
                     </table>
                 </>
+            )}
+            {isMessageModalOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Rule message"
+                >
+                    <scale-button
+                        variant="secondary"
+                        className="absolute inset-0 bg-black/40"
+                        onClick={closeMessageModal}
+                        aria-label="Close"
+                    />
+                    <div className="relative z-10 w-[min(720px,95vw)] max-h-[80vh] overflow-auto rounded-lg bg-white p-4 shadow-lg">
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                            <h3 className="text-lg font-semibold">Message</h3>
+                            <scale-button
+                                variant="secondary"
+                                onClick={closeMessageModal}
+                            >
+                                Close
+                            </scale-button>
+                        </div>
+                        <pre className="whitespace-pre-wrap break-words text-sm">{activeMessage}</pre>
+                    </div>
+                </div>
             )}
         </div>
     );
