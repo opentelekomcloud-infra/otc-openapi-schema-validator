@@ -1,13 +1,17 @@
 "use client";
 
 import { signIn, signOut, useSession } from "next-auth/react";
+import { useAuthEnabled } from "@/app/providers";
 
 export default function AuthButtons() {
-  const authEnabled = process.env.NEXT_PUBLIC_ENABLE_AUTH === "true";
-
-  const { data: session, status } = useSession();
+  const authEnabled = useAuthEnabled();
 
   if (!authEnabled) return null;
+  return <AuthButtonsInner />;
+}
+
+function AuthButtonsInner() {
+  const { data: session, status } = useSession();
 
   if (status === "loading") {
     return (
