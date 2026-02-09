@@ -62,7 +62,7 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSel
                     <button
                         type="button"
                         onClick={() => openMessageModal(safe)}
-                        className="ml-2 underline text-blue-600 hover:text-blue-800"
+                        className="ml-2 underline text-gray-600 hover:text-gray-800"
                     >
                         ..show more
                     </button>

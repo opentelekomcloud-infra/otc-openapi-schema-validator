@@ -54,7 +54,7 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
                     <button
                         type="button"
                         onClick={() => openMessageModal(safe)}
-                        className="underline text-blue-600 hover:text-blue-800"
+                        className="underline text-gray-600 hover:text-gray-800"
                     >
                         ..show more
                     </button>
