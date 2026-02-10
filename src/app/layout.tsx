@@ -18,6 +18,8 @@ export const metadata: Metadata = {
   description: "OpenTelekomCloud OpenAPI validation tool",
 };
 
+const authEnabled = process.env.ENABLE_AUTH === "true";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -31,7 +33,7 @@ export default function RootLayout({
     <body
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        <Providers>
+        <Providers authEnabled={authEnabled}>
           {children}
         </Providers>
       </body>
