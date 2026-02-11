@@ -1,169 +1,163 @@
 rules:
   - id: "HDR-010-01-2507-2507-M-1"
     title: "Content-Type Header Requirement"
-    message: "Content-Type must be set to application/json if the body is present."
-    option: Conditional
+    message: "Content-Type must be set if the body is present."
+    option: Optional
     location: paths
-    element:
-      - headers
     call:
-      function: headerCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "Content-Type"
-        default_value: "application/json"
-        type: "string"
-        allowed_values:
-          - "application/json"
-          - "application/octet-stream"
-          - "multipart/form-data"
-        condition:
-            - property: "requestBody",
-              exists: true
-    severity: "medium"
+        headers:
+          - name: "Content-Type"
+            valueType: string
+            in: header
+        checkMethodIfSectionExist: requestBody
+    severity: medium
+    status: implemented
 
   - id: "HDR-010-01-2507-2507-M-2"
     title: "X-SDK-Date Header Requirement"
     message: "X-SDK-Date must follow format YYYYMMDD'T'HHMMSS'Z' if AK/SK authentication is used."
-    option: Conditional
+    option: Optional
     location: paths
-    element:
-      - headers
     call:
-      function: headerCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "X-SDK-Date"
-        regex: "^[0-9]{8}T[0-9]{6}Z$"
-        type: "string"
-        default_value: null
-        condition:
-          - property: "security"
-            contains:
-              - akSkAuth: []
-    severity: "medium"
+        headers:
+          - name: "X-SDK-Date"
+            valueType: string
+            in: header
+        checkOnlyIfHeaderExist:
+          - name: "Authorization"
+            valueType: string
+            in: header
+    severity: medium
+    status: implemented
 
   - id: "HDR-010-01-2507-2507-M-3"
     title: "Authorization Header Requirement"
     message: "Authorization header must be present if AK/SK authentication is used."
-    option: Conditional
+    option: Optional
     location: paths
-    element:
-      - headers
     call:
-      function: headerCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "Authorization"
-        type: "string"
-        default_value: null
-        condition:
-          all:
-            - property: "security"
-              contains:
-                - akSkAuth: []
-            - property: "requestHeaders.Authorization"
-              exists: true
-            - property: "requestHeaders.Authorization"
-              matches: "^[a-zA-Z0-9+/=]+$"
-    severity: "medium"
+        headers:
+          - name: "Authorization"
+            valueType: string
+            in: header
+        fallBackNames:
+          - "X-Auth-Token"
+        exceptionPaths:
+          - "/"
+          - "/{version_id}"
+          - "/rds/{version_id}"
+          - "/{version}"
+    severity: medium
+    status: implemented
 
   - id: "HDR-010-01-2507-2507-M-4"
     title: "X-Auth-Token Header Requirement"
     message: "X-Auth-Token must be present if PKIToken authentication is used."
-    option: Conditional
+    option: Optional
     location: paths
-    element:
-      - headers
     call:
-      function: headerCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "X-Auth-Token"
-        type: "string"
-        default_value: null
-        condition:
-          property: "security"
-          contains:
-            - pkiTokenAuth: []
-    severity: "medium"
+        headers:
+          - name: "X-Auth-Token"
+            valueType: string
+            in: header
+        fallBackNames:
+          - "Authorization"
+        exceptionPaths:
+          - "/"
+          - "/{version_id}"
+          - "/rds/{version_id}"
+          - "/{version}"
+    severity: medium
+    status: implemented
 
   - id: "HDR-010-01-2507-2507-M-5"
     title: "Host Header Requirement"
     message: "Host header must be present and contain the requested server information, including hostname and optional port."
-    option: Conditional
+    option: Optional
     location: paths
-    element:
-      - headers
     call:
-      function: headerCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "Host"
-        type: "string"
-        default_value: "hostname:443"
-        condition:
-          all:
-            - property: "security"
-              contains:
-                - akSkAuth: []
-            - property: "requestHeaders.Host"
-              exists: true
-    severity: "medium"
+        headers:
+          - name: "Host"
+            valueType: string
+            in: header
+        checkOnlyIfHeaderExist:
+          - name: "Authorization"
+            valueType: string
+            in: header
+    severity: medium
+    status: implemented
 
   - id: "HDR-010-01-2507-2507-M-6"
     title: "X-Project-Id Header Requirement"
     message: "X-Project-Id must be present if the API request uses AK/SK authentication in the DeC or multi-project scenario."
-    option: Conditional
+    option: Optional
     location: paths
-    element:
-      - headers
     call:
-      function: headerCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "X-Project-Id"
-        type: "string"
-        default_value: null
-        condition:
-          all:
-            - property: "security"
-              contains:
-                - akSkAuth: []
-            - property: "x-projectScenario"
-              in: ["DeC", "multi-project"]
-    severity: "medium"
+        headers:
+          - name: "X-Project-Id"
+            valueType: string
+            in: header
+        checkOnlyIfHeaderExist:
+          - name: "Authorization"
+            valueType: string
+            in: header
+          - name: "x-projectScenario"
+            valueType: string
+            in: header
+    severity: medium
+    status: implemented
 
   - id: "HDR-010-01-2507-2507-M-7"
     title: "X-Domain-Id Header Requirement"
     message: "X-Domain-Id is optional for global services authenticated by IAM 3.0."
-    option: Conditional
+    option: Optional
     location: paths
-    element:
-      - headers
     call:
-      function: headerCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "X-Domain-Id"
-        type: "string"
-        default_value: null
-        condition:
-          property: "security"
-          contains:
-            - iam3Auth: []
-    severity: "medium"
+        headers:
+          - name: "X-Domain-Id"
+            valueType: string
+            in: header
+        checkOnlyIfHeaderExist:
+          - name: "X-Auth-Token"
+            valueType: string
+            in: header
+        exceptionPaths:
+          - "/"
+          - "/{version_id}"
+          - "/rds/{version_id}"
+          - "/{version}"
+    severity: medium
+    status: implemented
 
   - id: "HDR-010-01-2507-2507-M-8"
     title: "X-Security-Token Header Requirement"
     message: "X-Security-Token is mandatory when using temporary AK/SK authentication for signature."
-    option: Conditional
+    option: Optional
     location: paths
-    element:
-      - headers
     call:
-      function: headerCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "X-Security-Token"
-        type: "string"
-        default_value: null
-        condition:
-          property: "security"
-          contains:
-            - tempAkSkAuth: []
-    severity: "medium"
-
-
+        headers:
+          - name: "X-Security-Token"
+            valueType: string
+            in: header
+        checkOnlyIfHeaderExist:
+          - name: "Authorization"
+            valueType: string
+            in: header
+    severity: medium
+    status: implemented

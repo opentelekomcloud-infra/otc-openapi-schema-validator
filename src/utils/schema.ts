@@ -27,10 +27,25 @@ export function matchParameterSchema(
         param = resolved;
     }
 
-    const matchesBase =
-        param.name === name &&
-        param.in === paramIn &&
-        param.schema?.type === type;
+    const nameMatches =
+        paramIn === "header"
+            ? String(param.name ?? "").toLowerCase() === String(name).toLowerCase()
+            : param.name === name;
+
+    const schemaType = param.schema?.type;
+
+    // OpenAPI 3 allows parameters to use `content` with media types instead of `schema`.
+    let contentType: any = undefined;
+    const contentObj = param.content;
+    if (contentObj && typeof contentObj === "object") {
+        const media =
+            contentObj["application/json"] ??
+            contentObj["application/xml"] ??
+            contentObj[Object.keys(contentObj)[0]];
+        contentType = media?.schema?.type;
+    }
+
+    const matchesBase = nameMatches && param.in === paramIn && (schemaType === type || contentType === type);
 
     if (!matchesBase) return false;
 
