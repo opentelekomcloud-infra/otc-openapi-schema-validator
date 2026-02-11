@@ -1,5 +1,6 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
+import {getSource} from "@/functions/common";
 
 export function checkURIResourceFormat(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -91,7 +92,7 @@ export function checkURIResourceFormat(spec: any, content: string, rule: any): D
                     to: index >= 0 ? index + pathKey.length : 0,
                     severity: mapSeverity(rule.severity),
                     message: `Resource segment "${leaf.segment}" in path "${pathKey}" should be plural for CRUD operations.${extra}`,
-                    source: rule.id,
+                    source: getSource(rule),
                 });
             }
         }

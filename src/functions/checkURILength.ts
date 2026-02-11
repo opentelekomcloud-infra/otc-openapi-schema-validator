@@ -1,5 +1,6 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
+import {getSource} from "@/functions/common";
 
 function getByteLength(str: string): number {
     if (typeof TextEncoder !== "undefined") {
@@ -36,7 +37,7 @@ export function checkURILength(spec: any, content: string, rule: any): Diagnosti
                 to: index >= 0 ? index + pathKey.length : 0,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" exceeds the maximum allowed URI length of ${maxLength} bytes after encoding (actual: ${lengthBytes}).`,
-                source: rule.id,
+                source: getSource(rule),
             });
         }
     }

@@ -30,6 +30,7 @@ import { checkTimeFieldNaming } from "@/functions/checkTimeFieldNaming";
 import { checkResponseIncludesCount } from "@/functions/checkResponseIncludesCount";
 import { checkQuotaApiPresence } from "@/functions/checkQuotaApiPresence";
 import { checkTimeFieldsInDetailQuery } from "@/functions/checkTimeFieldsInDetailQuery";
+import { checkCustomHeaders } from "@/functions/checkCustomHeaders";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -62,7 +63,8 @@ export const functionsMap: {
   checkTimeFieldNaming,
   checkResponseIncludesCount,
   checkQuotaApiPresence,
-  checkTimeFieldsInDetailQuery
+  checkTimeFieldsInDetailQuery,
+  checkCustomHeaders
 };
 
 /**

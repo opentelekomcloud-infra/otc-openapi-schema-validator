@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findInvalidPercentEscape } from "@/utils/strings";
+import {getSource} from "@/functions/common";
 
 
 export function checkURIContentSyntax(spec: any, content: string, rule: any): Diagnostic[] {
@@ -46,7 +47,7 @@ export function checkURIContentSyntax(spec: any, content: string, rule: any): Di
                 to: index >= 0 ? index + pathKey.length : 0,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" does not conform to the required URI syntax: resource names must be lowercase and separated by hyphens, and path parameters must be in {snake_case}.`,
-                source: rule.id,
+                source: getSource(rule),
             });
         }
     }

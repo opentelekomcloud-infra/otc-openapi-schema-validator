@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { violatingIndexRange } from "@/utils/pos";
+import {getSource} from "@/functions/common";
 
 const DEFAULT_CHINESE_UNICODE_RANGE = "\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF";
 
@@ -37,7 +38,7 @@ function pushIfViolation(value: unknown, pointer: string, ctx: WalkCtx) {
         to,
         severity: mapSeverity(ctx.rule.severity),
         message: `Non-English (Chinese) text detected at ${pointer}. Only English is allowed for this field.`,
-        source: ctx.rule.id,
+        source: getSource(ctx.rule),
     });
 }
 

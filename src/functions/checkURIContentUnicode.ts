@@ -1,6 +1,7 @@
 import {Diagnostic} from "@codemirror/lint";
 import {mapSeverity} from "@/utils/mapSeverity";
 import {findInvalidPercentEscape} from "@/utils/strings";
+import {getSource} from "@/functions/common";
 
 export function checkURIContentUnicode(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -33,7 +34,7 @@ export function checkURIContentUnicode(spec: any, content: string, rule: any): D
                     to,
                     severity: mapSeverity(rule?.severity),
                     message: mkMessage(pathKey, 'Invalid percent-escape token. Use % followed by two hex digits.'),
-                    source: rule?.id,
+                    source: getSource(rule),
                 });
             }
         }
@@ -53,7 +54,7 @@ export function checkURIContentUnicode(spec: any, content: string, rule: any): D
                 to,
                 severity: mapSeverity(rule?.severity),
                 message: mkMessage(pathKey, `Unicode character detected: "${ch}". Use percent-encoding instead.`),
-                source: rule?.id,
+                source: getSource(rule),
             });
             break;
         }
