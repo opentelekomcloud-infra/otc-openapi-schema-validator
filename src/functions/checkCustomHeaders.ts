@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import {resolveLocalRef} from "@/utils/schema";
 
 type HeaderLocation = {
   headerName: string;
@@ -57,9 +58,10 @@ function collectHeaderLocations(spec: any): HeaderLocation[] {
     // Path-level parameters
     if (Array.isArray(pathItem.parameters)) {
       pathItem.parameters.forEach((p: any, idx: number) => {
-        if (p?.in === "header" && typeof p?.name === "string") {
+        const param = resolveLocalRef(spec, p);
+        if (param?.in === "header" && typeof param?.name === "string") {
           out.push({
-            headerName: p.name,
+            headerName: param.name,
             jsonPointer: `paths.${pathKey}.parameters[${idx}].name`,
           });
         }
@@ -72,9 +74,10 @@ function collectHeaderLocations(spec: any): HeaderLocation[] {
 
       if (Array.isArray(op.parameters)) {
         op.parameters.forEach((p: any, idx: number) => {
-          if (p?.in === "header" && typeof p?.name === "string") {
+          const param = resolveLocalRef(spec, p);
+          if (param?.in === "header" && typeof param?.name === "string") {
             out.push({
-              headerName: p.name,
+              headerName: param.name,
               jsonPointer: `paths.${pathKey}.${maybeMethod}.parameters[${idx}].name`,
             });
           }
