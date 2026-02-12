@@ -1,108 +1,32 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
-import {getSource} from "@/functions/common";
-import {resolveLocalRef} from "@/utils/schema";
+import { getSource } from "@/functions/common";
+import { safeRegex } from "@/utils/regex";
+import { collectHeaderLocations } from "@/utils/traverse";
+import { isCustomHeader } from "@/utils/headers";
 
-type HeaderLocation = {
-  headerName: string;
-  jsonPointer: string;
-};
-
-const HTTP_METHODS = new Set([
-  "get",
-  "put",
-  "post",
-  "delete",
-  "options",
-  "head",
-  "patch",
-  "trace",
-]);
-
-const DEFAULT_STANDARD_HEADERS = new Set(
-  [
-    "accept",
-    "authorization",
-  ].map((h) => h.toLowerCase())
-);
-
-function safeRegex(pattern?: string): RegExp | null {
-  if (!pattern) return null;
-  try {
-    return new RegExp(pattern);
-  } catch {
-    return null;
-  }
-}
-
-function isCustomHeader(
-  headerName: string,
-  standardHeaders: Set<string>,
-): boolean {
-  const lower = headerName.toLowerCase();
-
-  // Treat known / explicitly provided standard headers as non-custom.
-  if (standardHeaders.has(lower)) return false;
-
-  // Everything else is treated as a custom header candidate and must match the regex.
-  return true;
-}
-
-function collectHeaderLocations(spec: any): HeaderLocation[] {
-  const out: HeaderLocation[] = [];
-  if (!spec?.paths || typeof spec.paths !== "object") return out;
-
-  for (const [pathKey, pathItem] of Object.entries<any>(spec.paths)) {
-    if (!pathItem || typeof pathItem !== "object") continue;
-
-    // Path-level parameters
-    if (Array.isArray(pathItem.parameters)) {
-      pathItem.parameters.forEach((p: any, idx: number) => {
-        const param = resolveLocalRef(spec, p);
-        if (param?.in === "header" && typeof param?.name === "string") {
-          out.push({
-            headerName: param.name,
-            jsonPointer: `paths.${pathKey}.parameters[${idx}].name`,
-          });
-        }
-      });
-    }
-
-    for (const [maybeMethod, op] of Object.entries<any>(pathItem)) {
-      if (!HTTP_METHODS.has(maybeMethod)) continue;
-      if (!op || typeof op !== "object") continue;
-
-      if (Array.isArray(op.parameters)) {
-        op.parameters.forEach((p: any, idx: number) => {
-          const param = resolveLocalRef(spec, p);
-          if (param?.in === "header" && typeof param?.name === "string") {
-            out.push({
-              headerName: param.name,
-              jsonPointer: `paths.${pathKey}.${maybeMethod}.parameters[${idx}].name`,
-            });
-          }
-        });
-      }
-
-      const responses = op.responses;
-      if (responses && typeof responses === "object") {
-        for (const [statusCode, resp] of Object.entries<any>(responses)) {
-          const headers = resp?.headers;
-          if (!headers || typeof headers !== "object") continue;
-          for (const headerName of Object.keys(headers)) {
-            out.push({
-              headerName,
-              jsonPointer: `paths.${pathKey}.${maybeMethod}.responses.${statusCode}.headers.${headerName}`,
-            });
-          }
-        }
-      }
-    }
-  }
-
-  return out;
-}
-
+/**
+ * HDR-020-01-2507-2507-M-3
+ * Custom Header Naming and Format Validation.
+ *
+ * This rule verifies that all non-standard (custom) HTTP headers declared
+ * in request parameters (`in: header`) and in response `headers` sections
+ * follow the required naming convention.
+ *
+ * A header is considered for validation if it is not part of the known
+ * standard HTTP header list (including rule-provided `standard_headers`).
+ *
+ * Behavior is controlled via `rule.call.functionParams`:
+ * - header_format: string
+ *   Regular expression that defines the allowed naming convention
+ *   (e.g. must start with `X-` or `x-`, hyphen-separated words, etc.).
+ * - standard_headers: string[]
+ *   Additional header names to treat as standard (excluded from validation).
+ *
+ * The rule traverses:
+ * - Path-level and operation-level parameters with `in: header`
+ * - Response header names under `responses[*].headers`
+ */
 export function checkCustomHeaders(spec: any, content: string, rule: any): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
   if (!spec?.paths) return diagnostics;
@@ -177,3 +101,10 @@ export function checkCustomHeaders(spec: any, content: string, rule: any): Diagn
 
   return diagnostics;
 }
+
+const DEFAULT_STANDARD_HEADERS = new Set(
+  [
+    "accept",
+    "authorization",
+  ].map((h) => h.toLowerCase())
+);
