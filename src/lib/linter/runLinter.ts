@@ -15,6 +15,22 @@ import { checkParamElementAbsence } from '@/functions/checkParamElementAbsence';
 import { checkRequestEncapsulation } from '@/functions/checkRequestEncapsulation';
 import { checkResponseEncapsulation } from '@/functions/checkResponseEncapsulation';
 import { checkCompatibility } from '@/functions/checkCompatibility';
+import { checkURIFormat } from '@/functions/checkURIFormat';
+import { checkURILength } from '@/functions/checkURILength';
+import { checkURIContentDictionary } from '@/functions/checkURIContentDictionary';
+import { checkURIContentSyntax } from '@/functions/checkURIContentSyntax';
+import { checkURIContentSpecial } from '@/functions/checkURIContentSpecial';
+import { checkURIContentUnicode } from '@/functions/checkURIContentUnicode';
+import { checkURIContentComplexity } from '@/functions/checkURIContentComplexity';
+import { checkURIResourceFormat } from '@/functions/checkURIResourceFormat';
+import { checkInternationalization } from '@/functions/checkInternationalization';
+import { checkCommonParameters } from "@/functions/checkCommonParameters";
+import { checkTimeZoneFormat } from "@/functions/checkTimeZoneFormat";
+import { checkTimeFieldNaming } from "@/functions/checkTimeFieldNaming";
+import { checkResponseIncludesCount } from "@/functions/checkResponseIncludesCount";
+import { checkQuotaApiPresence } from "@/functions/checkQuotaApiPresence";
+import { checkTimeFieldsInDetailQuery } from "@/functions/checkTimeFieldsInDetailQuery";
+import { checkCustomHeaders } from "@/functions/checkCustomHeaders";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -33,6 +49,22 @@ export const functionsMap: {
   checkRequestEncapsulation,
   checkResponseEncapsulation,
   checkCompatibility,
+  checkURIFormat,
+  checkURILength,
+  checkURIContentDictionary,
+  checkURIContentSyntax,
+  checkURIContentSpecial,
+  checkURIContentUnicode,
+  checkURIContentComplexity,
+  checkURIResourceFormat,
+  checkInternationalization,
+  checkCommonParameters,
+  checkTimeZoneFormat,
+  checkTimeFieldNaming,
+  checkResponseIncludesCount,
+  checkQuotaApiPresence,
+  checkTimeFieldsInDetailQuery,
+  checkCustomHeaders
 };
 
 /**

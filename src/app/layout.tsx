@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
+import Providers from "./providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -17,6 +18,8 @@ export const metadata: Metadata = {
   description: "OpenTelekomCloud OpenAPI validation tool",
 };
 
+const authEnabled = process.env.ENABLE_AUTH === "true";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -30,7 +33,9 @@ export default function RootLayout({
     <body
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
-        {children}
+        <Providers authEnabled={authEnabled}>
+          {children}
+        </Providers>
       </body>
     </html>
   );

@@ -13,6 +13,9 @@ import {exportJUnit, exportPDF, exportReportPortal} from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
+import { loadAllowedAbbreviationsFromApi } from "@/utils/englishWords";
+import AuthButtons from "@/components/AuthButtons";
+
 declare module 'react' {
   // eslint-disable-next-line @typescript-eslint/no-namespace
   namespace JSX {
@@ -60,6 +63,33 @@ const HomePage = () => {
     const footerRef = useRef<HTMLDivElement>(null);
     const [isExporting, setIsExporting] = useState(false);
 
+    const [totalAvailableRules, setTotalAvailableRules] = useState<number>(0);
+
+    const lintRunIdRef = useRef(0);
+
+    const selectedRulesCount = useMemo(() => {
+      const entries = Object.entries(selectedRules ?? {});
+      return entries.reduce((acc, [, v]) => (v ? acc + 1 : acc), 0);
+    }, [selectedRules]);
+
+    const totalRulesCount = totalAvailableRules;
+
+    const { selectedManualRulesCount, totalManualRulesCount } = useMemo(() => {
+      const total = manualRules?.length ?? 0;
+      const selected = (manualRules ?? []).reduce((acc, r) => {
+        const anyR = r as any;
+        const isSelected =
+          anyR?.verified ??
+          false;
+        return isSelected ? acc + 1 : acc;
+      }, 0);
+      return { selectedManualRulesCount: selected, totalManualRulesCount: total };
+    }, [manualRules]);
+
+  useEffect(() => {
+      loadAllowedAbbreviationsFromApi();
+    }, []);
+
     useEffect(() => {
       const calc = () => {
         const headerH = headerRef.current?.offsetHeight ?? 0;
@@ -96,18 +126,29 @@ const HomePage = () => {
     }, [filteredDiagnostics, sort]);
 
     const diagnosticsListenerExtension = useMemo(
-        () =>
-            EditorView.updateListener.of(async (update) => {
-                const { diagnostics: newDiags, specTitle: newTitle } = await openApiLinter(selectedRules)(update.view);
-                if (newTitle !== specTitle) {
-                  setSpecTitle(newTitle ?? null);
-                }
-                if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
-                    prevDiagsRef.current = newDiags;
-                    setDiagnostics(newDiags);
-                }
-            }),
-        [selectedRules, specTitle]
+      () =>
+        EditorView.updateListener.of(async (update) => {
+          const runIdAtStart = lintRunIdRef.current;
+          const docLenAtStart = update.view.state.doc.length;
+
+          const { diagnostics: newDiags, specTitle: newTitle } =
+            await openApiLinter(selectedRules)(update.view);
+
+          // If we loaded a new spec while this lint was running, ignore these results.
+          if (lintRunIdRef.current !== runIdAtStart) return;
+
+          // If the editor doc changed while awaiting lint, positions may be invalid.
+          if (update.view.state.doc.length !== docLenAtStart) return;
+
+          if (newTitle !== specTitle) {
+            setSpecTitle(newTitle ?? null);
+          }
+          if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
+            prevDiagsRef.current = newDiags;
+            setDiagnostics(newDiags);
+          }
+        }),
+      [selectedRules, specTitle]
     );
 
     useEffect(() => {
@@ -150,7 +191,13 @@ const HomePage = () => {
             const file = target.files[0];
             if (file.name.endsWith(".yaml") || file.name.endsWith(".yml")) {
                 const reader = new FileReader();
-                reader.onload = (e) => setCode(e.target?.result as string);
+                reader.onload = (e) => {
+                  prevDiagsRef.current = [];
+                  setDiagnostics([]);
+                  setSpecTitle(null);
+                  lintRunIdRef.current += 1;
+                  setCode(e.target?.result as string);
+                };
                 reader.readAsText(file);
             } else {
                 alert("Please upload a valid .yaml or .yml file.");
@@ -281,30 +328,11 @@ const HomePage = () => {
               />
               Export
             </scale-button>
-          </div>
 
-          {/* Severity legend (kept simple, could be replaced by badges later) */}
-          {/*<div className="flex space-x-4 text-sm">*/}
-          {/*  <div className="flex items-center">*/}
-          {/*    <span className="rounded-full mr-1" style={{width: "10px", height: "10px", backgroundColor: "white"}}/>*/}
-          {/*    <span>Low</span>*/}
-          {/*  </div>*/}
-          {/*  <div className="flex items-center">*/}
-          {/*    <span className="rounded-full mr-1"*/}
-          {/*          style={{width: "10px", height: "10px", backgroundColor: "oklch(.546 .245 262.881)"}}/>*/}
-          {/*    <span>Medium</span>*/}
-          {/*  </div>*/}
-          {/*  <div className="flex items-center">*/}
-          {/*    <span className="rounded-full mr-1"*/}
-          {/*          style={{width: "10px", height: "10px", backgroundColor: "oklch(.681 .162 75.834)"}}/>*/}
-          {/*    <span>High</span>*/}
-          {/*  </div>*/}
-          {/*  <div className="flex items-center">*/}
-          {/*    <span className="rounded-full mr-1"*/}
-          {/*          style={{width: "10px", height: "10px", backgroundColor: "oklch(.577 .245 27.325)"}}/>*/}
-          {/*    <span>Critical</span>*/}
-          {/*  </div>*/}
-          {/*</div>*/}
+            <div className="flex gap-3 ml-auto mr-4 items-center">
+              <AuthButtons/>
+            </div>
+          </div>
         </header>
 
         <div className="flex flex-1 overflow-hidden">
@@ -339,11 +367,22 @@ const HomePage = () => {
           {/* Right Panel - Rules Selection and Lint Issues List */}
           <div className="w-1/2 p-4 bg-white overflow-auto h-full">
             <scale-card className="block p-4 mb-4">
-              <RulesetsSelector onSelectionChange={handleSelectionChange}/>
+                          <span className="mr-2 font-semibold inline-flex items-center gap-2">
+              <span className="text-xs font-normal text-gray-600">
+                    Rules selected: {selectedRulesCount}/{totalRulesCount}
+              </span>
+            </span>
+              <RulesetsSelector
+                onSelectionChange={handleSelectionChange}
+                onTotalRulesChange={setTotalAvailableRules}
+              />
             </scale-card>
 
             <scale-card className="block p-4 mb-4">
               <div className="mt-1 hover:shadow-lg transition duration-200">
+                <span className="text-xs font-normal text-gray-600">
+                  Rules verified: {selectedManualRulesCount}/{totalManualRulesCount}
+                </span>
                 <h3
                   className="font-bold mb-2 cursor-pointer"
                   onClick={() => setManualsIsOpen(!manualsIsOpen)}
@@ -489,7 +528,8 @@ const HomePage = () => {
         {/* Footer */}
 
         <footer className="bg-white-200 p-4 text-left text-sm indent-4" ref={footerRef}>
-          © T-Systems International GmbH | 2025 EcoSystems | All rights reserved.
+          © T-Systems International GmbH | 2026 EcoSystems | All rights reserved. |
+          v{process.env.NEXT_PUBLIC_APP_VERSION ?? 'dev'}
         </footer>
 
         {/*Modal for Export Options*/}

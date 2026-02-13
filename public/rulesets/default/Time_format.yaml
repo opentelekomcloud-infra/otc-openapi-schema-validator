@@ -1,0 +1,58 @@
+rules:
+  - id: "TIM-010-01-2507-2507-M-1"
+    title: "The time format complies with RFC 3339. Time fields must default to UTC"
+    message: |
+      The default time format should be in UTC:
+      Accurate to second: 2020-09-01T18:50:20Z
+      Accurate to millisecond: 2020-09-01T18:50:20.200Z
+      With Time Zone: 2020-09-01T18:50:20+08:00
+    option: Mandatory
+    location: components.schemas
+    element: example
+    call:
+      function: checkTimeZoneFormat
+      functionParams:
+        parameterNames:
+          - "created_at"
+          - "updated_at"
+          - "deleted_at"
+          - "expired_at"
+          - "start_time"
+          - "end_time"
+          - "read_time"
+        preferredFormat: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[\\+\\-]\\d{2}:\\d{2})$"
+    description: This rule checks time format of date-time elements.
+    status: implemented
+    severity: high
+
+  - id: "TIM-010-01-2507-2507-M-2"
+    title: "Time-related parameter names must follow public parameter naming convention recommendations"
+    message: "Time parameter names must follow the standard naming convention: created_at, updated_at, deleted_at, expired_at, start_time, end_time, read_time"
+    option: Mandatory
+    location: all
+    element: name
+    call:
+      function: checkTimeFieldNaming
+      functionParams:
+        recommendedNames:
+          - "created_at"
+          - "updated_at"
+          - "deleted_at"
+          - "expired_at"
+          - "start_time"
+          - "end_time"
+          - "read_time"
+        notRecommendedNames:
+          - "updated"
+          - "created"
+          - "expired"
+          - "createdAt"
+          - "updatedAt"
+          - "create_time"
+          - "update_time"
+          - "delete_time"
+          - "expire_time"
+          - "begin_time"
+    description: This rule checks whether fields include the '_time' suffix and follow naming convention recommendations.
+    status: implemented
+    severity: medium

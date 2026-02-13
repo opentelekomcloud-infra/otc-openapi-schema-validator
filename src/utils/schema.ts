@@ -27,10 +27,25 @@ export function matchParameterSchema(
         param = resolved;
     }
 
-    const matchesBase =
-        param.name === name &&
-        param.in === paramIn &&
-        param.schema?.type === type;
+    const nameMatches =
+        paramIn === "header"
+            ? String(param.name ?? "").toLowerCase() === String(name).toLowerCase()
+            : param.name === name;
+
+    const schemaType = param.schema?.type;
+
+    // OpenAPI 3 allows parameters to use `content` with media types instead of `schema`.
+    let contentType: any = undefined;
+    const contentObj = param.content;
+    if (contentObj && typeof contentObj === "object") {
+        const media =
+            contentObj["application/json"] ??
+            contentObj["application/xml"] ??
+            contentObj[Object.keys(contentObj)[0]];
+        contentType = media?.schema?.type;
+    }
+
+    const matchesBase = nameMatches && param.in === paramIn && (schemaType === type || contentType === type);
 
     if (!matchesBase) return false;
 
@@ -162,4 +177,69 @@ export function extractEnumIfExist(schema: any, spec: any, basePath = ''): Map<s
 
     walk(schema, basePath);
     return enums;
+}
+
+function decodeJsonPointerToken(token: string): string {
+    return token.replace(/~1/g, "/").replace(/~0/g, "~");
+}
+
+export function resolveRefDeep(obj: any, refCache: any, spec: any): any {
+    let curObj: any = obj;
+    const seen = new Set<string>();
+
+    while (curObj && typeof curObj === "object" && typeof curObj.$ref === "string") {
+        const ref: string = curObj.$ref;
+        const cached = refCache.get(ref);
+        if (cached) {
+            curObj = cached;
+            continue;
+        }
+        if (!ref.startsWith("#/")) return curObj;
+        if (seen.has(ref)) return curObj;
+        seen.add(ref);
+
+        const parts = ref
+          .slice(2)
+          .split("/")
+          .filter(Boolean)
+          .map(decodeJsonPointerToken);
+
+        let resolved: any = spec;
+        for (const p of parts) {
+            if (!resolved || typeof resolved !== "object") {
+                resolved = null;
+                break;
+            }
+            resolved = resolved[p];
+        }
+
+        if (!resolved) return curObj;
+        refCache.set(ref, resolved);
+        curObj = resolved;
+    }
+
+    return curObj;
+}
+
+export function resolveLocalRef(spec: any, maybeRefObj: any): any {
+    if (!maybeRefObj || typeof maybeRefObj !== "object") return maybeRefObj;
+
+    const ref = maybeRefObj["$ref"];
+    if (typeof ref !== "string" || !ref.startsWith("#/")) return maybeRefObj;
+
+    const refPath = ref.slice(2).split("/");
+    let resolved: any = spec;
+
+    for (const part of refPath) {
+        if (resolved instanceof Map) {
+            resolved = resolved.get(part);
+        } else if (resolved && typeof resolved === "object") {
+            resolved = (resolved as any)[part];
+        } else {
+            return maybeRefObj;
+        }
+    }
+
+    // If resolution fails, fall back to original object.
+    return resolved ?? maybeRefObj;
 }

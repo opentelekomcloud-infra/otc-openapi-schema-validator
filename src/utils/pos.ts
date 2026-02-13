@@ -59,3 +59,86 @@ export function findParameterPositionInYaml(content: string, path: string, metho
 
     return { start: 0, end: content.length };
 }
+
+export function violatingIndexRange(
+  content: string,
+  pointer: string,
+  value: string,
+  forbiddenRe: RegExp,
+  fallbackLen = 1
+): { from: number; to: number } {
+    const parts = pointer.split("/").filter(Boolean);
+    if (parts.length < 2) return { from: 0, to: Math.max(0, fallbackLen) };
+
+    let parentKey = "";
+    for (let i = parts.length - 2; i >= 0; i--) {
+        const p = parts[i];
+        if (!/^[0-9]+$/.test(p)) {
+            parentKey = p;
+            break;
+        }
+    }
+    if (!parentKey) return { from: 0, to: Math.max(0, fallbackLen) };
+
+    // Anchor search near the violating text
+    const forbiddenMatch = value.match(forbiddenRe);
+    const searchToken = forbiddenMatch?.[0] ?? value;
+
+    const anchorIdx = searchToken ? content.indexOf(searchToken) : -1;
+
+    const yamlNeedle = `${parentKey}:`;
+
+    if (anchorIdx >= 0) {
+        const windowStart = Math.max(0, anchorIdx - 4000);
+        const window = content.slice(windowStart, anchorIdx + 1);
+
+        const lastYaml = window.lastIndexOf(`\n${yamlNeedle}`);
+        const lastYamlInline = window.lastIndexOf(yamlNeedle);
+
+        const bestPos = Math.max(lastYaml, lastYamlInline);
+        if (bestPos >= 0) {
+            const raw = windowStart + bestPos;
+
+            if (window[bestPos] === "\n") {
+                const afterNl = raw + 1;
+                return { from: afterNl, to: afterNl + parentKey.length };
+            }
+
+            if (content[raw] === '"') {
+                return { from: raw + 1, to: raw + 1 + parentKey.length };
+            }
+            return { from: raw, to: raw + parentKey.length };
+        }
+    }
+    const idxYaml = content.indexOf(`\n${yamlNeedle}`);
+    if (idxYaml >= 0) return { from: idxYaml + 1, to: idxYaml + 1 + parentKey.length };
+
+    const idxYamlInline = content.indexOf(yamlNeedle);
+    if (idxYamlInline >= 0) return { from: idxYamlInline, to: idxYamlInline + parentKey.length };
+
+    return { from: 0, to: Math.max(0, fallbackLen) };
+}
+
+export function findKeyRangeInContent(content: string, key: string, searchStart?: number): { from: number; to: number } {
+    const needles = [`\n${key}:`, `${key}:`];
+
+    if (typeof searchStart === "number" && searchStart >= 0) {
+        for (const n of needles) {
+            const idx = content.indexOf(n, searchStart);
+            if (idx >= 0) {
+                const start = idx + (n.startsWith("\n") ? 1 : 0);
+                return { from: start, to: start + key.length };
+            }
+        }
+    }
+
+    for (const n of needles) {
+        const idx = content.indexOf(n);
+        if (idx >= 0) {
+            const start = idx + (n.startsWith("\n") ? 1 : 0);
+            return { from: start, to: start + key.length };
+        }
+    }
+
+    return { from: 0, to: 0 };
+}

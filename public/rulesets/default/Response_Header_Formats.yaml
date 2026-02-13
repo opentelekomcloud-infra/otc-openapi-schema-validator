@@ -1,0 +1,86 @@
+rules:
+  - id: "HDR-020-01-2507-2507-M-1"
+    title: "Content-Type Header Requirement for Response"
+    message: "Content-Type must be set to application/json;charset=UTF-8 if the body is present in the response."
+    option: Conditional
+    location: parameters
+    element:
+      - headers
+    call:
+      function: headerCheck
+      functionParams:
+        header: "Content-Type"
+        default_value: "application/json"
+        allowed_values:
+          - "application/json"
+          - "application/octet-stream"
+          - "multipart/form-data"
+        condition:
+          property: "content"
+          exists: true
+    severity: "medium"
+
+  - id: "HDR-020-01-2507-2507-M-2"
+    title: "X-Request-Id Header Validation for Response"
+    message: "X-Request-Id is required for task tracking in the response header. It must follow the format: request_id-timestamp-hostname."
+    option: Conditional
+    location: parameters
+    element:
+      - headers
+    call:
+      function: headerCheck
+      functionParams:
+        header: "X-Request-Id"
+        regex: "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
+        condition:
+          property: "content"
+          exists: true
+    severity: "medium"
+
+  - id: "HDR-020-01-2507-2507-M-3"
+    title: "Custom Header Naming and Format Validation"
+    message: "Custom message headers must follow the industry standards, with a naming format starting with 'X', separating words with hyphens (-), and using large camel case."
+    option: Mandatory
+    location: paths
+    call:
+      function: checkCustomHeaders
+      functionParams:
+        header_format: "^(?:[xX]-[a-z0-9]+(?:-[a-z0-9]+)*(?:-[A-Za-z0-9]{2,})?|[xX]-(?:[A-Z][a-z0-9]*)(?:-(?:[A-Z][a-z0-9]*))*)$"
+        standard_headers: [
+          "accept",
+          "accept-encoding",
+          "accept-language",
+          "authorization",
+          "cache-control",
+          "content-disposition",
+          "content-encoding",
+          "content-length",
+          "content-md5",
+          "content-type",
+          "cookie",
+          "date",
+          "etag",
+          "expect",
+          "host",
+          "if-match",
+          "if-modified-since",
+          "if-none-match",
+          "if-unmodified-since",
+          "origin",
+          "pragma",
+          "range",
+          "referer",
+          "user-agent",
+          "vary",
+          "www-authenticate",
+          "access-control-allow-origin",
+          "access-control-allow-headers",
+          "access-control-allow-methods",
+          "access-control-expose-headers",
+          "access-control-max-age",
+          "access-control-request-headers",
+          "access-control-request-method",
+          "connection"
+        ]
+    severity: medium
+    status: implemented

@@ -27,6 +27,42 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
     const [initialized, setInitialized] = useState<boolean>(false);
 
+    const [isMessageModalOpen, setIsMessageModalOpen] = useState(false);
+    const [activeMessage, setActiveMessage] = useState<string>("");
+
+    const MESSAGE_PREVIEW_LIMIT = 100;
+
+    const openMessageModal = (message: string) => {
+        setActiveMessage(message ?? "");
+        setIsMessageModalOpen(true);
+    };
+
+    const closeMessageModal = () => {
+        setIsMessageModalOpen(false);
+        setActiveMessage("");
+    };
+
+    const renderMessageCell = (message: string) => {
+        const safe = message ?? "";
+        const needsTruncate = safe.length > MESSAGE_PREVIEW_LIMIT;
+        const preview = needsTruncate ? safe.slice(0, MESSAGE_PREVIEW_LIMIT) : safe;
+
+        return (
+            <div>
+                <ReactMarkdown>{preview}</ReactMarkdown>
+                {needsTruncate && (
+                    <button
+                        type="button"
+                        onClick={() => openMessageModal(safe)}
+                        className="underline text-gray-600 hover:text-gray-800"
+                    >
+                        ..show more
+                    </button>
+                )}
+            </div>
+        );
+    };
+
     // On mount, load stored manual rules from localStorage (if any)
     useEffect(() => {
         const storedRules = localStorage.getItem("manualRules");
@@ -209,7 +245,7 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
                         <td className="px-2 py-1">{rule.id}</td>
                         <td className="px-2 py-1">{rule.title}</td>
                         <td className="px-2 py-1 whitespace-normal break-all">
-                            <ReactMarkdown>{rule.message}</ReactMarkdown>
+                            {renderMessageCell(rule.message)}
                         </td>
                         <td className="px-2 py-1">{rule.option}</td>
                     </tr>
@@ -217,6 +253,35 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
             })}
             </tbody>
             </table>
+            {isMessageModalOpen && (
+                <div
+                    className="fixed inset-0 z-50 flex items-center justify-center"
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label="Manual check message"
+                >
+                    <button
+                        type="button"
+                        className="absolute inset-0 bg-black/40"
+                        onClick={closeMessageModal}
+                        aria-label="Close"
+                    />
+                    <div className="relative z-10 w-[min(720px,95vw)] max-h-[80vh] overflow-auto rounded-lg bg-white p-4 shadow-lg">
+                        <div className="flex items-start justify-between gap-4 mb-3">
+                            <h3 className="text-lg font-semibold">Message</h3>
+                            <scale-button
+                                variant="secondary"
+                                onClick={closeMessageModal}
+                            >
+                                Close
+                            </scale-button>
+                        </div>
+                        <div className="text-sm">
+                            <ReactMarkdown>{activeMessage}</ReactMarkdown>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
     );
 };

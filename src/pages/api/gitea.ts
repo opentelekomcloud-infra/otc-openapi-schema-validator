@@ -1,7 +1,14 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import { giteaClient } from '@/clients/gitea';
+import { requireApiAuth } from "@/lib/apiAuth";
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+    const expectedInternalKey = process.env.ZITADEL_X_INTERNAL_API_KEY;
+    const providedInternalKey = req.headers["x-internal-api-key"];
+    const isInternalCall = expectedInternalKey && providedInternalKey === expectedInternalKey;
+    const principal = isInternalCall ? { mode: "internal" } : await requireApiAuth(req);
+    if (!principal) return res.status(401).json({ error: "Unauthorized" });
+
     const { repo, path } = req.query;
     console.log("Incoming request:", { repo, path });
 

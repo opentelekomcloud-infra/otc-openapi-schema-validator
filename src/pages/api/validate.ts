@@ -7,6 +7,7 @@ import { reportPortalClient } from '@/clients/reportportal';
 import yaml from "js-yaml";
 import { getSeverityLabel } from "@/utils/mapSeverity";
 import { giteaClient } from '@/clients/gitea';
+import { requireApiAuth } from "@/lib/apiAuth";
 
 // Allow large payloads (YAML specs can be big)
 export const config = {
@@ -28,6 +29,8 @@ export const config = {
  *   // Selection
  *   manual_rules?: string[];       // optional (subset); loads ALL then filters if provided
  *   auto_rules?: string[];         // optional (subset); loads ALL then filters if provided
+ *   exclude_manual_rules?: string[]; // optional; rule IDs to exclude from manual rules
+ *   exclude_auto_rules?: string[];   // optional; rule IDs to exclude from auto rules
  *   ruleset?: string;              // optional; defaults to "default"
  *
  *   // Export
@@ -41,6 +44,8 @@ interface ValidateRequestBody {
   file_content?: string;
   manual_rules?: string[];
   auto_rules?: string[];
+  exclude_manual_rules?: string[];
+  exclude_auto_rules?: string[];
   ruleset?: string;
   export?: 'pdf' | 'xml';
   out?: string;
@@ -152,6 +157,11 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const principal = await requireApiAuth(req);
+  if (!principal) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
   }
@@ -172,7 +182,7 @@ export default async function handler(
       }
     }
 
-    const { path: specPathInput, file_content, manual_rules, auto_rules, export: exportMode, out, ruleset = 'default' } = (body || {}) as ValidateRequestBody & Record<string, any>;
+    const { path: specPathInput, file_content, manual_rules, auto_rules, exclude_manual_rules, exclude_auto_rules, export: exportMode, out, ruleset = 'default' } = (body || {}) as ValidateRequestBody & Record<string, any>;
 
     // Validate required source: either file_content or path/url must be provided
     if ((!file_content || String(file_content).trim() === '') && (!specPathInput || String(specPathInput).trim() === '')) {
@@ -198,7 +208,6 @@ export default async function handler(
             return res.status(400).json({ error: 'Unable to parse Gitea URL. Provide a URL like /:owner/:repo/src/:branch/path/to/file.yaml' });
           }
           try {
-            console.log(parsed.repo, parsed.path)
             const fileData: any = await giteaClient.fetchYamlFile(parsed.repo, parsed.path);
             if (typeof fileData === 'string') {
               specText = fileData;
@@ -255,8 +264,18 @@ export default async function handler(
       }
       throw e;
     }
-    const manual = filterByIds(allManual, manual_rules);
-    const auto = filterByIds(allAuto, auto_rules);
+    let manual = filterByIds(allManual, manual_rules);
+    let auto = filterByIds(allAuto, auto_rules);
+
+    if (exclude_manual_rules?.length) {
+      const excludeManualSet = new Set(exclude_manual_rules);
+      manual = manual.filter(r => !r.id || !excludeManualSet.has(r.id));
+    }
+
+    if (exclude_auto_rules?.length) {
+      const excludeAutoSet = new Set(exclude_auto_rules);
+      auto = auto.filter(r => !r.id || !excludeAutoSet.has(r.id));
+    }
     // Run linter
     const { diagnostics, specTitle } = await runLinter(specText, auto);
 

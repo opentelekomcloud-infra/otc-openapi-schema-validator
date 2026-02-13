@@ -6,6 +6,10 @@ It supports file uploads, URL-based loading (including Internal Gitea-hosted spe
 ---
 
 ## Getting Started
+If you want to enable `ZITADEL` auth please read:
+[Authorization](AUTHORIZATION.md)
+
+Run server with ENABLE_AUTH=false to disable all `ZITADEL` integrations
 
 ### Prerequisites
 - **Node.js 20+**
@@ -49,6 +53,12 @@ npm run build
 ```
 
 ### Start the production server
+
+for full availability of public endpoints during API call need to set variable APP_URL
+```bash
+EXPORT APP_URL=http://localhost:3000
+```
+
 ```bash
 npm start
 ```
@@ -116,6 +126,8 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
   "file_content": "string (raw YAML/JSON)",
   "manual_rules": ["RULE_ID", "…"],
   "auto_rules": ["RULE_ID", "…"],
+  "exclude_manual_rules": ["RULE_ID", "…"],
+  "exclude_auto_rules": ["RULE_ID", "…"],
   "ruleset": "string (default: \"default\")",
   "export": "xml | pdf",
   "out": "string (required only when export=pdf)"
@@ -176,6 +188,17 @@ curl -X POST http://localhost:3000/api/validate \
   -d '{
     "file_content": "<your YAML here>",
     "export": "xml"
+  }'
+```
+
+Validate with excluded rules:
+```bash
+curl -X POST http://localhost:3000/api/validate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "file_content": "openapi: 3.0.3\ninfo:\n  title: Demo\n  version: 1.0.0\npaths: {}",
+    "ruleset": "default"
+    "exclude_auto_rules": ["COD-020-01-2507-2507-M", "BAS-090-01-2507-2507-M"]
   }'
 ```
 
