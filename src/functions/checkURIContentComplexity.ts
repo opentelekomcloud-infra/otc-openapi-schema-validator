@@ -1,5 +1,6 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
+import {getSource} from "@/functions/common";
 
 export function checkURIContentComplexity(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -53,7 +54,7 @@ export function checkURIContentComplexity(spec: any, content: string, rule: any)
             to: index >= 0 ? index + pathKey.length : 0,
             severity: mapSeverity(dynamicSeverity),
             message: `Path "${pathKey}" is overly complex (resource depth: ${depth}). Consider simplifying the URI by removing redundant nested segments.`,
-            source: rule.id,
+            source: getSource(rule),
         });
     }
 

@@ -1,5 +1,6 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
+import {getSource} from "@/functions/common";
 
 export function checkURIFormat(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -41,7 +42,7 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
                 to: index >= 0 ? index + pathKey.length : 0,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" must start with a version segment like /v1 according to URI format ${projectPattern}.`,
-                source: rule.id,
+                source: getSource(rule),
             });
             continue;
         }
@@ -62,7 +63,7 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
                 to: index >= 0 ? index + pathKey.length : 0,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" must not contain additional version segments after the leading /{version}.`,
-                source: rule.id,
+                source: getSource(rule),
             });
             continue;
         }
@@ -94,7 +95,7 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
                 to: index >= 0 ? index + pathKey.length : 0,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" must use project_id/tenant_id only immediately after the version segment ("/${versionSegment}/{project_id|tenant_id}/...").`,
-                source: rule.id,
+                source: getSource(rule),
             });
             continue;
         }
@@ -107,7 +108,7 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
                 to: index >= 0 ? index + pathKey.length : 0,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" must contain at least one resource segment after {project_id|tenant_id} according to URI format ${domainPattern}.`,
-                source: rule.id,
+                source: getSource(rule),
             });
             continue;
         }
@@ -137,7 +138,7 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
                 to: index >= 0 ? index + pathKey.length : 0,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" does not follow allowed URI formats: ${allowedDesc}.`,
-                source: rule.id,
+                source: getSource(rule),
             });
         }
     }

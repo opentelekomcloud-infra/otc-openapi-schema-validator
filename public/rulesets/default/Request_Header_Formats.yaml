@@ -27,6 +27,8 @@ rules:
           - name: "X-SDK-Date"
             valueType: string
             in: header
+        fallBackNames:
+          - "Date"
         checkOnlyIfHeaderExist:
           - name: "Authorization"
             valueType: string
@@ -159,5 +161,5 @@ rules:
           - name: "Authorization"
             valueType: string
             in: header
-    severity: medium
+    severity: low
     status: implemented

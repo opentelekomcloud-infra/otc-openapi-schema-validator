@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { splitPathIntoTokens, looksLikeAbbreviation, looksLikeUnknownWord, getAllowedAbbreviations } from "@/utils/englishWords";
+import {getSource} from "@/functions/common";
 
 export function checkURIContentDictionary(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -60,7 +61,7 @@ export function checkURIContentDictionary(spec: any, content: string, rule: any)
                 to: index >= 0 ? index + pathKey.length : 0,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" may use uncommon abbreviations or non-dictionary terms (${extra}). Please avoid unusual abbreviations and use clear, consistent nouns in URIs.`,
-                source: rule.id,
+                source: getSource(rule),
             });
         }
     }

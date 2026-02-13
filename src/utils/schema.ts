@@ -220,3 +220,26 @@ export function resolveRefDeep(obj: any, refCache: any, spec: any): any {
 
     return curObj;
 }
+
+export function resolveLocalRef(spec: any, maybeRefObj: any): any {
+    if (!maybeRefObj || typeof maybeRefObj !== "object") return maybeRefObj;
+
+    const ref = maybeRefObj["$ref"];
+    if (typeof ref !== "string" || !ref.startsWith("#/")) return maybeRefObj;
+
+    const refPath = ref.slice(2).split("/");
+    let resolved: any = spec;
+
+    for (const part of refPath) {
+        if (resolved instanceof Map) {
+            resolved = resolved.get(part);
+        } else if (resolved && typeof resolved === "object") {
+            resolved = (resolved as any)[part];
+        } else {
+            return maybeRefObj;
+        }
+    }
+
+    // If resolution fails, fall back to original object.
+    return resolved ?? maybeRefObj;
+}
