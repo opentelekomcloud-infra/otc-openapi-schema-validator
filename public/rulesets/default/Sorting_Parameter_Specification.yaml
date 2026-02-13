@@ -20,8 +20,10 @@ rules:
     element: url
     call: {
       function: CheckURLSortingDefaultDirection,
-      functionParams: {"asc"}
-    }
+      functionParams: {
+        "allowedKeywords": ["sort_key", "sort_dir"],
+        "defaultDirection": "asc"
+      }
     severity: "critical"
   - id: "FIL-030-01-2507-2507-M-3"
     title: "Multiple Sorting Parameter Order"
