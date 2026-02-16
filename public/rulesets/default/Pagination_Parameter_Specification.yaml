@@ -1,0 +1,62 @@
+rules:
+  - id: FIL-020-01-2507-2507-M-1
+    title: "Offset Pagination Parameter Check"
+    message: Offset-based pagination must use 'offset' and 'limit' parameters.
+    option: Mandatory
+    location: query
+    element: url
+    call:
+      function: CheckURLOffsetPaginationParameters
+      functionParams:
+        allowedKeywords:
+          - "offset"
+          - "limit"
+    description: This rule checks Offset-based pagination must use 'offset' and 'limit' parameters
+    status: implemented
+    severity: critical
+
+  - id: FIL-020-01-2507-2507-M-2
+    title: "Marker Pagination Parameter Check"
+    message: Marker-based pagination must use 'marker' and 'limit' parameters.
+    option: Mandatory
+    location: query
+    element: url
+    call:
+      function: CheckURLMarkerPaginationParameters
+      functionParams:
+        allowedKeywords:
+          - "marker"
+          - "limit"
+    description: This rule checks Marker-based pagination must use 'marker' and 'limit' parameters
+    status: implemented
+    severity: critical
+
+  - id: FIL-020-01-2507-2507-M-3
+    title: "Pagination Parameter Conflict Check"
+    message: offset and marker should not be used together.
+    option: Mandatory
+    location: query
+    element: url
+    call: 
+      function: CheckPaginationConflict,
+      functionParams: 
+        disallowedKeywords:
+          - "offset"
+          - "marker"
+    description: This rule checks offset and marker should not be used together
+    status: implemented
+    severity: critical
+
+  - id: FIL-020-01-2507-2507-M-4
+    title: "Default Limit Enforcement"
+    message: if 'limit' is not specified, a default of 1000 records must be assumed.
+    option: Optional
+    location: query
+    element: url
+    call:
+      function: CheckDefaultLimitValue,
+      functionParams: 
+        defaultValue: "1000"
+    description: This rule checks if 'limit' is not specified, a default of 1000 records must be assumed
+    status: implemented
+    severity: warning
