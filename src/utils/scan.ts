@@ -78,3 +78,51 @@ const HTTP_METHODS = new Set([
   "patch",
   "trace",
 ]);
+
+
+/**
+ * YAML-only: finds the next response status code key line after `fromIndex`.
+ * Matches lines like:
+ *   200:
+ *   "200":
+ *   '200':
+ * Returns a range that highlights only the status code token.
+ */
+export function findNextStatusCodeRange(
+  content: string,
+  statusCode: string,
+  fromIndex: number
+): { from: number; to: number } {
+  // Start scanning at the provided cursor position. The caller already advances the cursor
+  // to the start of the next line after a match, so we must NOT skip another line here.
+  let lineStart = fromIndex;
+
+  // Ensure we start at a line boundary.
+  const prevNl = content.lastIndexOf("\n", Math.max(0, lineStart - 1));
+  if (prevNl !== -1) lineStart = prevNl + 1;
+  else lineStart = 0;
+
+  // Example matches: 200:, "200":, '200':
+  // Escape the code to be safe for non-numeric keys like "2XX".
+  const esc = statusCode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  const re = new RegExp(`^\\s*(?:["']?)${esc}(?:["']?)\\s*:`);
+
+  while (lineStart < content.length) {
+    const lineEnd = content.indexOf("\n", lineStart);
+    const end = lineEnd === -1 ? content.length : lineEnd;
+    const line = content.slice(lineStart, end);
+
+    if (re.exec(line)) {
+      const idxInLine = line.indexOf(statusCode);
+      if (idxInLine !== -1) {
+        const from = lineStart + idxInLine;
+        return { from, to: from + statusCode.length };
+      }
+    }
+
+    if (lineEnd === -1) break;
+    lineStart = lineEnd + 1;
+  }
+
+  return { from: 0, to: 0 };
+}

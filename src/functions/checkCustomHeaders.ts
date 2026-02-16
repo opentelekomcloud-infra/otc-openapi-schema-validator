@@ -2,7 +2,7 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
 import { safeRegex } from "@/utils/regex";
-import { collectHeaderLocations } from "@/utils/traverse";
+import { collectHeaderLocations } from "@/utils/scan";
 import { isCustomHeader } from "@/utils/headers";
 
 /**
