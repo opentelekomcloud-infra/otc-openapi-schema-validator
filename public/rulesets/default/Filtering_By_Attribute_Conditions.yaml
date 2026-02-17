@@ -1,0 +1,14 @@
+rules:
+  - id: FIL-010-01-2507-2507-O-1
+    title: "Filter Parameter Check"
+    message: Filter parameters must be the same if represented in response.
+    option: optional
+    location: query
+    element: url
+    call:
+      function: CheckURLFilterParams
+      functionParams:
+    description: This rule checks if the fields to be filtered in URI Path are displayed in Response, the fields must be the same.
+    status: implemented
+    severity: medium
+

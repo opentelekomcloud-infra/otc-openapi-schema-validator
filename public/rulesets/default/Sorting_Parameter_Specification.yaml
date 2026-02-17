@@ -1,0 +1,56 @@
+rules:
+  - id: "FIL-030-01-2507-2507-M-1"
+    title: "Sorting Parameter Specification"
+    message: "Sorting Keywords should be specified as sort_key and sort_dir."
+    option: Mandatory
+    location: query
+    element: url
+    call: {
+      function: CheckURLSortingParameter,
+      functionParams: {
+        "allowedKeywords": ["sort_key", "sort_dir"]
+        }
+    }
+    severity: "critical"
+  - id: "FIL-030-01-2507-2507-M-2"
+    title: "Sorting Parameter Default Direction"
+    message: "Sorting direction must be ascending by default if not specified."
+    option: Mandatory
+    location: query
+    element: url
+    call: {
+      function: CheckURLSortingDefaultDirection,
+      functionParams: {
+        "allowedKeywords": ["sort_key", "sort_dir"],
+        "defaultDirection": "asc"
+      }
+    severity: "critical"
+  - id: "FIL-030-01-2507-2507-M-3"
+    title: "Multiple Sorting Parameter Order"
+    message: "Sorting multiple values must be done in the order of sort_key and sort_dir."
+    option: Mandatory
+    location: query
+    element: url
+    call: {
+      function: CheckURLSortingDefaultDirection,
+      functionParams: {
+        "KeywordOrder": ["sort_key", "sort_dir"],
+        "checkSequence": True,
+        "disallowOtherParams": True,
+        "defaultValueNotAllowed": True
+        }
+    severity: "critical"
+  - id: "FIL-030-01-2507-2507-M-4"
+    title: "Check Sorting Mode"
+    message: "Sorting mode, which can be asc ascending and desc descending."
+    option: Mandatory
+    location: query
+    element: url
+    call: {
+      function: CheckURLSortingValues,
+      functionParams: {
+        "allowedValues": ["asc", "desc"],
+        "checkEnums": True
+      }
+    }
+    severity: "critical"
