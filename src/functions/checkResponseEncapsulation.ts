@@ -1,7 +1,35 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
-import {getSource} from "@/functions/common";
+import { getSource } from "@/functions/common";
 
+/**
+ * COD-040-01-2507-2507-M
+ * Response Body JSON, BSON, XML or Octet-Stream Encapsulation.
+ *
+ * This rule verifies that response bodies for selected HTTP methods
+ * (e.g. POST, PUT, DELETE) use one of the allowed encapsulation formats.
+ *
+ * If a response contains a body (`response.content` is defined and non-empty),
+ * then at least one of the configured media types must be present
+ * (e.g. application/json or application/bson).
+ *
+ * Additionally, when headers are configured (e.g. Content-Type),
+ * the rule ensures that required headers are present in the response
+ * and correspond to the supported encapsulation formats.
+ *
+ * Behavior is controlled via `rule.call.functionParams`:
+ * - methods: string[]
+ *   HTTP methods to validate (case-insensitive).
+ * - content: string[]
+ *   Allowed media types for response body encapsulation.
+ * - excludeContent: string[]
+ *   Media types that are excluded from validation.
+ * - headers: string[]
+ *   Required response headers (e.g. Content-Type).
+ *
+ * The rule traverses:
+ * - spec.paths -> path -> method -> responses -> statusCode
+ */
 export function checkResponseEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
@@ -17,8 +45,8 @@ export function checkResponseEncapsulation(spec: any, content: string, rule: any
 
     for (const pathKey in spec.paths) {
         const pathItem = spec.paths[pathKey];
-
         for (const method in pathItem) {
+            if (!pathItem || typeof pathItem !== "object") continue;
             if (!methodsToCheck.includes(method.toLowerCase())) continue;
 
             const operation = pathItem[method];
@@ -66,17 +94,29 @@ export function checkResponseEncapsulation(spec: any, content: string, rule: any
                 const hasValidHeader = Object.keys(headersBlock).length === 0 || headersKeys.every((header: PropertyKey) => Object.hasOwn(headersBlock, header));
 
                 if (!hasValidContentType || (headersKeys.length > 0 && Object.keys(headersBlock).length > 0 && !hasValidHeader)) {
-                    const pathStart = content.indexOf(pathKey);
-                    const methodBlockStart = content.indexOf(`${method}:`, pathStart);
-                    const responsesKeyIndex = content.indexOf(`${responsesKey}:`, methodBlockStart);
-                    const start = responsesKeyIndex >= 0 ? responsesKeyIndex : methodBlockStart;
-                    const end = start + `${responsesKey}:`.length;
+                    // Prefer YAML-anchored searches to avoid matching path/method text in other places.
+                    const pathAnchor = `  ${pathKey}:`;
+                    const pathStart = content.indexOf(pathAnchor);
+                    if (pathStart < 0) continue;
+
+                    const methodAnchor = `    ${method}:`;
+                    const methodBlockStart = content.indexOf(methodAnchor, pathStart);
+                    if (methodBlockStart < 0) continue;
+
+                    const responsesAnchor = `      ${responsesKey}:`;
+                    const responsesKeyIndex = content.indexOf(responsesAnchor, methodBlockStart);
+                    if (responsesKeyIndex < 0) continue;
+
+                    const range = findStatusCodeRange(content, responsesKeyIndex, String(statusCode));
+                    const from = range?.from ?? responsesKeyIndex;
+                    const to = range?.to ?? (responsesKeyIndex + responsesAnchor.length);
+
                     diagnostics.push({
-                        from: start,
-                        to: end,
-                        severity: mapSeverity(rule.severity),
-                        message: rule.message,
-                        source: getSource(rule),
+                      from,
+                      to,
+                      severity: mapSeverity(rule.severity),
+                      message: rule.message,
+                      source: getSource(rule),
                     });
                 }
             }
@@ -84,4 +124,25 @@ export function checkResponseEncapsulation(spec: any, content: string, rule: any
     }
 
     return diagnostics;
+}
+
+function escapeRegExp(str: string): string {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function findStatusCodeRange(content: string, responsesKeyIndex: number, statusCode: string): { from: number; to: number } | null {
+  if (responsesKeyIndex < 0) return null;
+  const slice = content.slice(responsesKeyIndex);
+  // Match both quoted and unquoted YAML keys: "200": or 202:
+  const re = new RegExp(`^([\\t ]*)(["']?)(${escapeRegExp(statusCode)})\\2\\s*:`, "m");
+  const m = re.exec(slice);
+  if (!m) return null;
+
+  const indentLen = m[1].length;
+  const quote = m[2] ?? "";
+  const codeLen = (m[3] ?? "").length;
+
+  const from = responsesKeyIndex + m.index + indentLen;
+  const to = from + quote.length + codeLen + quote.length;
+  return { from, to };
 }

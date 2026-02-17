@@ -9,7 +9,7 @@ import { linter, lintGutter } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
-import {exportJUnit, exportPDF, exportReportPortal} from "@/utils/export";
+import { exportJUnit, exportPDF, exportReportPortal } from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
@@ -128,6 +128,7 @@ const HomePage = () => {
     const diagnosticsListenerExtension = useMemo(
       () =>
         EditorView.updateListener.of(async (update) => {
+          if (!update.docChanged) return;
           const runIdAtStart = lintRunIdRef.current;
           const docLenAtStart = update.view.state.doc.length;
 
@@ -151,11 +152,52 @@ const HomePage = () => {
       [selectedRules, specTitle]
     );
 
+    const cmLinterExtension = useMemo(() => {
+      // Lint only on edits; CodeMirror's linter runs on doc changes (not scroll)
+      return linter((v) => openApiLinter(selectedRules)(v).then((r) => r.diagnostics));
+    }, [selectedRules]);
+
+    const codeMirrorExtensions = useMemo(
+      () => [yaml(), cmLinterExtension, lintGutter(), diagnosticsListenerExtension],
+      [cmLinterExtension, diagnosticsListenerExtension]
+    );
+
     useEffect(() => {
       applyPolyfills().then(() => {
         defineCustomElements(window);
       });
     }, []);
+
+    // Re-run lint when the selected ruleset/rules change (without requiring an edit)
+    useEffect(() => {
+      if (!editorViewRef.current) return;
+
+      const view = editorViewRef.current;
+      const runIdAtStart = ++lintRunIdRef.current;
+      const docLenAtStart = view.state.doc.length;
+
+      (async () => {
+        try {
+          const { diagnostics: newDiags, specTitle: newTitle } = await openApiLinter(selectedRules)(view);
+
+          // If another lint started after this one, ignore these results.
+          if (lintRunIdRef.current !== runIdAtStart) return;
+
+          // If doc changed while awaiting, ignore (positions may be invalid).
+          if (view.state.doc.length !== docLenAtStart) return;
+
+          if (newTitle !== specTitle) {
+            setSpecTitle(newTitle ?? null);
+          }
+          if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
+            prevDiagsRef.current = newDiags;
+            setDiagnostics(newDiags);
+          }
+        } catch (e) {
+          console.error('Lint on ruleset change failed', e);
+        }
+      })();
+    }, [selectedRules]);
 
     const handleEditorCreated = (editorView: EditorView) => {
         editorViewRef.current = editorView;
@@ -225,14 +267,18 @@ const HomePage = () => {
 
     const handleDiagnosticClick = (from: number) => {
         if (editorViewRef.current && scrollRef.current) {
+            const docLen = editorViewRef.current.state.doc.length;
+            if (docLen <= 0) return;
+            const safeFrom = Math.max(0, Math.min(from, docLen - 1));
+
             editorViewRef.current.dispatch({
-                selection: { anchor: from },
+                selection: { anchor: safeFrom },
                 scrollIntoView: false,
             });
             requestAnimationFrame(() => {
-                const coords = editorViewRef.current!.coordsAtPos(from);
+                const coords = editorViewRef.current!.coordsAtPos(safeFrom);
+                if (!coords) return;
                 const containerRect = scrollRef.current!.getBoundingClientRect();
-                // @ts-expect-error coords possible null
                 const offsetWithinContainer = coords.top - containerRect.top;
                 const newScrollTop = scrollRef.current!.scrollTop + offsetWithinContainer - 20;
                 scrollRef.current!.scrollTo({ top: newScrollTop, behavior: "smooth" });
@@ -341,12 +387,7 @@ const HomePage = () => {
             <CodeMirror
               value={code}
               height={`${editorHeight}px`}
-              extensions={[
-                yaml(),
-                linter((v) => openApiLinter(selectedRules)(v).then(r => r.diagnostics)),
-                lintGutter(),
-                diagnosticsListenerExtension,
-              ]}
+              extensions={codeMirrorExtensions}
               onChange={(value) => setCode(value)}
               theme="dark"
               basicSetup={{
