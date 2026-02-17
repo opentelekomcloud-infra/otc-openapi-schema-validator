@@ -31,6 +31,7 @@ import { checkResponseIncludesCount } from "@/functions/checkResponseIncludesCou
 import { checkQuotaApiPresence } from "@/functions/checkQuotaApiPresence";
 import { checkTimeFieldsInDetailQuery } from "@/functions/checkTimeFieldsInDetailQuery";
 import { checkCustomHeaders } from "@/functions/checkCustomHeaders";
+import { checkResponseHeader } from "@/functions/checkResponseHeader";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -64,7 +65,8 @@ export const functionsMap: {
   checkResponseIncludesCount,
   checkQuotaApiPresence,
   checkTimeFieldsInDetailQuery,
-  checkCustomHeaders
+  checkCustomHeaders,
+  checkResponseHeader
 };
 
 /**

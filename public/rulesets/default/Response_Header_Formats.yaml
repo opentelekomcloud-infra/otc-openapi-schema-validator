@@ -2,40 +2,39 @@ rules:
   - id: "HDR-020-01-2507-2507-M-1"
     title: "Content-Type Header Requirement for Response"
     message: "Content-Type must be set to application/json;charset=UTF-8 if the body is present in the response."
-    option: Conditional
-    location: parameters
-    element:
-      - headers
+    option: Optional
+    location: paths
     call:
-      function: headerCheck
+      function: checkParamElementPresence
       functionParams:
-        header: "Content-Type"
-        default_value: "application/json"
-        allowed_values:
-          - "application/json"
-          - "application/octet-stream"
-          - "multipart/form-data"
-        condition:
-          property: "content"
-          exists: true
-    severity: "medium"
+        methods:
+          - "post"
+          - "put"
+          - "delete"
+        headers:
+          - name: "Content-Type"
+            valueType: string
+            in: header
+        checkMethodIfSectionExist: requestBody
+    severity: medium
+    status: implemented
 
   - id: "HDR-020-01-2507-2507-M-2"
     title: "X-Request-Id Header Validation for Response"
     message: "X-Request-Id is required for task tracking in the response header. It must follow the format: request_id-timestamp-hostname."
-    option: Conditional
+    option: Mandatory
     location: parameters
-    element:
-      - headers
+    element: paths
     call:
-      function: headerCheck
+      function: checkResponseHeader
       functionParams:
-        header: "X-Request-Id"
-        regex: "^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$"
-        condition:
-          property: "content"
-          exists: true
-    severity: "medium"
+        headers:
+          - "X-Request-Id"
+          - "x-obs-request-id"
+          - "request_id"
+        ifPropertyExists: "content"
+    severity: medium
+    status: implemented
 
   - id: "HDR-020-01-2507-2507-M-3"
     title: "Custom Header Naming and Format Validation"
