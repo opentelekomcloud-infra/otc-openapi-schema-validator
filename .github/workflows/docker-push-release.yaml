@@ -59,7 +59,7 @@ jobs:
           fi
 
       - name: Generate SBOM
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@0.34.0
         with:
           version: "v0.68.2"
           scan-type: image
