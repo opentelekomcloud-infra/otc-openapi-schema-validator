@@ -23,6 +23,42 @@ export function findMethodPositionInYaml(content: string, path: string, method: 
     return { start: 0, end: content.length };
 }
 
+/**
+ * Finds the position of the `parameters:` block within a given `paths -> <path> -> <method>` section.
+ *
+ * Returns a range that highlights the `parameters` key (not the whole block).
+ * If the `parameters:` key is not present under the method, falls back to the method position.
+ */
+export function findMethodParametersPositionInYaml(
+  content: string,
+  path: string,
+  method: string
+): { start: number; end: number } {
+  const pathPattern = new RegExp(`^\\s*${escapeRegExp(path)}:\\s*$`, "m");
+  const pathMatch = content.match(pathPattern);
+  if (pathMatch?.index == null) return { start: 0, end: content.length };
+
+  const afterPath = content.slice(pathMatch.index);
+  const methodPattern = new RegExp(`^\\s+${escapeRegExp(method)}:`, "m");
+  const methodMatch = afterPath.match(methodPattern);
+  if (methodMatch?.index == null) return { start: 0, end: content.length };
+
+  const methodStartAbs = pathMatch.index + methodMatch.index;
+
+  // Search for `parameters:` under this method. Best-effort YAML matching.
+  const afterMethod = content.slice(methodStartAbs);
+    const paramsMatch = afterMethod.match(/^\s+parameters:\s*$/m);
+  if (paramsMatch?.index != null) {
+    const paramsAbs = methodStartAbs + paramsMatch.index;
+    const keyIdx = content.slice(paramsAbs, paramsAbs + paramsMatch[0].length).indexOf("parameters");
+    const start = keyIdx >= 0 ? paramsAbs + keyIdx : paramsAbs;
+    return { start, end: start + "parameters".length };
+  }
+
+  // Fallback to method position if there is no parameters block.
+  return findMethodPositionInYaml(content, path, method);
+}
+
 export function findParameterPositionInYaml(content: string, path: string, method: string, paramName: string): { start: number; end: number } {
     const pathPattern = new RegExp(`^\\s*${escapeRegExp(path)}:\\s*$`, "m");
     const pathMatch = content.match(pathPattern);
