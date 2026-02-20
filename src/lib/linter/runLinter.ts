@@ -33,6 +33,7 @@ import { checkTimeFieldsInDetailQuery } from "@/functions/checkTimeFieldsInDetai
 import { checkCustomHeaders } from "@/functions/checkCustomHeaders";
 import { checkResponseHeader } from "@/functions/checkResponseHeader";
 import { checkDefaultLimitValue } from "@/functions/checkDefaultLimitValue";
+import { checkPaginationParameters } from "@/functions/checkPaginationParameters";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -68,7 +69,8 @@ export const functionsMap: {
   checkTimeFieldsInDetailQuery,
   checkCustomHeaders,
   checkResponseHeader,
-  checkDefaultLimitValue
+  checkDefaultLimitValue,
+  checkPaginationParameters
 };
 
 /**
