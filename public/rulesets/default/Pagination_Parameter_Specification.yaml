@@ -1,50 +1,25 @@
 rules:
-  - id: "FIL-020-01-2507-2507-M-1"
-    title: "Offset Pagination Parameter Check"
-    message: Offset-based pagination must use 'offset' and 'limit' parameters.
+  - id: "FIL-020-01-2507-2507-M"
+    title: "Pagination Parameters Consistency Check"
+    message: Pagination must use either (offset+limit) or (marker+limit), not both.
     option: Mandatory
     location: path
     call:
-      function: checkURIOffsetPaginationParameters
+      function: checkPaginationParameters
       functionParams:
-        allowedKeywords:
-          - "offset"
-          - "limit"
+        methods: ["get"]
+        modes:
+          - trigger: "offset"
+            require: ["offset", "limit"]
+            forbid: ["marker"]
+          - trigger: "marker"
+            require: ["marker", "limit"]
+            forbid: ["offset"]
     description: This rule checks Offset-based pagination must use 'offset' and 'limit' parameters
-    status: devel
+    status: implemented
     severity: critical
 
-  - id: "FIL-020-01-2507-2507-M-2"
-    title: "Marker Pagination Parameter Check"
-    message: Marker-based pagination must use 'marker' and 'limit' parameters.
-    option: Mandatory
-    location: path
-    call:
-      function: checkURLMarkerPaginationParameters
-      functionParams:
-        allowedKeywords:
-          - "marker"
-          - "limit"
-    description: This rule checks Marker-based pagination must use 'marker' and 'limit' parameters
-    status: devel
-    severity: critical
-
-  - id: "FIL-020-01-2507-2507-M-3"
-    title: "Pagination Parameter Conflict Check"
-    message: offset and marker should not be used together.
-    option: Mandatory
-    location: path
-    call:
-      function: checkPaginationConflict
-      functionParams:
-        disallowedKeywords:
-          - "offset"
-          - "marker"
-    description: This rule checks offset and marker should not be used together
-    status: devel
-    severity: critical
-
-  - id: "FIL-020-01-2507-2507-M-4"
+  - id: "FIL-020-01-2507-2507-M-1"
     title: "Default Limit Enforcement"
     message: if 'limit' parameter exists, a default value of 1000 records must be assumed.
     option: Optional
