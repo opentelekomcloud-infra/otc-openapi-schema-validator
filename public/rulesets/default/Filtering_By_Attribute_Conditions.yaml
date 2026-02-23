@@ -3,12 +3,12 @@ rules:
     title: "Filter Parameter Check"
     message: Filter parameters must be the same if represented in response.
     option: optional
-    location: query
-    element: url
+    location: path
     call:
       function: checkURIFilterParams
       functionParams:
+        methods: ["get"]
     description: This rule checks if the fields to be filtered in URI Path are displayed in Response, the fields must be the same.
-    status: devel
+    status: implemented
     severity: medium
 
