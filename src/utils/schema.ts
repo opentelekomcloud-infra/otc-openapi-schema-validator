@@ -243,3 +243,63 @@ export function resolveLocalRef(spec: any, maybeRefObj: any): any {
     // If resolution fails, fall back to original object.
     return resolved ?? maybeRefObj;
 }
+
+/**
+ * Returns true if `propName` exists as a property key anywhere inside the resolved schema.
+ * Traverses objects/arrays and composition keywords. Avoids cycles with `visited`.
+ */
+export function schemaHasPropertyDeep(
+  schema: any,
+  propName: string,
+  spec: any,
+  refCache: Map<string, any>,
+  visited: Set<any>
+): boolean {
+    if (!schema || typeof schema !== "object") return false;
+
+    const resolved = resolveRefDeep(schema, refCache, spec);
+    if (!resolved || typeof resolved !== "object") return false;
+
+    if (visited.has(resolved)) return false;
+    visited.add(resolved);
+
+    const props = (resolved as any).properties;
+    if (props && typeof props === "object") {
+        if (Object.prototype.hasOwnProperty.call(props, propName)) return true;
+        // also consider case-insensitive match in case of style differences
+        const lower = propName.toLowerCase();
+        for (const k of Object.keys(props)) {
+            if (k.toLowerCase() === lower) return true;
+        }
+
+        // Dive into properties
+        for (const v of Object.values(props)) {
+            if (schemaHasPropertyDeep(v, propName, spec, refCache, visited)) return true;
+        }
+    }
+
+    // Arrays
+    const items = (resolved as any).items;
+    if (items) {
+        if (schemaHasPropertyDeep(items, propName, spec, refCache, visited)) return true;
+    }
+
+    // additionalProperties may be a schema
+    const addl = (resolved as any).additionalProperties;
+    if (addl && typeof addl === "object") {
+        if (schemaHasPropertyDeep(addl, propName, spec, refCache, visited)) return true;
+    }
+
+    // Composition
+    for (const key of ["allOf", "oneOf", "anyOf"]) {
+        const arr = (resolved as any)[key];
+        if (Array.isArray(arr)) {
+            for (const s of arr) {
+                if (schemaHasPropertyDeep(s, propName, spec, refCache, visited)) return true;
+            }
+        }
+    }
+
+    // Not found
+    return false;
+}
