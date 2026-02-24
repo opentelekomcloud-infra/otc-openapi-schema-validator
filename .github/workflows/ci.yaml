@@ -53,6 +53,8 @@ jobs:
           PORT: "3000"
           GITEA_BASE_URL: ${{ secrets.GITEA_BASE_URL }}
           GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          REPORTPORTAL_API_KEY: ${{ secrets.REPORTPORTAL_API_KEY }}
+          REPORTPORTAL_ENDPOINT: ${{ secrets.REPORTPORTAL_ENDPOINT}}
         run: |
           npm run start &
           npx wait-on http://localhost:3000
