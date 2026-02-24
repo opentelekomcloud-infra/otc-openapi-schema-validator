@@ -9,6 +9,10 @@ import { getSeverityLabel } from "@/utils/mapSeverity";
 import { giteaClient } from '@/clients/gitea';
 import { requireApiAuth } from "@/lib/apiAuth";
 
+const log = {
+  debug: (...args: any[]) => console.debug("[Validate]", ...args),
+};
+
 // Allow large payloads (YAML specs can be big)
 export const config = {
   api: {
@@ -157,6 +161,7 @@ export default async function handler(
   req: NextApiRequest,
   res: NextApiResponse
 ) {
+  const t0 = Date.now();
   const principal = await requireApiAuth(req);
   if (!principal) {
     return res.status(401).json({ error: "Unauthorized" });
@@ -193,6 +198,7 @@ export default async function handler(
     const isHttpUrl = typeof specPathInput === 'string' && /^https?:\/\//i.test(specPathInput);
 
     if (typeof file_content === 'string' && file_content.trim() !== '') {
+      log.debug('spec source', { type: 'file_content', length: file_content.length });
       // Preferred: client provided file content directly
       specText = file_content;
     } else if (isHttpUrl) {
@@ -201,6 +207,8 @@ export default async function handler(
         const u = new URL(specPathInput!);
         const hostLc = u.host.toLowerCase();
         const isInternalGitea = hostLc.includes('gitea') && hostLc.includes('eco');
+
+        log.debug('spec source', { type: 'url', url: specPathInput, isInternalGitea });
 
         if (isInternalGitea) {
           const parsed = parseGiteaUrl(specPathInput!);
@@ -232,6 +240,7 @@ export default async function handler(
         return res.status(400).json({ error: `Invalid URL: ${e?.message || 'unknown error'}` });
       }
     } else if (typeof specPathInput === 'string' && specPathInput.trim() !== '') {
+      log.debug('spec_source', { type: 'server_path', path: specPathInput });
       // Server path: only attempt if accessible, otherwise ask for file_content
       const specAbs = resolvePath(specPathInput);
       try {
@@ -264,9 +273,10 @@ export default async function handler(
       }
       throw e;
     }
+    log.debug('rules loaded: ', { manual_total: allManual.length, auto_total: allAuto.length, ruleset });
     let manual = filterByIds(allManual, manual_rules);
     let auto = filterByIds(allAuto, auto_rules);
-
+    log.debug('rules selected: ', { manual_selected: manual.length, auto_selected: auto.length });
     if (exclude_manual_rules?.length) {
       const excludeManualSet = new Set(exclude_manual_rules);
       manual = manual.filter(r => !r.id || !excludeManualSet.has(r.id));
@@ -278,7 +288,7 @@ export default async function handler(
     }
     // Run linter
     const { diagnostics, specTitle } = await runLinter(specText, auto);
-
+    log.debug('lint done: ', { diagnostics_count: Array.isArray(diagnostics) ? diagnostics.length : 0, specTitle });
     // Helper to compute line number (1-based) from character offset
     const computeLine = (text: string, idx: number) => {
       if (typeof idx !== 'number' || idx < 0) return 'N/A' as const;
@@ -301,7 +311,7 @@ export default async function handler(
       // Build Robot XML and send to ReportPortal with default settings (no extra API params)
       const selectedRulesMap: Record<string, any> = Object.fromEntries((auto || []).filter(r => r?.id).map(r => [r.id, r]));
       const xml = buildRobotXml(diagnostics, selectedRulesMap, manual, specText, true);
-
+      log.debug('export xml built: ', { xml_len: xml.length, diagnostics_count: Array.isArray(diagnostics) ? diagnostics.length : 0 });
       const project = 'openapi';
       const launch = `Service: ${specTitle ?? 'OpenAPI'}`;
       const description = `Latest launch for ${specTitle ?? 'OpenAPI'} - ${new Date().toISOString()}`;
@@ -314,6 +324,7 @@ export default async function handler(
         description,
         mode,
       });
+      log.debug('reportportal import done', { type: typeof result });
 
       let payload: any = result;
       if (typeof payload === 'string') {
@@ -323,7 +334,8 @@ export default async function handler(
           payload = { raw: payload };
         }
       }
-
+      log.debug('reportportal payload keys: ', { keys: payload && typeof payload === 'object' ? Object.keys(payload) : [] });
+      log.debug('response', { mode: 'export xml', ms: Date.now() - t0 });
       return res.status(200).json({
         success: true,
         launch: payload,
@@ -338,6 +350,7 @@ export default async function handler(
     }
 
     // Default JSON response
+    log.debug('response', { mode: 'json', ms: Date.now() - t0, diagnostics: diagnosticsWithLines.length });
     return res.status(200).json({
       diagnostics: diagnosticsWithLines,
       rules: {
