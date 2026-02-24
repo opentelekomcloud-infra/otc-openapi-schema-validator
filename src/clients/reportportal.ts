@@ -1,5 +1,9 @@
 import JSZip from "jszip";
 
+const log = {
+  debug: (...args: any[]) => console.debug("[ReportPortal]", ...args),
+};
+
 export type RPAttribute = { key?: string; value: string };
 export type RPMode = 'DEFAULT' | 'DEBUG';
 
@@ -28,12 +32,13 @@ export class ReportPortalClient {
     mode?: RPMode;
   }): Promise<string> {
     const { xml, project, launch, description, attributes, mode } = params;
-
+    log.debug("Starting importing");
     if (!this.endpoint || !this.apiKey) {
       throw new Error('ReportPortal config missing on server: REPORTPORTAL_ENDPOINT/REPORTPORTAL_API_KEY');
     }
 
     const url = `${this.endpoint.replace(/\/$/, '')}/plugin/${project}/RobotFramework/import`;
+    log.debug("Making request to: ", url);
     // Build ZIP with the JUnit XML inside as lint-report.xml
     const zip = new JSZip();
     zip.file('lint-report.xml', xml);
@@ -51,6 +56,7 @@ export class ReportPortalClient {
       attributes,
     };
     const launchBlob = new Blob([JSON.stringify(launchImportRq)], { type: 'application/json' });
+    log.debug("Launch BLOB: ", launchBlob.size);
     form.append('launchImportRq', launchBlob, 'launchImportRq.json');
 
     const res = await fetch(url, {

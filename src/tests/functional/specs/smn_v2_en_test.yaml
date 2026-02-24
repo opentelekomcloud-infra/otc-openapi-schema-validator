@@ -1,0 +1,1810 @@
+openapi: 3.0.1
+info:
+  title: SMN testing
+  description: External Open API
+  version: v2
+servers:
+- url: https://smn.test.mycloud.com/
+tags:
+- name: Topics
+  description: ""
+- name: Subscriptions
+  description: ""
+- name: Templates
+  description: ""
+- name: Message Publishing
+  description: ""
+- name: Tags
+  description: ""
+- name: Version Querying
+  description: ""
+paths:
+  /:
+    get:
+      tags:
+      - Version Querying
+      summary: Querying All SMN API Versions
+      description: This API is used to list all SMN API versions.
+      operationId: ListVersions
+      parameters:
+      - name: X-Auth-Token
+        in: header
+        description: |-
+          Specifies a user token.
+
+          It can be obtained by calling an IAM API. The value of X-Subject-Token in the response header is the user token.
+        required: true
+        schema:
+          type: string
+        example: MIIDkgYJKoZIhvcNAQcCoIIDgzCCXXXXXX...
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ListVersionsResponseBody'
+            application/json:
+              example:
+                versions:
+                  id: v2
+                  links:
+                  - href: https://127.0.0.1/v2
+                    rel: self
+                  min_version: ""
+                  status: CURRENT
+                  updated: 2018-09-19T00:00:00Z
+                  version: ""
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "403":
+          description: Unauthorized
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "404":
+          description: Not Found
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "500":
+          description: Internal Server Error
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+      deprecated: false
+      x-name: Querying all SMN API versions
+      x-request-examples-description-1: ""
+      x-request-examples-url-1: "GET https://{SMN_Endpoint}/"
+      x-open-region-cloud: "hk,hc,hws_eu,hcso,fcs,hk_vdf,ctc,cmcc,otc,ocb,hws_ocb,g42,tm,sbc,hk_g42,hk_tm,hk_sbc,srg,ax"
+      x-is-registered: "Y"
+      x-support-sdk: "Y"
+      x-apiexplorer-hide: "N"
+      x-iftype: externalAPI
+  /v2:
+    get:
+      tags:
+      - Version Querying
+      summary: Querying the SMN API v2 Version
+      description: This API is used to query the version of SMN API v2.
+      operationId: ListVersion
+      parameters:
+      - name: X-Auth-Token
+        in: header
+        description: |-
+          Specifies a user token.
+
+          It can be obtained by calling an IAM API. The value of X-Subject-Token in the response header is the user token.
+        required: true
+        schema:
+          type: string
+        example: MIIDkgYJKoZIhvcNAQcCoIIDgzCCXXXXXX...
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ListV2VersionResponseBody'
+            application/json:
+              example:
+                version:
+                  id: v2
+                  links:
+                  - href: https://127.0.0.1/v2
+                    rel: self
+                  min_version: ""
+                  status: CURRENT
+                  updated: 2018-09-19T00:00:00Z
+                  version: ""
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "403":
+          description: Unauthorized
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "404":
+          description: Not Found
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "500":
+          description: Internal Server Error
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+      deprecated: false
+      x-name: Querying the SMN API v2 version
+      x-request-examples-description-1: ""
+      x-request-examples-url-1: "GET https://{SMN_Endpoint}/v2"
+      x-open-region-cloud: "hk,hc,hws_eu,hcso,fcs,hk_vdf,ctc,cmcc,otc,ocb,hws_ocb,g42,tm,sbc,hk_g42,hk_tm,hk_sbc,srg,ax"
+      x-is-registered: "Y"
+      x-support-sdk: "Y"
+      x-apiexplorer-hide: "N"
+      x-iftype: externalAPI
+  /v2/{project_id}/notifications/topics:
+    get:
+      tags:
+      - Topics
+      summary: Querying Topics
+      description: "This API is used to query topics by page. The topics are sorted\
+        \ by creation time in descending order. You can specify offset and limit.\
+        \ If no topic has been created, an empty list is returned."
+      operationId: ListTopics
+      parameters:
+      - name: project_id
+        in: path
+        description: "Specifies the project ID.For details about how to obtain the\
+          \ project ID, see [Obtaining the Project ID](smn_api_66000.xml)."
+        required: true
+        schema:
+          type: string
+        example: 2c31ed520xxxxxxebedb6e81xxxxxxxx
+      - name: offset
+        in: query
+        description: |-
+          Specifies the offset.
+
+          If the offset is an integer greater than 0 but less than the number of resources, all resources in excess of this offset will be queried. The default offset is 0.
+        schema:
+          type: integer
+          default: 0
+      - name: limit
+        in: query
+        description: |-
+          Specifies the maximum number of records in each query.
+
+          The number ranges from 1 to 100 and is generally 10, 20, or 50. Specifies the number of resources returned on each page. The default number is 100.
+        schema:
+          type: integer
+          default: 100
+      - name: enterprise_project_id
+        in: query
+        description: Specifies the enterprise project ID.
+        schema:
+          type: string
+      - name: name
+        in: query
+        description: "Specifies the name of the topic to be searched for, which must\
+          \ be fully matched."
+        schema:
+          type: string
+      - name: fuzzy_name
+        in: query
+        description: Specifies the name of the topic to be searched. Fuzzy matching
+          is used.
+        allowEmptyValue: true
+        schema:
+          pattern: "^[-_a-zA-Z0-9]{0,255}$"
+          type: string
+      - name: topic_id
+        in: query
+        description: Specifies the topic ID for exact search.
+        schema:
+          type: string
+      - name: X-Auth-Token
+        in: header
+        description: |-
+          Specifies a user token.
+
+          It can be obtained by calling an IAM API. The value of X-Subject-Token in the response header is the user token.
+        required: true
+        schema:
+          type: string
+        example: MIIDkgYJKoZIhvcNAQcCoIIDgzCCXXXXXX...
+      - name: fuzzy_display_name
+        in: query
+        description: Specifies the display name of the topic to be searched. Fuzzy
+          matching is used. The display name cannot exceed 192 bytes.
+        allowEmptyValue: true
+        schema:
+          type: string
+      responses:
+        "200":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/ListTopicsResponseBody'
+            application/json:
+              example:
+                request_id: 6a63a18b8bab40ffb71ebd9cb80d0085
+                topic_count: 1
+                topics:
+                - topic_urn: urn:smn:regionId:8bad8a40e0f7462f8c1676e3f93a8183:test_topic_v2
+                  display_name: testtest
+                  name: test_topic_v1
+                  push_policy: 0
+                  enterprise_project_id: "0"
+                  topic_id: 84698185946d44d08431aa441d8e2cf2
+                  create_time: 2016-08-02T08:22:18Z
+                  update_time: 2016-08-02T08:22:18Z
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "403":
+          description: Unauthorized
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "404":
+          description: Not Found
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "500":
+          description: Internal Server Error
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+      deprecated: false
+      x-name: Querying topics
+      x-request-examples-description-1: Querying topics
+      x-request-examples-url-1: "GET https://{SMN_Endpoint}/v2/{project_id}/notifications/topics?offset=0&limit=100"
+      x-open-region-cloud: "hk,hc,hws_eu,hcso,fcs,hk_vdf,ctc,cmcc,otc,ocb,hws_ocb,g42,tm,sbc,hk_g42,hk_tm,hk_sbc,srg,ax"
+      x-is-registered: "Y"
+      x-support-sdk: "Y"
+      x-apiexplorer-hide: "N"
+      x-iftype: externalAPI
+    post:
+      tags:
+      - Topics
+      summary: Creating a Topic
+      description: |-
+        This API is used to create a topic. Each user can create up to 3,000 topics. In high-concurrent scenarios, a user may create a few topics more than 3,000.
+        The API is idempotent. It returns a successful result after creating a topic. If a topic of the same name already exists, the status code is 200. Otherwise, the status code is 201.
+      operationId: CreateTopic
+      parameters:
+      - name: project_id
+        in: path
+        description: "Specifies the project ID.For details about how to obtain the\
+          \ project ID, see [Obtaining the Project ID](smn_api_66000.xml)."
+        required: true
+        schema:
+          type: string
+        example: 2c31ed520xxxxxxebedb6e81xxxxxxxx
+      - name: X-Auth-Token
+        in: header
+        description: |-
+          Specifies a user token.
+
+          It can be obtained by calling an IAM API. The value of X-Subject-Token in the response header is the user token.
+        required: true
+        schema:
+          type: string
+        example: MIIDkgYJKoZIhvcNAQcCoIIDgzCCXXXXXX...
+      requestBody:
+        description: This is a auto create Body Object
+        content:
+          application/json;charset=UTF-8:
+            schema:
+              $ref: '#/components/schemas/CreateTopicRequestBody'
+        required: true
+      responses:
+        "201":
+          description: OK
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/CreateTopicResponseBody'
+            application/json:
+              example:
+                request_id: 6a63a18b8bab40ffb71ebd9cb80d0085
+                topic_urn: urn:smn:regionId:f96188c7ccaf4ffba0c9aa149ab2bd57:test_topic_v2
+        "400":
+          description: Bad Request
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "403":
+          description: Unauthorized
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "404":
+          description: Not Found
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+        "500":
+          description: Internal Server Error
+          content:
+            '*/*':
+              schema:
+                $ref: '#/components/schemas/FailedResp'
+      deprecated: false
+      x-name: Creating a topic
+      x-request-examples-description-1: Creating a topic with the name of **test_topic_v2**
+        and display name of **testtest**
+      x-request-examples-url-1: "POST https://{SMN_Endpoint}/v2/{project_id}/notifications/topics"
+      x-request-examples-1:
+        name: test_topic_v2
+        display_name: testtest
+      x-request-examples-text-1: |-
+        {
+          "name": "test_topic_v2",
+          "display_name": "testtest"
+        }
+      x-open-region-cloud: "hk,hc,hws_eu,hcso,fcs,hk_vdf,ctc,cmcc,otc,ocb,hws_ocb,g42,tm,sbc,hk_g42,hk_tm,hk_sbc,srg,ax"
+      x-is-registered: "Y"
+      x-support-sdk: "Y"
+      x-apiexplorer-hide: "N"
+      x-iftype: externalAPI
+      x-codegen-request-body-name: CreateTopicRequestBody
+components:
+  schemas:
+    ListVersionsResponseBody:
+      required:
+      - versions
+      type: object
+      properties:
+        versions:
+          type: array
+          description: Specifies the list of all versions.
+          items:
+            $ref: '#/components/schemas/VersionItem'
+    ListV2VersionResponseBody:
+      required:
+      - version
+      type: object
+      properties:
+        version:
+          $ref: '#/components/schemas/VersionItem'
+    CreateTopicRequestBody:
+      required:
+      - display_name
+      - name
+      type: object
+      properties:
+        name:
+          maxLength: 255
+          minLength: 1
+          type: string
+          description: "Specifies the topic name. Enter 1 to 255 characters. Only\
+            \ letters, digits, hyphens (-), and underscores (_) are allowed. The topic\
+            \ name must start with a letter or digit."
+          example: test_topic_v2
+        display_name:
+          maxLength: 192
+          minLength: 1
+          type: string
+          description: "Specifies the topic display name, which is presented as the\
+            \ name of the email sender in email messages. The display name cannot\
+            \ exceed 192 bytes. display_name is left blank by default."
+          example: testtest
+        enterprise_project_id:
+          type: string
+          description: Specifies the enterprise project ID. It is required only when
+            the enterprise project function is enabled.
+          example: f8e0ecc8-3825-4ee8-9596-fb4258ffdcbb
+          default: "0"
+    ListTopicsResponseBody:
+      required:
+      - request_id
+      - topic_count
+      - topics
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+        topic_count:
+          type: integer
+          description: "Specifies the number of returned topics. No matter what offset\
+            \ and limit values you have set in the request, this API always returns\
+            \ the total number of topics in your account."
+        topics:
+          type: array
+          description: Specifies the topic structure array.
+          items:
+            $ref: '#/components/schemas/ListTopicsItem'
+    ListTopicDetailsResponseBody:
+      required:
+      - create_time
+      - display_name
+      - enterprise_project_id
+      - name
+      - push_policy
+      - request_id
+      - topic_id
+      - topic_urn
+      - update_time
+      type: object
+      properties:
+        update_time:
+          type: string
+          description: Specifies when the topic was updated. The UTC time is in YYYY-MM-DDTHH:MM:SSZ
+            format.
+        push_policy:
+          type: integer
+          description: Specifies the message push policy. 0 indicates that the message
+            sending fails and the message is cached in the queue. 1 indicates that
+            the failed message is discarded.
+        create_time:
+          type: string
+          description: Specifies when the topic is created. The UTC time is in YYYY-MM-DDTHH:MM:SSZ
+            format.
+        name:
+          type: string
+          description: Specifies the topic name.
+        topic_urn:
+          type: string
+          description: "It is the unique identifier of a topic. To obtain the resource\
+            \ identifier, see [Querying Topics](smn_api_51004.xml)."
+        display_name:
+          type: string
+          description: "Specifies the topic display name, which is presented as the\
+            \ name of the email sender in email messages."
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+        enterprise_project_id:
+          type: string
+          description: Specifies the enterprise project ID.
+        topic_id:
+          type: string
+          description: Specifies the topic ID.
+    ListTopicAttributesResponseBody:
+      required:
+      - attributes
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+        attributes:
+          $ref: '#/components/schemas/TopicAttribute'
+    ListSubscriptionsResponseBody:
+      required:
+      - request_id
+      - subscription_count
+      - subscriptions
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+        subscription_count:
+          type: integer
+          description: Specifies the number of subscriptions.
+        subscriptions:
+          type: array
+          description: Specifies the subscription structure.
+          items:
+            $ref: '#/components/schemas/ListSubscriptionsItem'
+    CreateTopicResponseBody:
+      required:
+      - request_id
+      - topic_urn
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+        topic_urn:
+          type: string
+          description: "Specifies the resource identifier of the topic, which is unique.\
+            \ To obtain the resource identifier, see [Querying Topics]."
+    UpdateTopicRequestBody:
+      required:
+      - display_name
+      type: object
+      properties:
+        display_name:
+          maxLength: 192
+          minLength: 1
+          type: string
+          description: "Specifies the topic display name, which is presented as the\
+            \ name of the email sender in email messages. The display name cannot\
+            \ exceed 192 bytes."
+          example: testtest222
+    UpdateTopicResponseBody:
+      required:
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+    UpdateTopicAttributeResponseBody:
+      required:
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: 6837531fd3f54550927b930180a706bf
+    DeleteTopicResponseBody:
+      required:
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+    DeleteTopicAttributeByNameResponseBody:
+      required:
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+    DeleteTopicAttributesResponseBody:
+      required:
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+    AddSubscriptionRequestBody:
+      required:
+      - endpoint
+      - protocol
+      type: object
+      properties:
+        protocol:
+          type: string
+          description: |-
+            Subscription protocol. (Different protocols indicate different types of endpoints to receive messages.)
+            The following protocols are supported:
+
+            **email**: The endpoints are email addresses.
+
+            **sms**: SMS transmission protocol. The endpoints are phone numbers.
+
+            **functionstage**: FunctionGraph(function) transmission protocol. The endpoints are functions.
+
+            **functiongraph**: FunctionGraph(workflow) transmission protocol. The endpoints are FunctionGraph workflows orchestrated by the FunctionGraph function.
+
+            **http** and **https**: The endpoints are URLs.
+
+            **callnotify**: Voice notification protocol. The endpoints are phone numbers.
+
+            **wechat**: WeCom group chatbot transmission protocol.
+
+            **dingding**: DingTalk group chatbot transmission protocol.
+
+            **feishu**: Lark group chatbot transmission protocol.
+
+            **welink**: WeLink group chatbot transmission protocol.
+
+            **dingTalkBot**: DingTalk transmission protocol.
+          example: email
+        endpoint:
+          type: string
+          description: |-
+            Note:
+
+            For an HTTP protocol, the endpoint must start with **http://** and be a public IPv4 address, IPv6 address, or domain name. It cannot be a private network IP address, including but not limited to a private IPv4 address, local IPv6 address, or loopback address. Ensure that the IP address can be accessed through a public network route. If not, the IP address may be unreachable due to firewall, NAT Gateway, or DNS configurations.
+
+            For an HTTPS protocol, the endpoint must start with **https://** and be a public IPv4 address, IPv6 address, or domain name. It cannot be a private network IP address, including but not limited to a private IPv4 address, local IPv6 address, or loopback address. Ensure that the IP address can be accessed through a public network route. If not, the IP address may be unreachable due to firewall, NAT Gateway, or DNS configurations.
+
+            For an email protocol, the endpoint must be an email address.
+
+            For an SMS protocol, the endpoint must be a phone number.
+
+            For a FunctionStage protocol, the endpoint must be a function.
+
+            For a FunctionGraph protocol, the endpoint must be a function flow.
+
+            For a callnotify protocol, the endpoint must be a phone number.
+
+            For a DingTalk chatbot protocol, the endpoint must be an IP address of a custom DingTalk group chatbot or **openConversationId** of a group to which an enterprise DingTalk chatbot is added. When you add **openConversationId**, do not start the endpoint with **http://** or **https://**.
+
+            For a WeChat protocol, the endpoint must be an IP address of a WeChat group chatbot.
+
+            For a feishu protocol, the endpoint must be an IP address of a Lark group chatbot.
+
+            For a WeLink protocol, the endpoint must be a WeLink group number.
+
+            For a dingTalkBot protocol, the endpoint must be a DingTalk enterprise user ID.
+          example: xxx@example.com
+        remark:
+          type: string
+          description: Specifies the remarks. The remarks must be UTF-8-coded and
+            can contain up to 128 bytes.
+          example: O&M
+        extension:
+          $ref: '#/components/schemas/SubscriptionExtension'
+        subscriptions:
+          maxItems: 50
+          minItems: 1
+          type: array
+          description: This parameter is mandatory when subscriptions need to be created
+            in batches. SMN allows you to create a maximum of 50 subscriptions at
+            a time.
+          items:
+            $ref: '#/components/schemas/BatchAddSubscriptionsRequestBody'
+    AddSubscriptionResponseBody:
+      required:
+      - request_id
+      - subscription_urn
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: fdbabe38ead6482b8574f82a3d1168e9
+        subscription_urn:
+          type: string
+          description: "Specifies the resource identifier of a subscription, which\
+            \ is unique."
+          example: urn:smn:regionId:762bdb3251034f268af0e395c53ea09b:test_topic_v1:2e778e84408e44058e6cbc6d3c377837
+    CancelSubscriptionResponseBody:
+      required:
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: fdbabe38ead6482b8574f82a3d1168e9
+    PublishMessageRequestBody:
+      type: object
+      properties:
+        subject:
+          type: string
+          description: "Specifies the message subject, which is used as the email\
+            \ subject when you publish email messages. The length of the subject cannot\
+            \ exceed 512 bytes."
+          example: test message v2
+        message:
+          type: string
+          description: "Message content. The message content must be UTF-8-coded and\
+            \ can be no more than 256 KB. If the endpoint is a phone number, the maximum\
+            \ length of an SMS message is 490 characters, or the message may be intercepted.\
+            \ The SMS message cannot contain square brackets ([]).Note:The message\
+            \ sending modes inclue **message**, **message_structure**, and **message_template_name**.Set\
+            \ at least one of them. If you set all of them, they take effect in the\
+            \ following sequence:**message_structure** > **message_template_name**\
+            \ > **message**"
+          example: Message test message v2
+        message_structure:
+          type: string
+          description: "Message structure, which is a JSON string. The options are\
+            \ **email**, **sms**, **http**, **https**, **functiongraph**, **functionstage**,\
+            \ **dingding**, **wechat**, **feishu**, **welink**, and **dingTalkBot**.\
+            \ The **default** protocol is mandatory. If the system fails to match\
+            \ any other protocols, the message using the **default** protocol is sent.-\
+            \ The **msgType** field must be specified for messages of the DingTalk\
+            \ chatbot, WeCom chatbot, Lark chatbot, dingTalkBot, or WeLink protocol.\
+            \ The value of **msgType** can be **text** or **markdown** for the DingTalk,\
+            \ WeCom, or Lark chatbot protocol, and the value can only be **text**\
+            \ for WeLink.- For details about the message length limit for the WeCom\
+            \ chatbot, see the official documentation.- For the DingTalk chatbot protocol,\
+            \ SMN supports the @ group member function through the **at** field. When\
+            \ you need to @ group members, set **isAtAll** to **true**. You can enter\
+            \ the phone numbers of group members you want to @ for the **atMobiles**\
+            \ field or enter the DingTalk user IDs of group members you want to @\
+            \ for the **atUserIds** field. When you use the **atMobiles** or **atUserIds**\
+            \ field, add **@** before each phone number or user ID in the message\
+            \ content. For details about the display effect, see the official DingTalk\
+            \ documentation. A DingTalk group chatbot message cannot exceed 20,000\
+            \ bytes. For details, see the official DingTalk documentation.- In the\
+            \ Lark chatbot protocol, the title background color of markdown messages\
+            \ can be customized via the **color** field. For details about the supported\
+            \ **color** fields, see the official documentation. A Lark group chatbot\
+            \ message cannot exceed 30 KB. For details, see the official Lark documentation.-\
+            \ For details about the message length limit for dingTalkBot messages,\
+            \ see the official documentation.Note:The message sending modes include\
+            \ **message**, **message_structure**, and **message_template_name**.Set\
+            \ at least one of them. If you set all of them, they will be applied in\
+            \ the following sequence:**message_structure** > **message_template_name**\
+            \ > **message**"
+          example: "{   \"default\": \"Message structure test message v2\",   \"sms\"\
+            : \"Message structure test message v2\",   \"email\": \"Message structure\
+            \ test message v2\",   \"wechat\": \"{\\\"msgtype\\\":\\\"text\\\",\\\"\
+            text\\\":{\\\"content\\\":\\\"Message structure test message v2\\\"}}\"\
+            ,   \"dingding\": \"{\\\"msgtype\\\":\\\"markdown\\\",\\\"at\\\":{\\\"\
+            atMobiles\\\": [\\\"15XXXXXX\\\"],\\\"atUserIds\\\": [\\\"1234567XXX\\\
+            \"],\\\"isAtAll\\\": true},\\\"markdown\\\":{\\\"content\\\":\\\"Message\
+            \ structure test message v2 @15XXXXXX @1234567XXX\\\",\\\"title\\\":\\\
+            \"Message structure title\\\"}}\",   \"feishu\": \"{\\\"msgtype\\\":\\\
+            \"markdown\\\",\\\"color\\\":\\\"blue\\\",\\\"markdown\\\":{\\\"content\\\
+            \":\\\"Message structure test message v2\\\"}}\",   \"welinkRed\": \"\
+            {\\\"msgtype\\\":\\\"text\\\",\\\"text\\\":{\\\"content\\\":\\\"Message\
+            \ structure test message v2\\\"}}\",   \"http\": \"Message structure test\
+            \ message v2\",   \"https\": \"Message structure test message v2\",  \
+            \ \"dingTalkBot\": \"{\\\"msgtype\\\":\\\"markdown\\\",\\\"markdown\\\"\
+            :{\\\"content\\\":\\\"Message structure test message v2 dingTalkBot markdown\\\
+            \",\\\"title\\\":\\\"Message structure title\\\"}}\",   \"functionstage\"\
+            : \"Message structure test message v2\" }"
+        message_template_name:
+          type: string
+          description: "Message template name. To obtain the name, see [Querying Message\
+            \ Templates] (ListMessageTemplates.xml).Note:The message sending modes\
+            \ inclue **message**, **message_structure**, and **message_template_name**.Set\
+            \ at least one of them. If you set all of them, they take effect in the\
+            \ following sequence:**message_structure** > **message_template_name**\
+            \ > **message**"
+          example: confirm_message
+        tags:
+          type: object
+          additionalProperties:
+            type: string
+          description: Specifies the dictionary consisting of variable parameters
+            and values. The value cannot be left blank. This parameter is mandatory
+            when you use a message template to publish messages. The key in the dictionary
+            is the parameter name in the message template and contains a maximum of
+            21 characters. The value in the dictionary is the value after the key
+            in the message template is replaced. The value cannot exceed 1 KB.
+          example:
+            topic_urn: topic_urn3331
+            topic_id: topic_id3332
+        time_to_live:
+          type: string
+          description: "Specifies the maximum retention period of a message in SMN.\
+            \ After the retention period expires, SMN does not send this message.\
+            \ Unit: second Default value: 3600s (one hour) The retention period must\
+            \ be a positive integer less than or equal to 86,400 (3600 x 24)."
+          example: "3600"
+        message_attributes:
+          maxItems: 10
+          minItems: 0
+          type: array
+          description: Specifies the message attribute list.
+          items:
+            $ref: '#/components/schemas/MessageAttribute'
+        locale:
+          type: string
+          description: "Language of the additional system content in messages sent\
+            \ by SMN. If this parameter is not specified, language settings for the\
+            \ account are used. The value is the language supported by the site, for\
+            \ example, zh-cn or en-us."
+          example: zh-cn
+    PublishMessageResponseBody:
+      required:
+      - message_id
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: 9974c07f6d554a6d827956acbeb4be5f
+        message_id:
+          type: string
+          description: "Specifies the message ID, which is unique."
+          example: bf94b63a5dfb475994d3ac34664e24f2
+    ListInstanceRequestBody:
+      required:
+      - action
+      type: object
+      properties:
+        tags:
+          type: array
+          description: A maximum of 10 tag keys are allowed in each query operation.
+            Each tag key can have up to 10 tag values. The structure body is mandatory.
+            The tag key cannot be left blank or be an empty string. Each tag key and
+            tag values of one key must be unique. Resources identified by different
+            keys are in AND relationship.
+          example:
+          - key: key1
+            values:
+            - '*value1'
+            - value2
+          items:
+            $ref: '#/components/schemas/ResourceTags'
+        tags_any:
+          type: array
+          description: A maximum of 10 tag keys are allowed in each query operation.
+            Each tag key can have up to 10 tag values. The structure body is mandatory.
+            The tag key cannot be left blank or be an empty string. Each tag key and
+            tag values of one key must be unique. Resources identified by different
+            keys are in OR relationship.
+          example:
+          - key: key1
+            values:
+            - value1
+            - value2
+          items:
+            $ref: '#/components/schemas/ResourceTags'
+        not_tags:
+          type: array
+          description: A maximum of 10 tag keys are allowed in each query operation.
+            Each tag key can have up to 10 tag values. The structure body is mandatory.
+            The tag key cannot be left blank or be an empty string. Each tag key and
+            tag values of one key must be unique. Resources identified by different
+            keys are in NAND relationship.
+          example:
+          - key: key1
+            values:
+            - '*value1'
+            - value2
+          - key: key2
+            values:
+            - '*value21'
+            - value22
+          items:
+            $ref: '#/components/schemas/ResourceTags'
+        not_tags_any:
+          type: array
+          description: A maximum of 10 tag keys are allowed in each query operation.
+            Each tag key can have up to 10 tag values. The structure body is mandatory.
+            The tag key cannot be left blank or be an empty string. Each tag key and
+            tag values of one key must be unique. Resources identified by different
+            keys are in NOR relationship.
+          example:
+          - key: key1
+            values:
+            - value1
+            - value2
+          items:
+            $ref: '#/components/schemas/ResourceTags'
+        offset:
+          type: string
+          description: "Specifies the index position. The query starts from the next\
+            \ data record indexed by this parameter. You do not need to specify this\
+            \ parameter when you query resources on the first page. When you query\
+            \ resources on subsequent pages, set this parameter to the location returned\
+            \ in the response body for the previous query.If action is set to count,\
+            \ this parameter does not take effect.If you set action to filter, the\
+            \ offset value is 0 by default. The offset value cannot be a negative\
+            \ integer."
+          example: "0"
+          default: "0"
+        limit:
+          type: string
+          description: |-
+            Specifies the maximum number of resources to be queried.
+
+            If action is set to count, this parameter does not take effect.
+
+            If you set action to filter, the value of this parameter is 1000 by default. The maximum value of limit is 1000 and the minimum value is 1.
+          example: "1000"
+          default: "1000"
+        action:
+          type: string
+          description: |-
+            Specifies the operation to be performed. The value can be filter (filtering) or count (querying the total number).
+            filter indicates pagination query. count indicates that the total number of query results meeting the search criteria will be returned.
+          example: filter
+        matches:
+          type: array
+          description: |-
+            Specifies the key-value pair to be matched.
+
+            The key can only be resource_name.
+
+            The value will be exactly matched.
+          example:
+          - key: resource_name
+            value: resource1
+          items:
+            $ref: '#/components/schemas/TagMatch'
+        without_any_tag:
+          type: boolean
+          description: "No tag is contained. If this parameter is set to **true**,\
+            \ all resources without tags are queried. In this case, the **tags**,\
+            \ **tags_any**, **not_tags**, and **not_tags_any** fields are ignored."
+          example: true
+    ListInstancesResponseBody:
+      required:
+      - resources
+      - total_count
+      type: object
+      properties:
+        resources:
+          type: array
+          description: Specifies the returned resource list.
+          items:
+            $ref: '#/components/schemas/TagResource'
+        total_count:
+          type: integer
+          description: Specifies the total number of records.
+          format: int32
+    BatchCreateOrDeleteResourceTagsRequestBody:
+      required:
+      - action
+      - tags
+      type: object
+      properties:
+        tags:
+          type: array
+          description: "Specifies the tag list. For details, see table 1. When you\
+            \ delete tags, the tag structure cannot be missing, and the key cannot\
+            \ be left blank or be an empty string. The system does not check the character\
+            \ set when deleting a tag."
+          items:
+            $ref: '#/components/schemas/ResourceTag'
+        action:
+          type: string
+          description: Specifies the operation to be performed. The value can be create
+            or delete only.
+          example: create
+    CreateResourceTagRequestBody:
+      required:
+      - tag
+      type: object
+      properties:
+        tag:
+          $ref: '#/components/schemas/ResourceTag'
+    ListResourceTagsRequestBody:
+      required:
+      - tags
+      type: object
+      properties:
+        tags:
+          type: array
+          description: Specifies resource tags.
+          items:
+            $ref: '#/components/schemas/ResourceTag'
+    ListProjectTagsRequestBody:
+      required:
+      - tags
+      type: object
+      properties:
+        tags:
+          type: array
+          description: Specifies resource tags.
+          items:
+            $ref: '#/components/schemas/ResourceTags'
+    CreateMessageTemplateRequestBody:
+      required:
+      - content
+      - message_template_name
+      type: object
+      properties:
+        message_template_name:
+          type: string
+          description: "Specifies the template name. Enter 1 to 64 characters, and\
+            \ start with a letter or digit. Only letters, digits, hyphens (-), and\
+            \ underscores (_) are allowed."
+          example: confirm_message
+        protocol:
+          type: string
+          description: |-
+            Specifies the protocol supported by the template.
+
+            The following protocols are supported:
+
+            default
+
+            email
+
+            sms
+
+            functionstage
+
+            http and https
+          example: https
+        content:
+          type: string
+          description: "Specifies the template content, which supports plain text\
+            \ only. The template content cannot be left blank or larger than 256 KB."
+          example: "(1/2)You are invited to subscribe to topic({topic_id}). Click\
+            \ the following URL to confirm subscription:(If you do not want to subscribe\
+            \ to this topic, ignore this message.)"
+    CreateMessageTemplateResponseBody:
+      required:
+      - message_template_id
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: ca03efa691624d8eb2dfeba01a1bcf6e
+        message_template_id:
+          type: string
+          description: "Specifies the resource identifier of the template, which is\
+            \ unique."
+          example: 57ba8dcecda844878c5dd5815b65d10f
+    UpdateMessageTemplateRequestBody:
+      required:
+      - content
+      type: object
+      properties:
+        content:
+          type: string
+          description: Specifies the template content.
+          example: "(1/22)You are invited to subscribe to topic({topic_id_id1}). Click\
+            \ the following URL to confirm subscription:(If you do not want to subscribe\
+            \ to this topic, ignore this message.)"
+    UpdateMessageTemplateResponseBody:
+      required:
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: 5fcba32bd2814ea39431829c22bda94b
+    DeleteMessageTemplateResponseBody:
+      required:
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: 5fcba32bd2814ea39431829c22bda94b
+    ListMessageTemplatesResponseBody:
+      required:
+      - message_template_count
+      - message_templates
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: 5fcba32bd2814ea39431829c22bda94b
+        message_template_count:
+          type: integer
+          description: Specifies the number of returned templates.
+          example: 3
+        message_templates:
+          type: array
+          description: Specifies the Message_template structure array.
+          items:
+            $ref: '#/components/schemas/MessageTemplate'
+    ListMessageTemplateDetailsResponseBody:
+      required:
+      - content
+      - create_time
+      - message_template_id
+      - message_template_name
+      - protocol
+      - request_id
+      - tag_names
+      - update_time
+      type: object
+      properties:
+        message_template_id:
+          type: string
+          description: Specifies the template ID.
+          example: 57ba8dcecda844878c5dd5815b65d10f
+        message_template_name:
+          type: string
+          description: Specifies the template name.
+          example: confirm_message
+        protocol:
+          type: string
+          description: |-
+            Specifies the protocol supported by the template.
+
+            The following protocols are supported:
+
+            default
+
+            email
+
+            sms
+
+            functionstage
+
+            http and https
+          example: https
+        tag_names:
+          type: array
+          description: |-
+            Specifies the variable list.
+
+            The variable name will be quoted in braces ({}) in the template. When you use a template to send messages, you can replace the variable with any content.
+          example:
+          - topic_id_id4
+          items:
+            type: string
+        create_time:
+          type: string
+          description: Specifies when the template was created. The UTC time is in
+            YYYY-MM-DDTHH:MM:SSZ format.
+          example: 2016-08-02T08:22:20Z
+        update_time:
+          type: string
+          description: Specifies the last time when the template was updated. The
+            UTC time is in YYYY-MM-DDTHH:MM:SSZ format.
+          example: 2016-08-02T08:22:25Z
+        content:
+          type: string
+          description: Specifies the template content.
+          example: "(1/24)You are invited to subscribe to topic({topic_id_id4}). Click\
+            \ the following URL to confirm subscription:(If you do not want to subscribe\
+            \ to this topic, ignore this message.)"
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: ba79ca8f794f4f50985ce7b98a401b47
+    UpdateTopicAttributeRequestBody:
+      required:
+      - value
+      type: object
+      properties:
+        value:
+          type: string
+          description: |-
+            1. If you set name to access_policy, value is the topic attribute, and the maximum length of value is 30 KB.
+
+            2. If you set name to introduction, value is the topic introduction, and the maximum length of value is 120 bytes.
+          example: "\"{\\\"Version\\\": \\\"2016-09-07\\\",  \\\"Id\\\": \\\"__default_policy_ID\\\
+            \",  \\\"Statement\\\": [{\\\"Sid\\\": \\\"__user_pub_0\\\",\\\"Effect\\\
+            \": \\\"Allow\\\",\\\"Principal\\\": {\\\"CSP\\\": [\\\"urn:csp:iam::93dc1b4697ac493d9b7d089569f86b32:root\\\
+            \"]},\\\"Action\\\": [\\\"SMN:Publish\\\",\\\"SMN:QueryTopicDetail\\\"\
+            ],\\\"Resource\\\": \\\"urn:smn:regionId:8bad8a40e0f7462f8c1676e3f93a8183:zhaoli\\\
+            \"},{\\\"Sid\\\": \\\"__service_pub_0\\\",      \\\"Effect\\\": \\\"Allow\\\
+            \",\\\"Principal\\\": {\\\"Service\\\": [\\\"obs\\\"]},\\\"Action\\\"\
+            : [\\\"SMN:Publish\\\",\\\"SMN:QueryTopicDetail\\\"],\\\"Resource\\\"\
+            : \\\"urn:smn:regionId:8bad8a40e0f7462f8c1676e3f93a8183:zhaoli\\\"}]}\""
+    TopicAttribute:
+      type: object
+      properties:
+        access_policy:
+          type: string
+          description: Specifies the access policy of a topic.
+          example: "{\\\"Version\\\":\\\"2016-09-07\\\",\\\"Id\\\":\\\"__default_policy_ID\\\
+            \",\\\"Statement\\\":[{\\\"Sid\\\":\\\"__user_pub_0\\\",\\\"Effect\\\"\
+            :\\\"Allow\\\",\\\"Principal\\\":[{\\\"CSP\\\":[\\\"urn:csp:iam::93dc1b4697ac493d9b7d089569f86b32:root\\\
+            \"]}],\\\"Action\\\":[\\\"SMN:Publish\\\",\\\"SMN:QueryTopicDetail\\\"\
+            ],\\\"Resource\\\":\\\"urn:smn:regionId:8bad8a40e0f7462f8c1676e3f93a8183:aaa\\\
+            \"},{\\\"Sid\\\":\\\"__org_path_pub_0\\\",\\\"Effect\\\":\\\"Allow\\\"\
+            ,\\\"Principal\\\":{\\\"OrgPath\\\":[\\\"o-bf966fe82ebb4d35d68b791729228788/r-001ebf32880a13eabfc8e1c37eee3ae9/ou-0dbfffe92fd92ddb35feff9b4079459c\\\
+            \"]},\\\"Action\\\":[\\\"SMN:Publish\\\",\\\"SMN:QueryTopicDetail\\\"\
+            ],\\\"Resource\\\":\\\"urn:smn:regionId:8bad8a40e0f7462f8c1676e3f93a8183:aaa\\\
+            \"},{\\\"Sid\\\":\\\"__service_pub_0\\\",\\\"Effect\\\":\\\"Allow\\\"\
+            ,\\\"Principal\\\":{\\\"Service\\\":[\\\"obs\\\"]},\\\"Action\\\":[\\\"\
+            SMN:Publish\\\",\\\"SMN:QueryTopicDetail\\\"],\\\"Resource\\\":\\\"urn:smn:regionId:8bad8a40e0f7462f8c1676e3f93a8183:aaa\\\
+            \"}]}"
+        create_time:
+          type: string
+          description: The time when the topic access policy was created. It is a
+            UTC time in *YYYY-MM-DDTHH:MM:SSZ* format.
+        update_time:
+          type: string
+          description: The time when the topic access policy was updated. It is a
+            UTC time in *YYYY-MM-DDTHH:MM:SSZ* format.
+        introduction:
+          type: string
+          description: Specifies the introduction to a topic.
+          example: Introduction to a topic
+    MessageTemplate:
+      required:
+      - create_time
+      - message_template_id
+      - message_template_name
+      - protocol
+      - tag_names
+      - update_time
+      type: object
+      properties:
+        message_template_id:
+          type: string
+          description: Specifies the template ID.
+          example: 79227dfdf88d4e52a1820ca1eb411635
+        message_template_name:
+          type: string
+          description: Specifies the template name.
+          example: confirm_message
+        protocol:
+          type: string
+          description: |-
+            Specifies the protocol supported by the template.
+
+            The following protocols are supported:
+
+            email
+
+            sms
+
+            functionstage
+
+            http and https
+          example: https
+        tag_names:
+          type: array
+          description: Specifies the variable list.
+          example:
+          - topic_urn
+          items:
+            type: string
+        create_time:
+          type: string
+          description: Specifies when the template was created. The UTC time is in
+            YYYY-MM-DDTHH:MM:SSZ format.
+          example: 2016-08-02T08:22:18Z
+        update_time:
+          type: string
+          description: Specifies the last time when the template was updated. The
+            UTC time is in YYYY-MM-DDTHH:MM:SSZ format.
+          example: 2016-08-02T08:22:18Z
+    ResourceTag:
+      required:
+      - key
+      - value
+      type: object
+      properties:
+        key:
+          type: string
+          description: |-
+            The tag key.
+
+            - A key can contain a maximum of 127 Unicode characters.
+
+            - The tag key cannot be left blank.
+          example: key
+        value:
+          type: string
+          description: |-
+            The tag value.
+
+            - Each tag value can contain a maximum of 255 Unicode characters.
+          example: value
+      description: Specifies the resource tag structure.
+    ResourceTags:
+      required:
+      - key
+      - values
+      type: object
+      properties:
+        key:
+          type: string
+          description: |-
+            Specifies the tag key.
+
+            - A key can contain a maximum of 127 Unicode characters.
+
+            - key must be specified.
+        values:
+          type: array
+          description: |-
+            Specifies the tag values.
+
+            - Each tag contains a maximum of 10 values.
+
+            - Values of the same tag must be unique.
+
+            - It can contain a maximum of 255 Unicode characters.
+
+            - If this parameter is left blank, any value can be used.
+
+            - All values of a tag key are in the OR relationship.
+          items:
+            type: string
+      description: Specifies the structure of the resource tag list.
+    TagMatch:
+      required:
+      - key
+      - value
+      type: object
+      properties:
+        key:
+          type: string
+          description: |-
+            Specifies the key field to be matched.
+
+            key can only be resource_name. In such a case, value is the ECS name.
+
+            - The key must be unique, and the value is used for matching.
+
+            - The key field is a fixed dictionary value.
+
+            - key cannot be left blank.
+        value:
+          type: string
+          description: |-
+            Specifies the value.
+
+            key can only be resource_name. In such a case, value is the ECS name.
+
+            - It can contain a maximum of 255 Unicode characters.
+
+            - This field cannot be left blank.
+      description: "Specifies the search field, which is used to search for resources."
+    TagResource:
+      required:
+      - resource_detail
+      - resource_id
+      - resource_name
+      - tags
+      type: object
+      properties:
+        resource_id:
+          type: string
+          description: Specifies the resource ID.
+        resource_detail:
+          $ref: '#/components/schemas/ResourceDetail'
+        tags:
+          type: array
+          description: Specifies the list of tags.
+          items:
+            $ref: '#/components/schemas/ResourceTag'
+        resource_name:
+          type: string
+          description: Specifies the resource name.
+      description: Specifies the resource structure.
+    ResourceDetail:
+      required:
+      - detailId
+      - display_name
+      - enterprise_project_id
+      - topic_urn
+      type: object
+      properties:
+        enterprise_project_id:
+          type: string
+          description: Specifies the enterprise project ID.
+          example: "0"
+        detailId:
+          type: string
+          description: Specifies the details ID.
+          example: urn:smn:br-iaas-odin1:0605767f6f00d5762ff9c001c70e7359:test_etcd
+        topic_urn:
+          type: string
+          description: Specifies the unique identifier of the topic.
+          example: urn:smn:br-iaas-odin1:0605767f6f00d5762ff9c001c70e7359:sssss
+        display_name:
+          type: string
+          description: Specifies the display name.
+          example: sssssss
+    FailedResp:
+      required:
+      - code
+      - message
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: "Specifies the request ID, which is unique."
+          example: 6a63a18b8bab40ffb71ebd9cb80d0085
+        code:
+          type: string
+          description: Specifies the error code.
+          example: SMN.0167
+        message:
+          type: string
+          description: Describes the error message.
+          example: xxxxxxxx
+    VersionItem:
+      required:
+      - id
+      - links
+      - min_version
+      - status
+      - updated
+      - version
+      type: object
+      properties:
+        id:
+          type: string
+          description: "Specifies the version ID, for example, v2."
+          example: v2
+        min_version:
+          type: string
+          description: "Specifies the microversion. If the API supports microversions,\
+            \ the system returns the supported minimum microversion. If no, the system\
+            \ returns an empty value."
+          example: ""
+        status:
+          type: string
+          description: |-
+            Specifies the version status.
+
+            CURRENT: The version is the primary version.
+
+            SUPPORTED: The version is an earlier version, but it is still supported.
+
+            DEPRECATED: The version is a deprecated version, which may be deleted later.
+        updated:
+          type: string
+          description: "Specifies the version release time, which must be a UTC time.\
+            \ For example, the release time of v2 is 2014-06-28T12:20:21Z."
+        version:
+          type: string
+          description: "Specifies the microversion. If the API supports microversions,\
+            \ the system returns the supported minimum microversion. If no, the system\
+            \ returns an empty value."
+        links:
+          type: array
+          description: Specifies the API URL.
+          items:
+            $ref: '#/components/schemas/LinksItem'
+    LinksItem:
+      required:
+      - href
+      - rel
+      type: object
+      properties:
+        href:
+          type: string
+          description: Specifies the corresponding shortcut link.
+        rel:
+          type: string
+          description: Specifies the shortcut link marker name.
+    ListTopicsItem:
+      required:
+      - create_time
+      - display_name
+      - enterprise_project_id
+      - name
+      - push_policy
+      - topic_id
+      - topic_urn
+      - update_time
+      type: object
+      properties:
+        topic_urn:
+          type: string
+          description: "Specifies the resource identifier of the topic, which is unique."
+        name:
+          type: string
+          description: Specifies the topic name.
+        display_name:
+          type: string
+          description: "Specifies the topic display name, which is presented as the\
+            \ name of the email sender in email messages."
+        push_policy:
+          type: integer
+          description: Specifies the message push policy. 0 indicates that the message
+            sending fails and the message is cached in the queue. 1 indicates that
+            the failed message is discarded.
+        enterprise_project_id:
+          type: string
+          description: Specifies the enterprise project ID.
+        topic_id:
+          type: string
+          description: Specifies the topic ID.
+        create_time:
+          type: string
+          description: Specifies when the topic is created. The UTC time is in YYYY-MM-DDTHH:MM:SSZ
+            format.
+        update_time:
+          type: string
+          description: Specifies when the topic was updated. The UTC time is in YYYY-MM-DDTHH:MM:SSZ
+            format.
+    ListSubscriptionsItem:
+      required:
+      - endpoint
+      - owner
+      - protocol
+      - remark
+      - status
+      - subscription_urn
+      - topic_urn
+      type: object
+      properties:
+        topic_urn:
+          type: string
+          description: "Specifies the resource identifier of the topic, which is unique."
+        protocol:
+          type: string
+          description: |-
+            Specifies the subscription protocol. (Different protocols indicate different types of endpoints to receive messages.) The following protocols are supported:
+
+            default
+
+            email: The endpoints are email addresses.
+
+            sms: The endpoints are phone numbers.
+
+            functionstage: FunctionGraph (function) transmission protocol. The endpoints are functions.
+
+            http and https: The endpoints are URLs.
+        subscription_urn:
+          type: string
+          description: "Specifies the resource identifier of a subscription, which\
+            \ is unique."
+        owner:
+          type: string
+          description: Specifies the project ID of the topic creator.
+        endpoint:
+          type: string
+          description: Specifies the message receiving endpoint.
+        remark:
+          type: string
+          description: Specifies the remarks.
+        status:
+          type: integer
+          description: 0 indicates that the subscription is not confirmed. 1 indicates
+            that the subscription is confirmed. 3 indicates that the subscription
+            is canceled.
+        filter_polices:
+          type: array
+          items:
+            $ref: '#/components/schemas/SubscriptionsFilterPolicy'
+    SubscriptionExtension:
+      type: object
+      properties:
+        client_id:
+          maxLength: 64
+          minLength: 1
+          type: string
+          description: Specifies the application ID. This field is mandatory when
+            you set **protocol** to **welink**. Obtain the value from WeLink.
+          example: 202209081117015156XXXXX
+        client_secret:
+          maxLength: 64
+          minLength: 1
+          type: string
+          description: Specifies the application secret. This field is mandatory when
+            you set **protocol** to **welink**. Obtain the value from WeLink.
+          example: fa7f59b7-6e72-4734-a136-ecb582XXXXX
+        keyword:
+          maxLength: 20
+          minLength: 0
+          type: string
+          description: "Specifies the keyword. When you set **protocol** to **feishu**,\
+            \ you must set either **keyword** or **sign_secret**. When you add a keyword\
+            \ for security verification on the Lark chatbot or a custom DingTalk chatbot,\
+            \ **keyword** must be one of the keywords you entered for the Lark chatbot\
+            \ or the custom DingTalk chatbot."
+          example: XXX
+        sign_secret:
+          maxLength: 256
+          minLength: 0
+          type: string
+          description: "Specifies the key. When you set **protocol** to **feishu**,\
+            \ you must set either this parameter or **keyword**. The value of this\
+            \ parameter must be the same as that you customized for the Lark chatbot\
+            \ or the custom DingTalk chatbot. For example, if you set only **key**\
+            \ for the Lark chatbot, enter the value of **key**. If you set only **keyword**\
+            \ for the Lark chatbot, skip this field."
+          example: XXX-XXXX
+        header:
+          type: object
+          additionalProperties:
+            type: string
+          description: |-
+            This is an HTTP header field, which can be customized within the field range. The field content exists in the form of key/value pairs. When a topic is used to send messages, confirmed subscription messages carry the user-defined HTTP header.
+            Header for subscriptions over HTTP or HTTPS. The header must meet the following requirements:
+            **key** can contain letters, digits, and hyphens (-). **key** cannot end with a hyphen (-) nor contain consecutive hyphens (-).
+            You can specify up to 10 key/value pairs.
+            **key** must start with **x-**but not **x-smn**. Examples: **x-abc-cba** or **x-abc**
+            The total length of all key/value pairs cannot exceed 1,024 characters.
+            **key** is case insensitive.
+            **key** must be unique.
+            **value** must be an ASCII code. Unicode characters are not supported. Spaces are allowed.
+          example: "\"header\": { \t\t\t\t\t\"x-abc-cba\": \"Value1\", \t\t\t\t\t\"\
+            x-abc\": \"Value2\" \t\t\t\t}"
+        app_key:
+          type: string
+          description: "The **appKey** field of DingTalk can contain a maximum of\
+            \ 64 characters. Only letters, digits, hyphens (-), and underscores (_)\
+            \ are allowed. This parameter is mandatory when the protocol is set to\
+            \ **dingTalkBot**."
+        app_secret:
+          type: string
+          description: "The **appSecret** field of DingTalk can contain a maximum\
+            \ of 128 characters. Only letters, digits, hyphens (-), and underscores\
+            \ (_) are allowed. This parameter is mandatory when the protocol is set\
+            \ to **dingTalkBot**."
+        robot_code:
+          type: string
+          description: "The **robotCode** field of DingTalk can contain a maximum\
+            \ of 64 characters. Only letters, digits, hyphens (-), and underscores\
+            \ (_) are allowed. Generally, the value is the same as that of **appKey**.\
+            \ This parameter is mandatory when the protocol is set to **dingTalkBot**."
+    SubscriptionsFilterPolicy:
+      required:
+      - name
+      - string_equals
+      type: object
+      properties:
+        name:
+          maxLength: 32
+          minLength: 1
+          pattern: "^(?!smn_)(?!.*?_$)(?!^_)(?!.*?__)[a-z0-9_]{1,32}$"
+          type: string
+          description: |-
+            Specifies the filter policy name.
+            **name** can contain 1 to 32 characters, including lowercase letters, digits, and underscores (_). **name** cannot start or end with an underscore, nor contain consecutive underscores. **name** cannot start with **smn_**.
+        string_equals:
+          maxItems: 10
+          minItems: 1
+          type: array
+          description: "Specifies the string array for exact match. An array can contain\
+            \ 1 to 10 strings. The array content must be unique. The string cannot\
+            \ be **null** or an empty string \"\". A string can contain 1 to 32 characters,\
+            \ including letters, digits, and underscores (_)."
+          items:
+            maxLength: 32
+            minLength: 1
+            pattern: "^[\\u4E00-\\u9FA5A-Za-z0-9_]{1,32}$"
+            type: string
+      description: Specifies the filter policy.
+    MessageAttribute:
+      required:
+      - name
+      - type
+      - value
+      type: object
+      properties:
+        name:
+          maxLength: 32
+          minLength: 1
+          pattern: "^[a-z0-9](?!.*?_{2,})([a-z0-9_]{0,30}[a-z0-9])?$"
+          type: string
+          description: "Specifies the attribute name. **name** can contain 1 to 32\
+            \ characters, including only lowercase letters, digits, and underscores\
+            \ (_). **name** cannot start or end with an underscore, nor contain consecutive\
+            \ underscores."
+          example: smn_protocol
+        type:
+          type: string
+          description: |-
+            Specifies the attribute type. The value can be one of the following:
+            **STRING**
+            **STRING_ARRAY**
+            **PROTOCOL**
+          example: PROTOCOL
+          enum:
+          - STRING
+          - STRING_ARRAY
+          - PROTOCOL
+        value:
+          type: object
+          properties: {}
+          description: |-
+            Specifies the attribute value.
+            When you set **type** to **STRING**, **value** can contain 1 to 32 characters, including only letters, digits, and underscores (_).
+            When you set **type** to **STRING_ARRAY**, **value** is an array containing 1 to 10 strings. Each string in the array must be unique. Each string in the array must contain 1 to 32 characters, including only letters, digits, and underscores (_).
+            When you set **type** to **PROTOCOL**, **value** is a string array of supported protocol types.
+          example: "[\"email\",\"sms\"]"
+      description: Specifies the message attribute.
+    BatchAddSubscriptionsRequestBody:
+      required:
+      - endpoint
+      - protocol
+      type: object
+      properties:
+        protocol:
+          type: string
+          description: |-
+            Subscription protocol. (Different protocols indicate different types of endpoints to receive messages.)
+            The following protocols are supported:
+
+            **email**: The endpoints are email addresses.
+
+            **sms**: SMS transmission protocol. The endpoints are phone numbers.
+
+            **functionstage**: FunctionGraph(function) transmission protocol. The endpoints are functions.
+
+            **functiongraph**: FunctionGraph(workflow) transmission protocol. The endpoints are FunctionGraph workflows orchestrated by the FunctionGraph function.
+
+            **http** and **https**: The endpoints are URLs.
+
+            **callnotify**: Voice notification protocol. The endpoints are phone numbers.
+
+            **wechat**: WeCom group chatbot transmission protocol.
+
+            **dingding**: DingTalk group chatbot transmission protocol.
+
+            **feishu**: Lark group chatbot transmission protocol.
+
+            **welink**: WeLink group chatbot transmission protocol.
+          example: email
+        endpoint:
+          type: string
+          description: |-
+            Note:
+
+            If you use the HTTP protocol, start the endpoint with **http://**.
+
+            If you use the HTTPS protocol, start the endpoint with **https://**.
+
+            If you use the email protocol, enter an email address.
+
+            If you use the SMS protocol, enter a phone number.
+
+            If you use the FunctionGraph (function) protocol, enter a function.
+
+            If you use the FunctionGraph (workflow) protocol, enter a workflow.
+
+            If you use the voice notification protocol, enter a phone number.
+
+            If you use the DingTalk chatbot protocol, enter the webhook URL of a custom DingTalk group chatbot or **openConversationId** of a group to which an enterprise DingTalk chatbot is added. When you add **openConversationId**, do not start the endpoint with **http://** or **https://**.
+
+            If you use the **wechat** protocol, enter the webhook URL of a WeCom group chatbot.
+
+            If you use the**feishu** protocol, enter the webhook URL of a Lark group chatbot.
+
+            If you use the **welink** protocol, enter a WeLink group number.
+          example: xxx@example.com
+        remark:
+          type: string
+          description: Remarks. The remarks must be UTF-8-coded and can contain up
+            to 128 bytes.
+          example: O&M engineer A.
+        extension:
+          $ref: '#/components/schemas/SubscriptionExtension'
+    OpenAPIFailedResp:
+      required:
+      - code
+      - message
+      - request_id
+      type: object
+      properties:
+        request_id:
+          type: string
+          description: Unique request ID.
+          example: 6a63a18b8bab40ffb71ebd9cb80d0085
+        code:
+          type: string
+          description: Service error code.
+          example: SMN.0167
+        message:
+          type: string
+          description: Service error description.
+          example: xxxxxxxx
+        error_code:
+          type: string
+          description: Service error code.
+        error_msg:
+          type: string
+          description: Service error description.
+        encoded_authorization_message:
+          type: string
+          description: Encrypted detailed reason for rejection.
+        details:
+          $ref: '#/components/schemas/OpenAPIFailedDetails'
+    OpenAPIFailedDetails:
+      type: object
+      properties:
+        error_code:
+          type: string
+          description: Error code in the response of the dependent service called
+            by the cloud service.
+        error_msg:
+          type: string
+          description: Error message in the response of the dependent service called
+            by the cloud service.
+  parameters:
+    X-Auth-Token:
+      name: X-Auth-Token
+      in: header
+      description: |-
+        Specifies a user token.
+
+        It can be obtained by calling an IAM API. The value of X-Subject-Token in the response header is the user token.
+      required: true
+      schema:
+        type: string
+      example: MIIDkgYJKoZIhvcNAQcCoIIDgzCCXXXXXX...

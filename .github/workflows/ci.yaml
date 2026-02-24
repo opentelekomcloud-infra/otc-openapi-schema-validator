@@ -28,11 +28,49 @@ jobs:
       - name: Run Next Lint
         run: npm run lint
 
+  functional:
+    name: functional-tests
+    needs: [lint]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build app
+        run: npm run build
+
+      - name: Start app in background
+        env:
+          ENABLE_AUTH: "false"
+          PORT: "3000"
+          GITEA_BASE_URL: ${{ secrets.GITEA_BASE_URL }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
+          REPORTPORTAL_API_KEY: ${{ secrets.REPORTPORTAL_API_KEY }}
+          REPORTPORTAL_ENDPOINT: ${{ secrets.REPORTPORTAL_ENDPOINT}}
+        run: |
+          npm run start &
+          npx wait-on http://localhost:3000
+
+      - name: Run functional tests
+        env:
+          ENABLE_AUTH: "false"
+          RUN_EXPORT: "false"
+          BASE_URL: "http://localhost:3000"
+        run: npm run test:functional
+
   check:
     name: check
     if: >
       always()
-    needs: [lint]
+    needs: [lint, functional]
     runs-on: ubuntu-latest
     steps:
       - name: Decide whether the needed jobs succeeded or failed

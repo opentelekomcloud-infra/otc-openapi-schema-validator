@@ -1,0 +1,2731 @@
+openapi: "3.0.1"
+info:
+  description: "Direct Connect provides management and orchestration for dedicated connections from on-premises data centers to the cloud."
+  version: "v3"
+  title: DC testing
+  termsOfService: ""
+servers:
+  - url: "/"
+tags:
+  - name: "DirectConnect"
+    description: "Connection management"
+    x-name: "Connections"
+  - name: "VirtualGateway"
+    description: "Virtual gateway management"
+    x-name: "Virtual Gateways"
+  - name: "VirtualInterface"
+    description: |-
+      Virtual interface management. To support IPv6 or dual stack, you need to configure virtual interface peers.
+      
+      Virtual interface peer-related APIs are supported in some regions. If an exception occurs during API calling, contact customer service.
+      
+      If old Direct Connect resources are used, IPv6 may not be supported. In this case, contact customer service to migrate the ports of the Direct Connect resources.
+    x-name: "Virtual Interfaces"
+  - name: "TagManage"
+    description: "Resource tag management"
+    x-name: "Tag management"
+  - name: "QuotaManager"
+    description: "API for querying quotas"
+    x-name: "Quota Management"
+paths:
+  /v3/{project_id}/dcaas/direct-connects/{direct_connect_id}:
+    get:
+      tags:
+        - "DirectConnect"
+      summary: "Querying Details About a Connection"
+      description: "This API is used to query details about a connection."
+      operationId: "ShowDirectConnect"
+      parameters:
+        - $ref: "#/components/parameters/DirectConnectId"
+        - $ref: "#/components/parameters/AuthToken"
+        - $ref: "#/components/parameters/ProjectId"
+        - $ref: "#/components/parameters/Fields"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowDirectConnectResponseBody"
+          x-response-examples-description-1: "The details of the connection are queried."
+          x-response-examples-tags-1: "dt"
+          x-response-examples-1:
+            application/json:
+              direct_connect:
+                bandwidth: 100
+                create_time: "2018-10-19T07:08:11.000Z"
+                port_type: "10G"
+                id: "6ecd9cf3-ca64-46c7-863f-f2eb1b9e838a"
+                apply_time: "2018-10-19T07:08:11.000Z"
+                peer_location: ""
+                peer_port_type: null
+                peer_provider: null
+                location: "Biere"
+                provider: "OTC"
+                type: "standard"
+                status: "BUILD"
+                description: ""
+                provider_status: "ACTIVE"
+                order_id: ""
+                vlan: null
+                device_id: "172.16.40.2"
+                name: "direct connect1"
+                admin_state_up: true
+                tenant_id: "6fbe9263116a4b68818cf1edce16bc4f"
+                hosting_id: null
+                product_id: ""
+                vgw_type: "default"
+                spec_code: "100ge"
+                charge_mode: null
+                support_feature: []
+                ies_id: null
+                reason: null
+                email: "cloud@example.com"
+                onestop_product_id: null
+                building_line_product_id: null
+                last_building_line_product_id: null
+                last_onestop_product_id: null
+                modified_bandwidth: null
+                change_mode: null
+                onestopdc_status: null
+                public_border_group: "center"
+                auto_renew: 0
+                ratio_95peak: null
+      x-request-examples-url-1: "GET https://{dc_endpoint}/v3/6fbe9263116a4b68818cf1edce16bc4f/dcaas/direct-connects/6ecd9cf3-ca64-46c7-863f-f2eb1b9e838a"
+      x-request-examples-description-1: "Querying details about a connection"
+      x-is-registered: "Y"
+      x-support-sdk: "Y"
+      x-apiexplorer-hide: "false"
+    put:
+      tags:
+        - "DirectConnect"
+      summary: "Updating a Connection"
+      description: "This API is used to update a connection, including updating its name and description."
+      operationId: "UpdateDirectConnect"
+      parameters:
+        - $ref: "#/components/parameters/DirectConnectId"
+        - $ref: "#/components/parameters/AuthToken"
+        - $ref: "#/components/parameters/ProjectId"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateDirectConnectRequestBody"
+            example:
+              direct_connect:
+                description: ""
+                name: "direct connect1"
+      responses:
+        "200":
+          description: "OK"
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ShowDirectConnectResponseBody"
+          x-response-examples-description-1: "The connection is updated."
+          x-response-examples-tags-1: "dt"
+          x-response-examples-1:
+            application/json:
+              request_id: "9a4f4dfc4fb2fc101e65bba07d908535"
+              direct_connect:
+                bandwidth: 100
+                create_time: "2018-10-19T07:08:11.000Z"
+                port_type: "10G"
+                id: "6ecd9cf3-ca64-46c7-863f-f2eb1b9e838a"
+                apply_time: "2018-10-19T07:08:11.000Z"
+                peer_location: ""
+                peer_port_type: null
+                peer_provider: null
+                location: "Biere"
+                provider: "OTC"
+                type: "standard"
+                status: "BUILD"
+                description: ""
+                provider_status: "ACTIVE"
+                order_id: ""
+                vlan: null
+                device_id: "172.16.40.2"
+                name: "direct connect1"
+                admin_state_up: true
+                tenant_id: "6fbe9263116a4b68818cf1edce16bc4f"
+                hosting_id: null
+                product_id: ""
+                vgw_type: "default"
+                spec_code: "100ge"
+                charge_mode: null
+                support_feature: []
+                ies_id: null
+                reason: null
+                email: "cloud@example.com"
+                onestop_product_id: null
+                building_line_product_id: null
+                last_building_line_product_id: null
+                last_onestop_product_id: null
+                modified_bandwidth: null
+                change_mode: null
+                onestopdc_status: null
+                public_border_group: "center"
+                auto_renew: 0
+                ratio_95peak: null
+      x-request-examples-url-1: "PUT https://{dc_endpoint}/v3/6fbe9263116a4b68818cf1edce16bc4f/dcaas/direct-connects/6ecd9cf3-ca64-46c7-863f-f2eb1b9e838a"
+      x-request-examples-description-1: "Updating the name and description of a connection"
+      x-request-examples-1:
+        direct_connect:
+          description: ""
+          name: "direct connect1"
+      x-is-registered: "Y"
+      x-support-sdk: "Y"
+      x-apiexplorer-hide: "false"
+    delete:
+      tags:
+        - "DirectConnect"
+      summary: "Deleting a Connection"
+      description: "This API is used to delete pay-per-use connections only. You can only unsubscribe them yearly/monthly connections."
+      operationId: "DeleteDirectConnect"
+      parameters:
+        - $ref: "#/components/parameters/DirectConnectId"
+        - $ref: "#/components/parameters/AuthToken"
+        - $ref: "#/components/parameters/ProjectId"
+      responses:
+        "204":
+          description: "No Content"
+      x-request-examples-url-1: "DELETE https://{dc_endpoint}/v3/6fbe9263116a4b68818cf1edce16bc4f/dcaas/direct-connects/6ecd9cf3-ca64-46c7-863f-f2eb1b9e838a"
+      x-request-examples-description-1: "Deleting a connection"
+      x-is-registered: "Y"
+      x-support-sdk: "Y"
+      x-apiexplorer-hide: "false"
+components:
+  parameters:
+    AuthToken:
+      name: "X-Auth-Token"
+      in: "header"
+      description: >-
+        Specifies the user token. To obtain the token, see section "Obtaining the User Token" in the *Identity and Access Management API Reference*. The token is the value of **X-Subject-Token** in the response header.
+      required: true
+      schema:
+        type: "string"
+        maxLength: 10240
+        minLength: 0
+    ProjectId:
+      name: "project_id"
+      in: "path"
+      description: "Specifies the project ID."
+      required: true
+      schema:
+        type: "string"
+        pattern: "[a-fA-F0-9]{32}"
+        maxLength: 36
+        minLength: 0
+    DomainId:
+      name: "domain_id"
+      in: "path"
+      description: "domain_id"
+      required: true
+      schema:
+        pattern: "[a-zA-Z0-9-]{1,64}"
+        type: "string"
+        description: ""
+        maxLength: 36
+        minLength: 0
+    RegionId:
+      name: "region_id"
+      in: "path"
+      description: "region_id"
+      required: true
+      schema:
+        type: "string"
+        description: ""
+        maxLength: 36
+        minLength: 0
+    Limit:
+      name: "limit"
+      in: "query"
+      description: |-
+        Specifies the number of records returned on each page.
+        Value range: 1 to 2000
+      schema:
+        maximum: 2000
+        minimum: 1
+        type: "integer"
+        format: "int32"
+        default: 2000
+      example: 10
+    Offset:
+      name: "offset"
+      in: "query"
+      description: "Specifies the pagination offset."
+      required: false
+      schema:
+        maximum: 1000
+        minimum: 1
+        type: "integer"
+        format: "int32"
+        example: 10
+    Marker:
+      name: "marker"
+      in: "query"
+      description: |-
+        Specifies the ID of the last resource record on the previous page. If this parameter is left blank, the first page is queried.
+        This parameter must be used together with **limit**.
+      schema:
+        type: "string"
+        maxLength: 36
+        minLength: 0
+      example: "7f7f738f-453c-40b1-be26-28e7b9e390c1"
+    PageReverse:
+      name: "page_reverse"
+      in: "query"
+      description: "Specifies the pagination parameter."
+      required: false
+      schema:
+        type: "boolean"
+    Fields:
+      name: "fields"
+      in: "query"
+      description: "Specifies the list of fields to be displayed."
+      required: false
+      schema:
+        type: "array"
+        items:
+          type: "string"
+          maxLength: 100
+          minLength: 0
+        minItems: 1
+        maxItems: 5
+    ExtFields:
+      name: "ext_fields"
+      in: "query"
+      description: "show response ext-fields"
+      schema:
+        type: "array"
+        items:
+          type: "string"
+        minItems: 0
+        maxItems: 5
+    SortKey:
+      name: "sort_key"
+      in: "query"
+      description: "Specifies the sorting field."
+      schema:
+        type: "string"
+        default: "id"
+        maxLength: 36
+        minLength: 0
+      example:
+        - "id"
+      required: false
+    SortDir:
+      name: "sort_dir"
+      in: "query"
+      description: "Specifies the sorting order of returned results. There are two options: **asc** (default) and **desc**."
+      schema:
+        type: "array"
+        items:
+          type: "string"
+          enum:
+            - "asc"
+            - "desc"
+      required: false
+    HostingId:
+      name: "hosting_id"
+      in: "query"
+      description: "Specifies operations connection ID for querying hosted connections."
+      style: "form"
+      explode: true
+      schema:
+        type: "array"
+        items:
+          type: "string"
+        minItems: 0
+        maxItems: 5
+    QueryById:
+      name: "id"
+      in: "query"
+      description: "Specifies the resource ID for querying instances."
+      style: "form"
+      explode: true
+      schema:
+        type: "array"
+        items:
+          type: "string"
+        minItems: 1
+        maxItems: 5
+    QueryByName:
+      name: "name"
+      in: "query"
+      description: "Specifies the resource name for querying instances. You can specify multiple names."
+      style: "form"
+      explode: false
+      schema:
+        type: "array"
+        items:
+          type: "string"
+          maxLength: 64
+          minLength: 1
+          pattern: "^[\\u4e00-\\u9fa50-9a-zA-Z_.\\-]+$"
+        maxItems: 5
+        minItems: 1
+      example:
+        - "resourceA"
+    QueryByState:
+      name: "status"
+      in: "query"
+      description: "Specifies the status by which instances are filtered."
+      style: "form"
+      explode: true
+      schema:
+        type: "array"
+        items:
+          type: "string"
+        minItems: 1
+        maxItems: 5
+    QueryByResourceId:
+      name: "resource_id"
+      in: "query"
+      description: "Specifies the resource ID used for querying switchover test records."
+      style: "form"
+      explode: true
+      schema:
+        type: "array"
+        description: "Specifies the resource ID."
+        items:
+          type: "string"
+    EnterpriseProjectIds:
+      name: "enterprise_project_id"
+      in: "query"
+      description: "Specifies the enterprise project ID for querying instances."
+      style: "form"
+      explode: false
+      schema:
+        type: "array"
+        items:
+          type: "string"
+          pattern: >-
+            0|[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          maxLength: 36
+          minLength: 0
+        minItems: 1
+        maxItems: 10
+    DirectConnectId:
+      name: "direct_connect_id"
+      in: "path"
+      description: "Specifies the connection ID."
+      required: true
+      schema:
+        type: "string"
+        pattern: >-
+          [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+        maxLength: 36
+        minLength: 36
+    HostedConnectId:
+      name: "hosted_connect_id"
+      in: "path"
+      description: "Specifies the hosted connection ID."
+      required: true
+      schema:
+        type: "string"
+        maxLength: 36
+        minLength: 36
+        pattern: >-
+          [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+      example: "a3bad420-33b8-4e26-9e9b-bdf67aa8e72b"
+    VirtualInterfaceId:
+      name: "virtual_interface_id"
+      in: "path"
+      description: "Specifies the virtual interface ID."
+      required: true
+      schema:
+        type: "string"
+        description: "Specifies the virtual interface ID."
+        pattern: >-
+          0|[a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+        maxLength: 36
+        minLength: 0
+    TagsResourceType:
+      name: "resource_type"
+      in: "path"
+      required: true
+      description: |-
+        Specifies the Direct Connect resource type.
+
+        - **dc-directconnect**: connection
+        - **dc-vgw**: virtual gateway
+        - **dc-vif**: virtual interface
+      schema:
+        type: "string"
+        enum:
+          - "dc-directconnect"
+          - "dc-vgw"
+          - "dc-vif"
+    TagsResourceId:
+      name: "resource_id"
+      in: "path"
+      required: true
+      description: "Specifies the resource ID."
+      schema:
+        type: "string"
+        pattern: "[0-9a-fA-F]{8}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{4}\\-[0-9a-fA-F]{12}"
+    Key:
+      name: "key"
+      in: "path"
+      description: "Specifies the tag key."
+      required: true
+      schema:
+        type: "string"
+  schemas:
+    TenantIdDef:
+      type: "string"
+      description: "Specifies the ID of the project that the instance belongs to."
+      maxLength: 32
+      minLength: 32
+      pattern: "[a-fA-F0-9]{32}"
+      example: "32f7402e18154ce5861c9989df956394"
+      x-ifnull: "hide"
+    CreateHostedDirectConnectRequestBody:
+      type: "object"
+      required:
+        - "hosted_connect"
+      properties:
+        hosted_connect:
+          $ref: "#/components/schemas/CreateHostedDirectConnect"
+      description: "Specifies the request body for creating a hosted connection."
+    CreateHostedDirectConnect:
+      required:
+        - "bandwidth"
+        - "hosting_id"
+        - "vlan"
+        - "resource_tenant_id"
+      description: "Specifies the parameters for creating a hosted connection."
+      properties:
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the hosted connection name."
+          example: "Host-connect-001"
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the hosted connection."
+          example: "connect to idc"
+        bandwidth:
+          maximum: 400000
+          minimum: 2
+          type: "integer"
+          description: "Specifies the bandwidth size of the hosted connection in Mbit/s."
+          format: "int32"
+          example: 500
+        hosting_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the operations connection on which the hosted connection is created."
+          example: "4673e339-8412-4ee1-b73e-2ba9cdfa54c1"
+        vlan:
+          maximum: 3999
+          minimum: 0
+          type: "integer"
+          description: "Specifies the VLAN that will be allocated to the hosted connection."
+          format: "int32"
+          example: 2031
+        resource_tenant_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          maxLength: 32
+          minLength: 0
+          description: "Specifies the project ID of the specified tenant for whom a hosted connection is to be created."
+          example: "0605768a3300d5762f82c01180692873"
+        peer_location:
+          maxLength: 255
+          minLength: 0
+          type: "string"
+          description: "Specifies the location of the on-premises facility at the other end of the connection, specific to the street or data center name."
+          example: "**Haidian District, Beijing**"
+      type: "object"
+    UpdateHostedDirectConnectRequestBody:
+      type: "object"
+      properties:
+        hosted_connect:
+          $ref: "#/components/schemas/UpdateHostedDirectConnect"
+      description: "Specifies parameters required for updating a hosted connection."
+    UpdateHostedDirectConnect:
+      description: "Specifies parameters required for updating a hosted connection."
+      properties:
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the connection name."
+          example: "DirectConnect-001"
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the connection."
+          example: "Direct connect to IDC"
+        bandwidth:
+          maximum: 400000
+          minimum: 2
+          type: "integer"
+          description: "Specifies the bandwidth size of the hosted connection in Mbit/s."
+          format: "int32"
+        peer_location:
+          maxLength: 255
+          minLength: 0
+          type: "string"
+          description: "Specifies the location of the on-premises facility at the other end of the connection, specific to the street or data center name."
+          example: "**Haidian District, Beijing**"
+    UpdateDirectConnectRequestBody:
+      type: "object"
+      properties:
+        direct_connect:
+          $ref: "#/components/schemas/UpdateDirectConnect"
+      description: "Specifies parameters required for updating a connection."
+    UpdateDirectConnect:
+      type: "object"
+      description: "Specifies parameters required for updating a connection."
+      properties:
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          example: "bj_to_hebei"
+          description: "Specifies the connection name."
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          example: "**A connection from Beijing to Hebei**"
+          description: "Provides supplementary information about the connection."
+        bandwidth:
+          maximum: 100000
+          minimum: 2
+          type: "integer"
+          description: "Specifies the bandwidth size of the hosted connection in Mbit/s. [The bandwidth of a standard or operations connection cannot be reduced.](tag:dt)"
+          format: "int32"
+          example: "10000"
+        peer_location:
+          maxLength: 255
+          minLength: 0
+          type: "string"
+          description: "Specifies the location of the on-premises facility at the other end of the connection, specific to the street or data center name."
+        status:
+          type: "string"
+          description: "Specifies the resource status, which can be **PENDING_PAY** or **APPLY**."
+          enum:
+            - "PENDING_PAY"
+            - "APPLY"
+        provider_status:
+          type: "string"
+          description: "Specifies the carrier status, which can be **ACTIVE** or **DOWN**."
+          enum:
+            - "ACTIVE"
+            - "DOWN"
+    ShowDirectConnectResponseBody:
+      required:
+        - "direct_connect"
+        - "request_id"
+      type: "object"
+      properties:
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+          example: "183717507e98ad335d5d93bac47f66a1"
+        direct_connect:
+          $ref: "#/components/schemas/DirectConnect"
+      description: ""
+    ListDirectConnectsResponseBody:
+      required:
+        - "direct_connects"
+        - "page_info"
+        - "request_id"
+      type: "object"
+      properties:
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+          example: "183717507e98ad335d5d93bac47f66a1"
+        direct_connects:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/DirectConnect"
+          description: "Specifies parameters for creating a connection."
+        page_info:
+          $ref: "#/components/schemas/PageInfo"
+    DirectConnect:
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          description: "Specifies the connection ID."
+          example: "4673e339-8412-4ee1-b73e-2ba9cdfa54c1"
+        tenant_id:
+          $ref: "#/components/schemas/TenantIdDef"
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the connection name."
+          example: "client-dc-80bd"
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the connection."
+          example: "direct to ExampleLocation"
+        port_type:
+          type: "string"
+          description: "Specifies the type of the port used by the connection. The value can be **1G**, **10G**, **40G**, or **100G**."
+          enum:
+            - "1G"
+            - "10G"
+            - "40G"
+            - "100G"
+          example: "10G"
+        bandwidth:
+          maximum: 100000
+          minimum: 2
+          type: "integer"
+          description: "Specifies the connection bandwidth in Mbit/s."
+          format: "int32"
+          example: 1000
+        location:
+          maxLength: 255
+          minLength: 0
+          type: "string"
+          description: "Specifies information about the Direct Connect location."
+          example: "BJ-ZJ"
+        peer_location:
+          maxLength: 255
+          minLength: 0
+          type: "string"
+          description: "Specifies the location of the on-premises facility at the other end of the connection, specific to the street or data center name."
+          example: "**Beitaipingzhuang, Haidian District, Beijing**"
+        device_id:
+          type: "string"
+          description: "Specifies the ID of the device connected to the connection."
+          example: "10.200.1.20"
+          minLength: 0
+          maxLength: 36
+        type:
+          type: "string"
+          description: "Specifies the type of a connection.\n\n- **standard**: a standard connection\n- **hosting**: an operations connection\n- **hosted**: a hosted connection"
+          default: "standard"
+          enum:
+            - "standard"
+            - "hosting"
+            - "hosted"
+          example: "hosted"
+        hosting_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the operations connection on which the hosted connection is created."
+          example: "41a30e95-3589-4cf9-b489-270b95ad64b3"
+        charge_mode:
+          type: "string"
+          description: "Specifies the billing mode, which can be **prepayment**, **bandwidth**, or **traffic**."
+          enum:
+            - "prepayment"
+            - "bandwidth"
+            - "traffic"
+          example: "bandwidth"
+        provider:
+          type: "string"
+          description: |-
+            Specifies the line carrier of a connection.
+          example: "china telecom"
+        admin_state_up:
+          type: "boolean"
+          description: "Specifies the administrative status, which can be **true** or **false**."
+          default: true
+        vlan:
+          maximum: 3999
+          minimum: 0
+          type: "integer"
+          description: "Specifies the VLAN allocated to the hosted connection."
+          format: "int32"
+        status:
+          type: "string"
+          description: |-
+            Specifies the resource status. The options are as follows:
+
+            - **ACTIVE**: The connection is in the normal state.
+            - **DOWN**: The port for the connection is in the down state, which may cause line faults.
+            - **BUILD**: Operations related to the connection are being performed.
+            - **ERROR**: The connection configuration is incorrect. Contact customer service to rectify the fault.
+            - **PENDING_DELETE**: The connection is being deleted.
+            - **DELETED**: The connection has been deleted.
+            - **APPLY**: A request for a connection is submitted.
+            - **DENY**: A site survey is rejected because customer requirements cannot be met.
+            - **PENDING_PAY**: The order for the connection is to be paid.
+            - **PAID**: The order for the connection has been paid.
+            - **PENDING_SURVEY**: A site survey is required for the connection.
+            - **LEASED_LINE_DELIVERY**: The carrier is delivering the leased line.
+          enum:
+            - "BUILD"
+            - "PAID"
+            - "APPLY"
+            - "PENDING_SURVEY"
+            - "ACTIVE"
+            - "DOWN"
+            - "ERROR"
+            - "PENDING_DELETE"
+            - "DELETED"
+            - "DENY"
+            - "PENDING_PAY"
+            - "LEASED_LINE_DELIVERY"
+        apply_time:
+          type: "string"
+          description: "Specifies when the connection was requested. The UTC time format is *yyyy-MM-ddTHH:mm:ss.SSSZ*."
+          format: "date-time"
+          readOnly: true
+          x-ifnull: "hide"
+          example: "2022-04-22T06:36:06.000Z"
+        create_time:
+          type: "string"
+          description: "Specifies when the connection was created. The UTC time format is *yyyy-MM-ddTHH:mm:ss.SSSZ*."
+          format: "date-time"
+          readOnly: true
+          x-ifnull: "hide"
+          example: "2022-04-22T06:36:06.000Z"
+        provider_status:
+          type: "string"
+          description: "Specifies the status of the carrier's leased line. The status can be **ACTIVE** or **DOWN**."
+          enum:
+            - "ACTIVE"
+            - "DOWN"
+          example: "ACTIVE"
+        peer_port_type:
+          type: "string"
+          description: "Specifies the peer port type."
+        peer_provider:
+          type: "string"
+          description: "Specifies the carrier connected to the connection."
+        order_id:
+          type: "string"
+          description: "Specifies the connection order ID, which is used to support duration-based billing and identify user orders."
+        product_id:
+          type: "string"
+          description: "Specifies the product ID corresponding to the connection's order, which is used to custom billing policies such as duration-based packages."
+        spec_code:
+          type: "string"
+          description: "Specifies the product specifications corresponding to the connection's order, which is used to custom billing policies such as duration-based packages."
+        period_type:
+          type: "integer"
+          description: "Specifies whether a connection in a specified order is billed by year or month."
+          format: "int32"
+        period_num:
+          type: "integer"
+          description: "Specifies the required service duration of a yearly/monthly connection."
+          format: "int32"
+        vgw_type:
+          type: "string"
+          description: "Specifies the gateway type required by a direct connection."
+          default: "default"
+          enum:
+            - "default"
+          deprecated: true
+        lag_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the LAG that the connection belongs to."
+        signed_agreement_status:
+          type: "string"
+          description: "Specifies the signing status of the Direct Connect Disclaimers."
+          enum:
+            - "signed"
+        signed_agreement_time:
+          type: "string"
+          description: "Specifies when the line agreement was signed. The UTC time format is yyyy-MM-ddTHH:mm:ss.SSSZ."
+          format: "date-time"
+          example: "2022-04-22T06:36:06.000Z"
+        enterprise_project_id:
+          type: "string"
+          maxLength: 36
+          minLength: 36
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          example: "a3bad420-33b8-4e26-9e9b-bdf67aa8e72b"
+          x-ifnull: "hide"
+          description: "Specifies the ID of the enterprise project that the connection belongs to."
+        tags:
+          type: "array"
+          description: "Specifies the tags."
+          items:
+            $ref: "#/components/schemas/Tag"
+          minItems: 0
+          maxItems: 10
+        locales:
+          $ref: "#/components/schemas/LocalesBody"
+        support_feature:
+          type: "array"
+          description: "Lists the features supported by the connection. [(This parameter is not supported currently.)](tag:dt)"
+          items:
+            type: "string"
+        ies_id:
+          type: "string"
+          description: "Specifies the ID of a CloudPond site. [(This parameter is not supported currently.)](tag:dt)"
+        reason:
+          type: "string"
+          description: "Displays error information if the status of a line is **Error**. [(This parameter is not supported currently.)](tag:dt)"
+        email:
+          type: "string"
+          description: "Specifies the customer email information. [(This parameter is not supported currently.)](tag:dt)"
+          pattern: >-
+            ^[\u4e00-\u9fa50-9a-zA-Z\_\-\.]+@[\u4e00-\u9fa50-9a-zA-Z\_\-\.]+\.[\u4e00-\u9fa50-9a-zA-Z\_\-\.]+$
+          example: "cloud@example.com"
+        onestop_product_id:
+          type: "string"
+          description: "Specifies the product ID of a full-service connection. This parameter is used in line sales scenarios. [(This parameter is not supported currently.)](tag:dt)"
+        building_line_product_id:
+          type: "string"
+          description: "Specifies the product ID of the line resource used in the equipment room. This parameter is used in line sales scenarios. [(This parameter is not supported currently.)](tag:dt)"
+        last_onestop_product_id:
+          type: "string"
+          description: "Specifies the product ID of a full-service connection before the change. This parameter is used in line sales scenarios and used to save the last record when the line bandwidth is changed. [(This parameter is not supported currently.)](tag:dt)"
+        last_building_line_product_id:
+          type: "string"
+          description: "Specifies the product ID of the line resource used in the equipment room before the change. This parameter is used in line sales scenarios and used to save the last record when the line bandwidth is changed. [(This parameter is not supported currently.)](tag:dt)"
+        modified_bandwidth:
+          type: "integer"
+          description: "Specifies the new bandwidth after the line bandwidth is changed. [(This parameter is not supported currently.)](tag:dt)"
+          format: "int32"
+        change_mode:
+          type: "integer"
+          description: "Specifies the status of a renewal change. [(This parameter is not supported currently.)](tag:dt)"
+          format: "int32"
+        onestopdc_status:
+          type: "string"
+          description: "Specifies the status of a full-service connection. [(This parameter is not supported currently.)](tag:dt)"
+        public_border_group:
+          type: "string"
+          description: "Specifies the public border group of the AZ, indicating whether the site is a HomeZones site. [(This parameter is not supported currently.)](tag:dt)"
+        auto_renew:
+          type: "integer"
+          description: "Specifies whether to automatically renew a yearly/monthly subscription. [(This parameter is not supported currently.)](tag:dt)"
+        ratio_95peak:
+          type: "integer"
+          description: "Specifies the percentage of the minimum bandwidth for 95th percentile billing. [(This parameter is not supported currently.)](tag:dt)"
+          maximum: 100
+          minimum: 0
+      description: "Specifies parameters for creating a connection."
+    LocalesBody:
+      type: "object"
+      properties:
+        en_us:
+          type: "string"
+          description: "Specifies the region name in English."
+          example: "hangzhou-Odin"
+          pattern: "^[^<>]*$"
+          maxLength: 255
+          minLength: 0
+        zh_cn:
+          type: "string"
+          description: "Specifies the region name in Chinese."
+          example: "Hangzhou Odin"
+          pattern: "^[^<>]*$"
+          maxLength: 255
+          minLength: 0
+      description: "Specifies the locale."
+    ShowHostedDirectConnectResponseBody:
+      required:
+        - "direct_connect"
+        - "request_id"
+      type: "object"
+      properties:
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+        hosted_connect:
+          $ref: "#/components/schemas/HostedDirectConnect"
+      description: ""
+    ListHostedDirectConnectsResponseBody:
+      required:
+        - "direct_connects"
+        - "page_info"
+        - "request_id"
+      type: "object"
+      properties:
+        request_id:
+          type: "string"
+          description: "Specifies the request ID of the current operation."
+        hosted_connects:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/HostedDirectConnect"
+        page_info:
+          $ref: "#/components/schemas/PageInfo"
+    HostedDirectConnect:
+      description: "Specifies the parameters for creating a hosted connection."
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          description: "Specifies the hosted connection ID."
+          minLength: 36
+          maxLength: 36
+          example: "0d0fdf63-f2c4-491c-8866-d504796189be"
+        tenant_id:
+          $ref: "#/components/schemas/TenantIdDef"
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the name of the hosted connection."
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the hosted connection."
+        bandwidth:
+          maximum: 400000
+          minimum: 2
+          type: "integer"
+          description: "Specifies the bandwidth of the hosted connection, in Mbit/s."
+          format: "int32"
+        location:
+          maxLength: 255
+          minLength: 0
+          type: "string"
+          description: "Specifies information about the Direct Connect location."
+        peer_location:
+          maxLength: 255
+          minLength: 0
+          type: "string"
+          description: "Specifies the location of the on-premises facility at the other end of the hosted connection, specific to the street or data center name in a city."
+        hosting_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the operations connection on which the hosted connection is created."
+        provider:
+          type: "string"
+          description: "Specifies the provider of the leased line."
+        admin_state_up:
+          type: "boolean"
+          description: "Specifies the administrative status, which can be **true** or **false**."
+          default: true
+        vlan:
+          maximum: 3999
+          minimum: 0
+          type: "integer"
+          description: "Specifies the VLAN that will be allocated to the hosted connection."
+          format: "int32"
+        status:
+          type: "string"
+          description: |-
+            Specifies the status of the hosted connection.
+
+            - **BUILD**: The hosted connection has been enabled.
+            - **ACTIVE**: The hosted connection is normal.
+            - **DOWN**: The port of the operations connection on which the hosted connection is created goes down. There may be a line fault.
+            - **ERROR**: The hosted connection is abnormal.
+            - **PENDING_DELETE**: The hosted connection is being deleted.
+            - **PENDING_UPDATE**: The hosted connection is being updated.
+            - **PENDING_CREATE**: The hosted connection is being created.
+          enum:
+            - "BUILD"
+            - "ACTIVE"
+            - "DOWN"
+            - "ERROR"
+            - "PENDING_DELETE"
+            - "PENDING_UPDATE"
+            - "PENDING_CREATE"
+        apply_time:
+          type: "string"
+          description: "Specifies when the hosted connection was requested. The UTC time format is yyyy-MM-ddTHH:mm:ss.SSSZ."
+          format: "date-time"
+          example: "2022-04-22T06:36:06.000Z"
+        create_time:
+          type: "string"
+          description: "Specifies when the hosted connection was created. The UTC time format is yyyy-MM-ddTHH:mm:ss.SSSZ."
+          format: "date-time"
+          example: "2022-04-22T06:36:06.000Z"
+        provider_status:
+          type: "string"
+          description: "Specifies the carrier status of the hosted connection. The value can be **ACTIVE** or **DOWN**."
+          enum:
+            - "ACTIVE"
+            - "DOWN"
+        port_type:
+          type: "string"
+          description: "Specifies the type of the port used by the hosted connection. The value can be **1G**, **10G**, **40G**, or **100G**."
+          enum:
+            - "1G"
+            - "10G"
+            - "40G"
+            - "100G"
+          example: "10G"
+        type:
+          type: "string"
+          description: "Specifies the type of the connection. The value can be **standard** (a standard connection), **hosting** (an operations connection) or **hosted** (a hosted connection)."
+          default: "standard"
+          enum:
+            - "standard"
+            - "hosting"
+            - "hosted"
+          example: "hosted"
+    ShowVirtualGatewayResponseBody:
+      required:
+        - "virtual_gateway"
+        - "request_id"
+      type: "object"
+      properties:
+        virtual_gateway:
+          $ref: "#/components/schemas/VirtualGateway"
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+      description: ""
+    UpdateVirtualGatewayRequestBody:
+      type: "object"
+      properties:
+        virtual_gateway:
+          $ref: "#/components/schemas/UpdateVirtualGateway"
+    UpdateVirtualGateway:
+      description: "Specifies the virtual gateway to be updated."
+      type: "object"
+      properties:
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the virtual gateway name."
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the virtual gateway."
+        local_ep_group:
+          type: "array"
+          description: "Lists the IPv4 subnets that can be accessed over the virtual gateway. Generally, the list contains the subnet CIDR blocks of the associated VPC. [The list can be updated only when the virtual gateway is associated with the VPC.](tag:dt)"
+          items:
+            type: "string"
+          minItems: 1
+          maxItems: 200
+        local_ep_group_ipv6:
+          type: "array"
+          description: "Lists the IPv6 subnets that can be accessed using the virtual gateway. Usually, the subnets are those in the VPC associated with the virtual gateway. [(This is a reserved parameter and is not supported currently.)](tag:dt)"
+          items:
+            type: "string"
+          minItems: 1
+          maxItems: 50
+    ListVirtualGatewaysResponseBody:
+      required:
+        - "request_id"
+        - "virtual_gateways"
+      type: "object"
+      properties:
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+        virtual_gateways:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/VirtualGateway"
+          description: "Specifies parameters for creating a virtual gateway."
+        page_info:
+          $ref: "#/components/schemas/PageInfo"
+    CreateVirtualGatewayRequestBody:
+      type: "object"
+      properties:
+        virtual_gateway:
+          $ref: "#/components/schemas/CreateVirtualGateway"
+    CreateVirtualGateway:
+      description: "Specifies parameters for creating a virtual gateway."
+      required:
+        - "vpc_id"
+        - "local_ep_group"
+      type: "object"
+      properties:
+        vpc_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the VPC that the virtual gateway is associated with. [This parameter is mandatory when a virtual gateway is used by a connection for accessing a VPC.](tag:dt)"
+          example: "d920d76d-a0b7-4453-a39e-22ff55475348"
+        enterprise_router_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the enterprise router that the virtual gateway is attached to. This parameter is mandatory when a virtual gateway is attached to an enterprise router."
+          example: "61fa53c9-4446-4ebd-89b9-11a52b653a9c"
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the virtual gateway name."
+          example: "vgw-001"
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the virtual gateway."
+        local_ep_group:
+          type: "array"
+          description: "Lists the IPv4 subnets that can be accessed over the virtual gateway. Generally, the list contains the subnet CIDR blocks of the associated VPC. [This parameter is mandatory when a virtual gateway is used by a connection for accessing a VPC.](tag:dt)"
+          items:
+            type: "string"
+          example: "[192.168.20.0/24]"
+        local_ep_group_ipv6:
+          type: "array"
+          description: "Specifies the IPv6 subnets connected by the virtual gateway, which is usually the CIDR blocks of a VPC. This is a reserved field."
+          items:
+            type: "string"
+          example: "[200:1/64]"
+        bgp_asn:
+          description: "Specifies the local BGP ASN of the virtual gateway."
+          type: "integer"
+          format: "int32"
+          maximum: 4294967295
+          minimum: 1
+          example: 65000
+        enterprise_project_id:
+          type: "string"
+          maxLength: 36
+          minLength: 36
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          example: "a3bad420-33b8-4e26-9e9b-bdf67aa8e72b"
+          x-ifnull: "hide"
+          description: "Specifies the ID of the enterprise project that the virtual gateway belongs to."
+        tags:
+          type: "array"
+          description: "Specifies the tags."
+          items:
+            $ref: "#/components/schemas/Tag"
+          minItems: 0
+    VirtualGateway:
+      description: "Specifies parameters for creating a virtual gateway."
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          description: "Specifies the virtual gateway ID."
+        vpc_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the VPC connected by the virtual gateway."
+          example: "2987769e-5e71-4e23-b69f-6fa1af39dc00"
+        enterprise_router_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the enterprise router that the virtual gateway is attached to."
+          example: "61fa53c9-4446-4ebd-89b9-11a52b653a9c"
+        tenant_id:
+          type: "string"
+          description: "Specifies the ID of the project that the instance belongs to."
+          maxLength: 32
+          minLength: 32
+          pattern: "[a-fA-F0-9]{32}"
+          example: "32f7402e18154ce5861c9989df956394"
+          x-ifnull: "hide"
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the virtual gateway name."
+          example: "vgw-192"
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the virtual gateway."
+          example: "My virtualGateway for prod"
+        type:
+          type: "string"
+          description: "Specifies the virtual gateway type. The value can only be **default**."
+          default: "default"
+          example: "default"
+        local_ep_group:
+          type: "array"
+          description: "Specifies the IPv4 subnets connected by the virtual gateway, which is usually the CIDR blocks of a VPC."
+          items:
+            type: "string"
+          example:
+            - "192.168.1.0/24"
+        local_ep_group_ipv6:
+          type: "array"
+          description: "Specifies the IPv6 subnets connected by the virtual gateway, which is usually the CIDR blocks of a VPC. This is a reserved field."
+          items:
+            type: "string"
+        admin_state_up:
+          type: "boolean"
+          description: "Specifies the administrative status, which can be **true** or **false**."
+          default: true
+          example: true
+        status:
+          type: "string"
+          description: >-
+            Specifies the virtual gateway status, which can be **ACTIVE**, **DOWN**, **BUILD**, **ERROR**, **PENDING_CREATE**, **PENDING_UPDATE**, or **PENDING_DELETE**.
+          example: "ACTIVE"
+        bgp_asn:
+          description: "Specifies the local BGP ASN of the virtual gateway."
+          example: 64513
+          type: "integer"
+          format: "int32"
+          maximum: 4294967295
+          minimum: 1
+        enterprise_project_id:
+          type: "string"
+          maxLength: 36
+          minLength: 36
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          example: "a3bad420-33b8-4e26-9e9b-bdf67aa8e72b"
+          x-ifnull: "hide"
+          description: "Specifies the ID of the enterprise project that the virtual gateway belongs to."
+        device_id:
+          type: "string"
+          description: "Specifies the ID of the device that the virtual interface belongs to."
+        redundant_device_id:
+          type: "string"
+          description: "Specifies the ID of the redundant device."
+        public_border_group:
+          type: "string"
+          description: "Specifies the public border group of the AZ, indicating whether the site is a HomeZones site."
+        tags:
+          type: "array"
+          description: "Specifies the tags."
+          items:
+            $ref: "#/components/schemas/Tag"
+          minItems: 0
+          maxItems: 10
+    Tag:
+      required:
+        - "key"
+      type: "object"
+      properties:
+        key:
+          minLength: 1
+          maxLength: 128
+          example: "key"
+          type: "string"
+          description: "Specifies the tag key. Each key cannot start or end with a space, or start with _sys_. Only letters, digits, spaces, and the following special characters are allowed: _.:=+-@"
+        value:
+          minLength: 0
+          maxLength: 255
+          example: "value"
+          type: "string"
+          description: "Specifies the tag value. The value can contain letters, digits, spaces, and the following special characters: _.:/=+-@"
+      description: "Specifies the resource tag."
+    UpdateVirtualInterfaceResponseBody:
+      required:
+        - "request_id"
+        - "virtual_interface"
+      type: "object"
+      properties:
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+        virtual_interface:
+          $ref: "#/components/schemas/VirtualInterface"
+      description: ""
+    UpdateVirtualInterfaceRequestBody:
+      required:
+        - "request_id"
+        - "virtual_interface"
+      type: "object"
+      properties:
+        virtual_interface:
+          $ref: "#/components/schemas/UpdateVirtualInterface"
+      description: "Specifies parameters required for updating a virtual-interface."
+    UpdateVirtualInterface:
+      description: "Specifies the virtual interface objects to be updated."
+      type: "object"
+      properties:
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the virtual interface name."
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the virtual interface."
+        bandwidth:
+          maximum: 2147483647
+          minimum: 2
+          type: "integer"
+          description: "Specifies the virtual interface bandwidth configuration."
+          format: "int32"
+        priority:
+          type: string
+          description: "Specifies the priority of a virtual interface. The value can be normal or low. If the priorities are the same, the virtual interfaces work in load balancing mode. If the priorities are different, the virtual interfaces work in active/standby pairs. Outbound traffic is preferentially forwarded to the normal virtual interface with a higher priority. This option is only supported by virtual interfaces that use BGP routing."
+          enum:
+            - normal
+            - low
+        remote_ep_group:
+          type: "array"
+          description: "Specifies the remote subnet list, which records the CIDR blocks used in the on-premises data center."
+          items:
+            type: "string"
+          example:
+            - "172.16.1.0/24"
+        service_ep_group:
+          type: "array"
+          description: "Specifies the local endpoint group that is connected to the public network over a connection. [(This is a reserved parameter and is not supported currently.)](tag:dt)"
+          items:
+            type: "string"
+        enable_bfd:
+          type: "boolean"
+          description: "Specifies whether to enable BFD. The value can be **true** or **false**. [(This is a reserved parameter and is not supported currently.)](tag:dt)"
+        enable_nqa:
+          type: "boolean"
+          description: "Specifies whether to enable NQA. The value can be **true** or **false**. [(This is a reserved parameter and is not supported currently.)](tag:dt)"
+        status:
+          type: "string"
+          description: "Confirms the virtual interfaces created by other users. The value can be **ACCEPTED** or **REJECTED**."
+          enum:
+            - "ACCEPTED"
+            - "REJECTED"
+    CreateVirtualInterfaceResponseBody:
+      required:
+        - "request_id"
+        - "virtual_interface"
+      type: "object"
+      properties:
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+        virtual_interface:
+          $ref: "#/components/schemas/VirtualInterface"
+      description: ""
+    CreateVirtualInterfaceRequestBody:
+      required:
+        - "virtual_interface"
+      type: "object"
+      properties:
+        virtual_interface:
+          $ref: "#/components/schemas/CreateVirtualInterface"
+      description: "Specifies the request body for creating a virtual interface."
+    CreateVirtualInterface:
+      required:
+        - "type"
+        - "vlan"
+        - "route_mode"
+        - "bandwidth"
+        - "remote_ep_group"
+      description: "Specifies the parameters for creating a virtual interface."
+      type: "object"
+      properties:
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the virtual interface name."
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the virtual interface."
+        direct_connect_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the connection associated with the virtual interface. When creating a virtual interface, you need to specify **direct_connect_id** or **lag_id**. This parameter is mandatory when LAG is not supported at the site."
+        type:
+          type: "string"
+          description: "Specifies the type of the virtual interface. The value is **private**."
+          enum:
+            - "private"
+            - "public"
+        service_type:
+          type: "string"
+          description: "Specifies the gateway type, which can be **VGW**, **GDGW**, or **LGW**."
+          enum:
+            - "VGW"
+            - "GDGW"
+            - "LGW"
+        vlan:
+          maximum: 3999
+          minimum: 0
+          type: "integer"
+          description: "Specifies the customer VLAN to be connected. If you select a hosted connection, the VLAN must be the same as that of the hosted connection."
+          format: "int32"
+        bandwidth:
+          maximum: 2147483647
+          minimum: 2
+          type: "integer"
+          description: "Specifies the virtual interface bandwidth."
+          format: "int32"
+        priority:
+          type: string
+          description: "Specifies the priority of a virtual interface. The value can be normal or low. If the priorities are the same, the virtual interfaces work in load balancing mode. If the priorities are different, the virtual interfaces work in active/standby pairs. Outbound traffic is preferentially forwarded to the normal virtual interface with a higher priority. This option is only supported by virtual interfaces that use BGP routing."
+          default: normal
+          enum:
+            - normal
+            - low
+        local_gateway_v4_ip:
+          type: "string"
+          description: "Specifies the IPv4 interface address of the gateway used on the cloud. This parameter is mandatory if **address_family** is set to an IPv4 address."
+        remote_gateway_v4_ip:
+          type: "string"
+          description: "Specifies the IPv4 interface address of the gateway on the on-premises network. This parameter is mandatory if **address_family** is set to an IPv4 address."
+        address_family:
+          type: "string"
+          description: "Specifies the address family type of the virtual interface, which can be **IPv4** or **IPv6**."
+          default: "ipv4"
+        local_gateway_v6_ip:
+          type: "string"
+          description: "Specifies the IPv6 interface address of the gateway used on the cloud. This parameter is mandatory if **address_family** is set to an IPv6 address."
+        remote_gateway_v6_ip:
+          type: "string"
+          description: "Specifies the IPv6 interface address of the gateway on the on-premises network. This parameter is mandatory if **address_family** is set to an IPv6 address."
+        vgw_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the virtual gateway connected by the virtual interface."
+        gateway_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: |-
+            If **service_type** is set to **GDGW**, this parameter is required. **gateway_id** indicates the ID of the global DC gateway.
+        route_mode:
+          type: "string"
+          description: "Specifies the routing mode, which can be **static** or **bgp**."
+          default: "static"
+          enum:
+            - "static"
+            - "bgp"
+        bgp_asn:
+          description: "Specifies the ASN of the BGP peer on the customer side."
+          type: "integer"
+          format: "int32"
+          maximum: 4294967295
+          minimum: 1
+          example: 65000
+        bgp_md5:
+          type: "string"
+          description: "Specifies the MD5 password of the BGP peer."
+        remote_ep_group:
+          type: "array"
+          description: "Specifies the remote subnet list, which records the CIDR blocks used in the on-premises data center."
+          items:
+            type: "string"
+        service_ep_group:
+          type: "array"
+          description: "Specifies the subnets that access Internet services through a direct connection."
+          items:
+            type: "string"
+        enable_bfd:
+          type: "boolean"
+          description: "Specifies whether to enable Bidirectional Forwarding Detection (BFD). The value can be **true** or **false**. [(This is a reserved parameter and is not supported currently.)](tag:dt)"
+          default: false
+        enable_nqa:
+          type: "boolean"
+          description: "Specifies whether to enable NQA. The value can be **true** or **false**. [(This is a reserved parameter and is not supported currently.)](tag:dt)"
+          default: false
+        lag_id:
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          type: "string"
+          description: "Specifies the ID of the LAG associated with the virtual interface."
+          minLength: 36
+          maxLength: 36
+        resource_tenant_id:
+          type: "string"
+          description: "Specifies the project ID of another tenant, which is used to create virtual interfaces across tenants."
+        enterprise_project_id:
+          type: "string"
+          maxLength: 36
+          minLength: 36
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          example: "a3bad420-33b8-4e26-9e9b-bdf67aa8e72b"
+          x-ifnull: "hide"
+          description: "Specifies the ID of the enterprise project that the resource belongs to."
+        tags:
+          type: "array"
+          description: "Specifies the tags."
+          items:
+            $ref: "#/components/schemas/Tag"
+          minItems: 0
+          maxItems: 10
+    PageInfo:
+      description: "Specifies the pagination query information."
+      required:
+        - "current_count"
+        - "previous_marker"
+      type: "object"
+      properties:
+        previous_marker:
+          type: "string"
+          description: "Specifies the marker of the previous page. The value is the resource UUID."
+          maxLength: 36
+          minLength: 0
+        current_count:
+          type: "integer"
+          description: "Specifies the number of resources in the current list."
+          format: "int32"
+          minimum: 0
+          maximum: 2000
+        next_marker:
+          type: "string"
+          description: "Specifies the marker of the next page. The value is the resource UUID. If the value is empty, the resource is on the last page."
+          maxLength: 36
+          minLength: 0
+    ListVirtualInterfacesResponseBody:
+      required:
+        - "page_info"
+        - "request_id"
+        - "virtual_interfaces"
+      type: "object"
+      properties:
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+        virtual_interfaces:
+          type: "array"
+          description: "Specifies parameters for creating a virtual interface."
+          items:
+            $ref: "#/components/schemas/VirtualInterface"
+        page_info:
+          $ref: "#/components/schemas/PageInfo"
+      description: ""
+    ShowVirtualInterfaceResponseBody:
+      required:
+        - "request_id"
+        - "virtual_interface"
+      type: "object"
+      properties:
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+        virtual_interface:
+          $ref: "#/components/schemas/VirtualInterface"
+      description: ""
+    VirtualInterface:
+      description: "Specifies parameters for creating a virtual interface."
+      properties:
+        id:
+          description: "Specifies the virtual interface ID."
+          type: "string"
+          maxLength: 36
+        name:
+          description: "Specifies the virtual interface name."
+          type: "string"
+          maxLength: 64
+        admin_state_up:
+          description: "Specifies the administrative status, which can be **true** or **false**."
+          type: "boolean"
+        bandwidth:
+          description: "Specifies the virtual interface bandwidth."
+          type: "integer"
+          format: "int32"
+          maximum: 2147483647
+          minimum: 2
+        create_time:
+          description: "Specifies the time when the virtual interface was created. The UTC time format is *yyyy-MM-ddTHH:mm:ss.SSSZ*."
+          type: "string"
+          format: "date-time"
+          maxLength: 255
+        update_time:
+          description: "Specifies when the virtual interface was modified. The UTC time format is *yyyy-MM-ddTHH:mm:ss.SSSZ*."
+          type: "string"
+          format: "date-time"
+          maxLength: 255
+        description:
+          description: "Provides supplementary information about the virtual interface."
+          type: "string"
+          maxLength: 128
+        direct_connect_id:
+          description: "Specifies the connection ID."
+          type: "string"
+          maxLength: 36
+        service_type:
+          description: "Specifies the gateway type, which can be **VGW**, **GDGW**, or **LGW**."
+          type: "string"
+          enum:
+            - "VGW"
+            - "GDGW"
+            - "LGW"
+          example: "VGW"
+        status:
+          description: >-
+            Specifies the operating status, which can be **ACTIVE**, **DOWN**, **BUILD**, **ERROR**, **PENDING_CREATE**, **PENDING_UPDATE**, **PENDING_DELETE**, **DELETED**, **AUTHORIZATION**, or **REJECTED**.
+          type: "string"
+          example: "ACTIVE"
+        tenant_id:
+          type: "string"
+          description: "Specifies the project ID."
+          maxLength: 32
+          minLength: 32
+        type:
+          description: "Specifies the type of the virtual interface. The value is **private**."
+          type: "string"
+          maxLength: 255
+          default: "private"
+          example: "private"
+          enum:
+            - "private"
+            - "public"
+        vgw_id:
+          description: "Specifies the virtual gateway ID."
+          type: "string"
+          maxLength: 36
+          minLength: 36
+          example: "8a47064a-f34c-4f94-b7fe-cac456c9b37b"
+        vlan:
+          description: "Specifies the VLAN for connecting to the user gateway. The value ranges from **0** to **3999**."
+          type: "integer"
+          format: "int32"
+          maximum: 3999
+          minimum: 0
+          example: 2001
+        route_limit:
+          type: "integer"
+          format: "int32"
+          description: "Specifies the remote subnet route configurations of the virtual interface."
+          maximum: 200
+          minimum: 1
+          default: 50
+          example: 50
+        enable_nqa:
+          type: "boolean"
+          description: "Specifies whether to enable NQA. The value can be **true** or **false**."
+          example: false
+        enable_bfd:
+          type: "boolean"
+          description: "Specifies whether to enable Bidirectional Forwarding Detection (BFD). The value can be **true** or **false**."
+          example: false
+        lag_id:
+          type: "string"
+          maxLength: 36
+          minLength: 36
+          description: "Specifies the ID of the LAG associated with the virtual interface."
+          example: "8a47064a-f34c-4f94-b7fe-cac456c9b37b"
+        device_id:
+          type: "string"
+          description: "Specifies the ID of the device that the virtual interface belongs to."
+        enterprise_project_id:
+          type: "string"
+          maxLength: 36
+          minLength: 36
+          pattern: >-
+            [a-fA-F0-9]{8}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{4}-[a-fA-F0-9]{12}
+          example: "a3bad420-33b8-4e26-9e9b-bdf67aa8e72b"
+          x-ifnull: "hide"
+          description: "Specifies the ID of the enterprise project that the virtual interface belongs to."
+        tags:
+          type: "array"
+          description: "Specifies the tags."
+          items:
+            $ref: "#/components/schemas/Tag"
+          minItems: 0
+          maxItems: 10
+        local_gateway_v4_ip:
+          type: "string"
+          description: "Specifies the IPv4 interface address of the gateway used on the cloud. This parameter has been migrated to the **vifpeer** parameter list and will be discarded later."
+        remote_gateway_v4_ip:
+          type: "string"
+          description: "Specifies the IPv4 interface address of the gateway used on premises. This parameter has been migrated to the **vifpeer** parameter list and will be discarded later."
+        ies_id:
+          type: "string"
+          description: "Specifies the ID of a CloudPond site. [(This parameter is not supported currently.)](tag:dt)"
+        reason:
+          type: "string"
+          description: "Displays error information if the status of a line is **Error**."
+        rate_limit:
+          type: "boolean"
+          description: "Specifies whether rate limiting is enabled on a virtual interface."
+        address_family:
+          type: "string"
+          description: "Specifies the address family of the virtual interface, which can be **IPv4** or **IPv6**. This parameter has been migrated to the **vifpeer** parameter list and will be discarded later."
+        local_gateway_v6_ip:
+          type: "string"
+          description: "Specifies the IPv6 interface address of the gateway used on the cloud. This parameter has been migrated to the **vifpeer** parameter list and will be discarded later."
+        remote_gateway_v6_ip:
+          type: "string"
+          description: "Specifies the IPv6 interface address of the gateway used on premises. This parameter has been migrated to the **vifpeer** parameter list and will be discarded later."
+        lgw_id:
+          description: "Specifies the ID of the local gateway that is used in CloudPond scenarios. [(This parameter is not supported currently.)](tag:dt)"
+          type: "string"
+        gateway_id:
+          description: "Specifies the ID of the gateway associated with the virtual interface."
+          type: "string"
+        remote_ep_group:
+          type: "array"
+          items:
+            type: "string"
+          description: "Specifies the remote subnet list, which records the CIDR blocks used in the on-premises data center. This parameter has been migrated to the **vifpeer** parameter list and will be discarded later."
+        service_ep_group:
+          type: "array"
+          items:
+            type: "string"
+          description: "Specifies the list of public network addresses that can be accessed by the on-premises data center. This field is required in the APIs of public network connections. This parameter has been migrated to the **vifpeer** parameter list and will be discarded later."
+        bgp_route_limit:
+          type: "integer"
+          description: "Specifies the BGP route configuration."
+          format: "int32"
+        priority:
+          description: |-
+            Specifies the priority of a virtual interface. The value can be **normal** or **low**.
+
+            If the priorities are the same, the virtual interfaces work in load balancing mode. If the priorities are different, the virtual interfaces work in active/standby pairs. Outbound traffic is preferentially forwarded to the normal virtual interface with a higher priority.
+
+            This option is only supported by virtual interfaces that use BGP routing.
+          type: "string"
+          enum:
+            - "normal"
+            - "low"
+          default: "normal"
+        vif_peers:
+          type: "array"
+          items:
+            $ref: "#/components/schemas/VifPeer"
+          description: "Provides information about virtual interface peers. [(This is a reserved parameter and is not supported currently.)](tag:dt)"
+        extend_attribute:
+          $ref: "#/components/schemas/VifExtendAttribute"
+    VifExtendAttribute:
+      description: "Specifies extended parameters when BFD or NQA is used for reliability detection."
+      type: "object"
+      properties:
+        ha_type:
+          type: "string"
+          description: |-
+            Specifies the availability detection type of the virtual interface. The value can be:
+            - **nqa**: network quality analysis
+            - **bfd**: bidirectional forwarding detection
+          enum:
+            - "nqa"
+            - "bfd"
+        ha_mode:
+          type: "string"
+          description: |-
+            Specifies the availability detection mode of the virtual interface. The value can be:
+            - **auto_single**: automatic single-hop BFD
+            - **auto_multi**: automatic multi-hop BFD
+            - **static_single**: static single-hop BFD
+            - **static_multi**: static multi-hop BFD
+            - **enhance_nqa**: enhanced NQA
+          enum:
+            - "auto_single"
+            - "auto_multi"
+            - "static_single"
+            - "static_multi"
+            - "enhance_nqa"
+        detect_multiplier:
+          type: "integer"
+          description: "Specifies the number of detection retries."
+          format: "int32"
+          default: 5
+          maximum: 20
+          minimum: 3
+          example: 5
+        min_rx_interval:
+          type: "integer"
+          description: |-
+            Specifies how often the system receives detection packets, in milliseconds.
+            - If you set **ha_type** to **nqa**, the system rounds up your input time to the nearest full second. For instance, entering 1500 milliseconds sets the interval to 2 seconds.
+            - If you set **ha_type** to **bfd**, the system uses the input time (in milliseconds) as the interval. The value ranges from 200 ms to 1000 ms.
+          format: "int32"
+          default: 1000
+          maximum: 5000
+          minimum: 200
+          example: 1000
+        min_tx_interval:
+          type: "integer"
+          description: |-
+            Specifies how often the system sends detection packets, in milliseconds.
+            - If you set **ha_type** to **nqa**, the system rounds up your input time to the nearest full second. For instance, entering 1500 milliseconds sets the interval to 2 seconds.
+            - If you set **ha_type** to **bfd**, the system uses the input time (in milliseconds) as the interval. The value ranges from 200 ms to 1000 ms.
+          format: "int32"
+          default: 1000
+          maximum: 5000
+          minimum: 200
+          example: 1000
+        remote_disclaim:
+          type: "integer"
+          description: "Specifies the remote identifier of the static BFD session."
+          format: "int32"
+          maximum: 16384
+          minimum: 1
+          example: 500
+        local_disclaim:
+          type: "integer"
+          description: "Specifies the local identifier of the static BFD session."
+          format: "int32"
+          maximum: 16384
+          minimum: 1
+          example: 500
+        ipv6_remote_disclaim:
+          type: "integer"
+          description: "Specifies the remote identifier of the static IPv6 BFD session."
+          format: "int32"
+          maximum: 16384
+          minimum: 1
+          example: 500
+        ipv6_local_disclaim:
+          type: "integer"
+          description: "Specifies the local identifier of the static IPv6 BFD session."
+          format: "int32"
+          maximum: 16384
+          minimum: 1
+          example: 500
+    VifPeer:
+      description: "Specifies the virtual interface peer."
+      type: "object"
+      properties:
+        id:
+          type: "string"
+          description: "Specifies the resource ID."
+          minLength: 36
+          maxLength: 36
+          example: "c768eb52-12a8-4859-9b43-81194643040c"
+        tenant_id:
+          type: "string"
+          description: "Specifies the ID of the project that the virtual interface peer belongs to."
+          minLength: 36
+          maxLength: 36
+          example: "0605768a3300d5762f82c01180692873"
+        name:
+          maxLength: 64
+          minLength: 0
+          type: "string"
+          description: "Specifies the name of the virtual interface peer."
+          example: "peer-ipv4"
+        description:
+          maxLength: 128
+          minLength: 0
+          type: "string"
+          description: "Provides supplementary information about the virtual interface peer."
+        address_family:
+          type: "string"
+          description: "Specifies the address family type of the virtual interface, which can be **IPv4** or **IPv6**."
+        local_gateway_ip:
+          type: "string"
+          description: "Specifies the address of the virtual interface peer used on the cloud."
+        remote_gateway_ip:
+          type: "string"
+          description: "Specifies the address of the virtual interface peer used in the on-premises data center."
+        route_mode:
+          description: "Specifies the routing mode, which can be **static** or **bgp**."
+          type: "string"
+          maxLength: 255
+          enum:
+            - "bgp"
+            - "static"
+          example: "bgp"
+        bgp_asn:
+          description: "Specifies the ASN of the BGP peer."
+          type: "integer"
+          format: "int32"
+          maximum: 4294967295
+          minimum: 1
+          example: 65000
+        bgp_md5:
+          type: "string"
+          description: "Specifies the MD5 password of the BGP peer."
+        remote_ep_group:
+          type: "array"
+          items:
+            type: "string"
+          description: "Specifies the remote subnet list, which records the CIDR blocks used in the on-premises data center."
+        service_ep_group:
+          type: "array"
+          items:
+            type: "string"
+          description: "Specifies the list of public network addresses that can be accessed by the on-premises data center. This field is required in the APIs of public network connections."
+        device_id:
+          type: "string"
+          description: "Specifies the ID of the device that the virtual interface peer belongs to."
+        bgp_route_limit:
+          type: "integer"
+          description: "Specifies the BGP route configuration."
+          format: "int32"
+        bgp_status:
+          type: "string"
+          description: "Specifies the BGP protocol status of the virtual interface peer. If the virtual interface peer uses static routing, the status is **null**."
+          maxLength: 10
+        status:
+          type: "string"
+          description: "Specifies the status of the virtual interface peer."
+          example: "ACTIVE"
+        vif_id:
+          type: "string"
+          description: "Specifies the ID of the virtual interface corresponding to the virtual interface peer."
+          minLength: 36
+          maxLength: 36
+          example: "0d0fdf63-f2c4-491c-8866-d504796189be"
+        receive_route_num:
+          type: "integer"
+          format: "int32"
+          description: |-
+            Specifies the number of received BGP routes if BGP routing is used.
+
+            If static routing is used, this parameter is meaningless and the value is **-1**.
+
+            Note: If this parameter cannot be obtained, contact customer service to migrate your ports.
+          example: 2
+        enable_nqa:
+          type: "boolean"
+          description: "Specifies whether to enable NQA. The value can be **true** or **false**."
+          example: false
+        enable_bfd:
+          type: "boolean"
+          description: "Specifies whether to enable BFD. The value can be **true** or **false**."
+          example: false
+    Tags:
+      required:
+        - "key"
+        - "values"
+      type: "object"
+      properties:
+        key:
+          type: "string"
+          description: "Specifies the tag key. Each tag key can contain a maximum of 127 Unicode characters. **key** must be specified."
+        values:
+          type: "array"
+          description: "Specifies the list of tag values. Each value can contain a maximum of 255 Unicode characters."
+          items:
+            type: "string"
+    Match:
+      required:
+        - "key"
+        - "value"
+      type: "object"
+      properties:
+        key:
+          type: "string"
+          description: "Specifies the tag key. The value can be **dc-directconnect**, **dc-vgw**, or **dc-vif**."
+        value:
+          type: "string"
+          description: "Specifies the tag value. Each value can contain a maximum of 255 Unicode characters."
+    ListProjectTagsResponseBody:
+      required:
+        - "request_id"
+      type: "object"
+      properties:
+        tags:
+          type: "array"
+          description: "Specifies the tags."
+          items:
+            $ref: "#/components/schemas/Tag"
+          x-huawei-extraAnnotation: ""
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+      description: "Specifies resource tags."
+    ShowResourceTagResponseBody:
+      required:
+        - "request_id"
+      type: "object"
+      properties:
+        tags:
+          type: "array"
+          description: "Specifies the tag list."
+          items:
+            $ref: "#/components/schemas/Tag"
+          x-huawei-extraAnnotation: ""
+        sys_tags:
+          type: "array"
+          description: "Specifies the list of queried tags. If no tag is matched, an empty array is returned."
+          items:
+            $ref: "#/components/schemas/Tag"
+          x-huawei-extraAnnotation: ""
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+      description: "Specifies resource tags."
+    CreateResourceTagRequestBody:
+      required:
+        - "tag"
+      type: "object"
+      properties:
+        tag:
+          $ref: "#/components/schemas/Tag"
+      description: "Specifies the request body for adding a resource tag."
+    BatchOperateResourceTagsRequestBody:
+      required:
+        - "action"
+      type: "object"
+      properties:
+        action:
+          type: "string"
+          enum:
+            - "create"
+            - "delete"
+          description: |-
+            Specifies the operation. There are two options: **create** and **delete**.
+          x-huawei-extraAnnotation: ""
+        tags:
+          type: "array"
+          description: "Specifies the tags."
+          items:
+            $ref: "#/components/schemas/Tag"
+          x-huawei-extraAnnotation: ""
+        sys_tags:
+          type: "array"
+          description: "Specifies the system tags."
+          items:
+            $ref: "#/components/schemas/Tag"
+          x-huawei-extraAnnotation: ""
+      description: "Request body for batch adding or deleting tags"
+    ListTagResourceInstancesRequestBody:
+      required:
+        - "action"
+      type: "object"
+      properties:
+        offset:
+          type: "string"
+          description: >-
+            Specifies the index position. The query starts from the next data record indexed by this parameter. You do not need to specify this parameter when you query resources on the first page. When you query resources on subsequent pages, set this parameter to the value returned in the response body for the previous query. This parameter is not available when **action** is set to **count**. If **action** is set to **filter**, the value must be a number, and the default value is **0**. The value cannot be a negative number.
+          pattern: "[0-9]+"
+          x-huawei-extraAnnotation: ""
+        limit:
+          type: "string"
+          description: >-
+            Specifies the number of records to be queried. This parameter is not available when **action** is set to **count**. If **action** is set to **filter**, the default value is **1000**. The maximum value is **1000**, and the minimum value is **1**. The value cannot be a negative number.
+          pattern: "[0-9]+"
+          x-huawei-extraAnnotation: ""
+        action:
+          type: "string"
+          description: |-
+            Specifies the operation to perform, which can be **filter** or **count**.
+
+            **filter** indicates pagination query. **count** indicates that the total number of results meeting the search criteria will be returned. Returning other fields is not allowed.
+          enum:
+            - "filter"
+            - "count"
+          x-huawei-extraAnnotation: ""
+        matches:
+          type: "array"
+          description: >-
+            Specifies the search criteria. **key** is the field to match, for example, **resource_name**. **value** indicates the value to be matched. This field is a fixed dictionary value.You can determine whether fuzzy match is required based on different fields. For example, if **key** is **resource_name**, fuzzy search (case insensitive) is used by default. If **value** is an empty string, exact match is used. If **key** is **resource_id**, exact match is used. Currently, only **resource_name** is supported.
+          items:
+            $ref: "#/components/schemas/Match"
+          x-huawei-extraAnnotation: ""
+        not_tags:
+          type: "array"
+          description: >-
+            Specifies tags that are not included. Each tag contains a maximum of 10 keys, and each key contains a maximum of 10 values. The structure body cannot be missing, and the key cannot be left blank or set to an empty string. Keys must be unique and values of a key must be unique. Resources not identified by different keys are in AND relationship, and values in one tag are in OR relationship. If no filtering condition is specified, full data is returned.
+          items:
+            $ref: "#/components/schemas/Tags"
+          x-huawei-extraAnnotation: ""
+        tags:
+          type: "array"
+          description: >-
+            Specifies tags that are included. Each tag contains a maximum of 10 keys, and each key contains a maximum of 10 values. The structure body cannot be missing, and the key cannot be left blank or set to an empty string. Keys must be unique and values of a key must be unique. Resources identified by different keys are in AND relationship, and values in one tag are in OR relationship. If no tag filtering criteria is specified, full data is returned.
+          items:
+            $ref: "#/components/schemas/Tags"
+          x-huawei-extraAnnotation: ""
+        tags_any:
+          type: "array"
+          description: >-
+            Specifies any tag that is included. Each tag contains a maximum of 10 keys, and each key contains a maximum of 10 values. The structure body cannot be missing, and the key cannot be left blank or set to an empty string. Keys must be unique and values of a key must be unique. Resources identified by different keys are in OR relationship, and values in one tag are in OR relationship. If no filtering condition is specified, full data is returned.
+          items:
+            $ref: "#/components/schemas/Tags"
+          x-huawei-extraAnnotation: ""
+        not_tags_any:
+          type: "array"
+          description: >-
+            Specifies any tag that is not included. Each tag contains a maximum of 10 keys, and each key contains a maximum of 10 values. The structure body cannot be missing, and the key cannot be left blank or set to an empty string. Keys must be unique and values of a key must be unique. Resources not identified by different keys are in OR relationship, and values in one tag are in OR relationship. If no filtering condition is specified, full data is returned.
+          items:
+            $ref: "#/components/schemas/Tags"
+          x-huawei-extraAnnotation: ""
+        sys_tags:
+          type: "array"
+          description: >-
+            Only users with the **op_service** permission can use this field to filter resources. Only one tag structure is contained when this API is called by Tag Management Service (TMS). **key** is **_sys_enterprise_project_id**, and **value** is the enterprise project ID list. When TMS invokes this API, a key can have only one value. **0** indicates the default enterprise project. **sys_tags** and tenant tag filtering conditions (**without_any_tag**, **tags**, **tags_any**, **not_tags**, and **not_tags_any**) cannot be used at the same time.
+          items:
+            $ref: "#/components/schemas/Tags"
+          x-huawei-extraAnnotation: ""
+      description: "Specifies the request body for querying resources."
+    ListTagResourceInstancesResponseBody:
+      required:
+        - "request_id"
+      type: "object"
+      properties:
+        resources:
+          type: "array"
+          description: "Specifies the resource list."
+          items:
+            $ref: "#/components/schemas/Resource"
+          x-huawei-extraAnnotation: ""
+        total_count:
+          type: "integer"
+          description: "Specifies the total number of records."
+          format: "int32"
+          x-huawei-extraAnnotation: ""
+          example: 10
+        request_id:
+          type: "string"
+          description: "Specifies the request ID."
+      description: "Lists the resources."
+    Resource:
+      required:
+        - "resource_id"
+        - "tags"
+      type: "object"
+      properties:
+        resource_detail:
+          type: "object"
+          properties: {}
+          description: |-
+            Specifies the resource details.
+          x-huawei-extraAnnotation: ""
+        resource_id:
+          type: "string"
+          description: "Specifies the resource ID."
+          example: "e5ad289f-9c56-4daf-b08b-2e53a983473a"
+          x-huawei-extraAnnotation: ""
+        resource_name:
+          type: "string"
+          description: "Specifies the resource name. This parameter is an empty string by default if there is no resource name."
+          x-huawei-extraAnnotation: ""
+        tags:
+          type: "array"
+          description: "Specifies the list of queried tags. If no tag is matched, an empty array is returned."
+          items:
+            $ref: "#/components/schemas/Tag"
+          x-huawei-extraAnnotation: ""
+        sys_tags:
+          type: "array"
+          description: "Specifies the list of queried tags. If no tag is matched, an empty array is returned."
+          items:
+            $ref: "#/components/schemas/Tag"
+          x-huawei-extraAnnotation: ""
+      description: "Specifies resource information."
+
+x-iam-meta:
+  auth-schemas:
+    version: "v1"
+    actions:
+      - name: "dcaas:directConnect:create"
+        access_level: "write"
+        permission_only: false
+        description:
+          en_US: "Grants permission to create a connection."
+          zh_CN: "Grants permission to create a connection."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+        condition_keys:
+          - "g:RequestTag/<tag-key>"
+          - "g:TagKeys"
+          - "g:EnterpriseProjectId"
+      - name: "dcaas:directConnect:update"
+        access_level: "write"
+        permission_only: false
+        description:
+          en_US: "Grants permission to update a connection."
+          zh_CN: "Grants permission to update a connection."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:directConnect:delete"
+        access_level: "write"
+        permission_only: false
+        description:
+          en_US: "Grants permission to delete a pay-per-use connection. A yearly/monthly connection can only be unsubscribed from."
+          zh_CN: "Grants permission to delete a pay-per-use connection. A yearly/monthly connection can only be unsubscribed from."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:directConnect:get"
+        access_level: "read"
+        permission_only: false
+        description:
+          en_US: "Grants permission to query details of a connection."
+          zh_CN: "Grants permission to query details of a connection."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:directConnect:list"
+        access_level: "list"
+        permission_only: false
+        description:
+          en_US: "Grants permission to list the connections ."
+          zh_CN: "Grants permission to list the connections."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+        condition_keys:
+          - "g:EnterpriseProjectId"
+      - name: "dcaas:directConnect:createHostedDirectConnect"
+        access_level: "write"
+        permission_only: false
+        aliases:
+          - "dcaas:directConnect:create"
+        description:
+          en_US: "Grants permission to allow a partner to create a hosted connection."
+          zh_CN: "Grants permission to allow a partner to create a hosted connection."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:directConnect:updateHostedDirectConnect"
+        access_level: "write"
+        permission_only: false
+        aliases:
+          - "dcaas:directConnect:update"
+        description:
+          en_US: "Grants permission to allow a partner to update a hosted connection."
+          zh_CN: "Grants permission to allow a partner to update a hosted connection."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:directConnect:deleteHostedDirectConnect"
+        access_level: "write"
+        permission_only: false
+        aliases:
+          - "dcaas:directConnect:delete"
+        description:
+          en_US: "Grants permission to allow a partner to delete a hosted connection."
+          zh_CN: "Grants permission to allow a partner to delete a hosted connection."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:directConnect:getHostedDirectConnect"
+        access_level: "read"
+        permission_only: false
+        aliases:
+          - "dcaas:directConnect:get"
+        description:
+          en_US: "Grants permission to allow a partner to query details of a hosted connection."
+          zh_CN: "Grants permission to allow a partner to query details of a hosted connection."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:directConnect:listHostedDirectConnect"
+        access_level: "list"
+        permission_only: false
+        aliases:
+          - "dcaas:directConnect:list"
+        description:
+          en_US: "Grants permission to allow a partner to list the hosted connections."
+          zh_CN: "Grants permission to allow a partner to list the hosted connections."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+      - name: "dcaas:vgw:create"
+        access_level: "write"
+        permission_only: false
+        description:
+          en_US: "Grants permission to create a virtual gateway."
+          zh_CN: "Grants permission to create a virtual gateway."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: true
+          - urn_template: "vpc:<region>:<account-id>:vpc:<vpc-id>"
+            required: false
+          - urn_template: "er:<region>:<account-id>:instances:<instance-id>"
+            required: false
+        condition_keys:
+          - "g:EnterpriseProjectId"
+          - "g:RequestTag/<tag-key>"
+          - "g:TagKeys"
+      - name: "dcaas:vgw:update"
+        access_level: "write"
+        permission_only: false
+        description:
+          en_US: "Grants permission to update a virtual gateway."
+          zh_CN: "Grants permission to update a virtual gateway."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:vgw:delete"
+        access_level: "write"
+        permission_only: false
+        description:
+          en_US: "Grants permission to delete a virtual gateway."
+          zh_CN: "Grants permission to delete a virtual gateway."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:vgw:get"
+        access_level: "read"
+        permission_only: false
+        description:
+          en_US: "Grants permission to query details of a virtual gateway."
+          zh_CN: "Grants permission to query details of a virtual gateway."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:vgw:list"
+        access_level: "list"
+        permission_only: false
+        description:
+          en_US: "Grants permission to list the virtual gateways."
+          zh_CN: "Grants permission to list the virtual gateways."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: true
+        condition_keys:
+          - "g:EnterpriseProjectId"
+      - name: "dcaas:vif:create"
+        access_level: "write"
+        permission_only: false
+        description:
+          en_US: "Grants permission to create a virtual interface."
+          zh_CN: "Grants permission to create a virtual interface."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: true
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:lag:<lag-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:gdgw:<gdgw-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:connectGateway:<connectGateway-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:lgw:<lgw-id>"
+            required: false
+        condition_keys:
+          - "g:EnterpriseProjectId"
+          - "g:RequestTag/<tag-key>"
+          - "g:TagKeys"
+      - name: "dcaas:vif:update"
+        access_level: "write"
+        permission_only: false
+        description:
+          en_US: "Grants permission to update a virtual interface."
+          zh_CN: "Grants permission to update a virtual interface."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:vif:delete"
+        access_level: "write"
+        permission_only: false
+        description:
+          en_US: "Grants permission to delete a virtual interface."
+          zh_CN: "Grants permission to delete a virtual interface."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:vif:get"
+        access_level: "read"
+        permission_only: false
+        description:
+          en_US: "Grants permission to query details of a virtual interface."
+          zh_CN: "Grants permission to query details of a virtual interface."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: true
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+      - name: "dcaas:vif:list"
+        access_level: "list"
+        permission_only: false
+        description:
+          en_US: "Grants permission to list the virtual interfaces."
+          zh_CN: "Grants permission to list the virtual interfaces."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: true
+        condition_keys:
+          - "g:EnterpriseProjectId"
+      - name: "dcaas:resources:batchTagUntag"
+        access_level: "tagging"
+        permission_only: false
+        description:
+          en_US: "Grants permission to add tags to or delete tags from a resource in batches."
+          zh_CN: "Grants permission to add tags to or delete tags from a resource in batches."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:lag:<lag-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:gdgw:<gdgw-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+        condition_keys:
+          - "g:RequestTag/<tag-key>"
+          - "g:TagKeys"
+      - name: "dcaas:resources:listResourceTag"
+        access_level: "list"
+        permission_only: false
+        description:
+          en_US: "Grants permission to query tags of a resource."
+          zh_CN: "Grants permission to query tags of a resource."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:lag:<lag-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:gdgw:<gdgw-id>"
+            required: false
+      - name: "dcaas:resources:listTag"
+        access_level: "list"
+        permission_only: false
+        description:
+          en_US: "Grants permission to query tags by resource type."
+          zh_CN: "Grants permission to query tags by resource type."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:lag:<lag-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:gdgw:<gdgw-id>"
+            required: false
+      - name: "dcaas:resources:tag"
+        access_level: "tagging"
+        permission_only: false
+        description:
+          en_US: "Grants permission to add a tag to a resource."
+          zh_CN: "Grants permission to add a tag to a resource."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:lag:<lag-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:gdgw:<gdgw-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+        condition_keys:
+          - "g:RequestTag/<tag-key>"
+          - "g:TagKeys"
+      - name: "dcaas:resources:unTag"
+        access_level: "tagging"
+        permission_only: false
+        description:
+          en_US: "Grants permission to delete a tag from a resource."
+          zh_CN: "Grants permission to delete a tag from a resource."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:lag:<lag-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+          - urn_template: "dcaas:<region>:<account-id>:gdgw:<gdgw-id>"
+            required: false
+            condition_keys:
+              - "g:EnterpriseProjectId"
+              - "g:ResourceTag/<tag-key>"
+        condition_keys:
+          - "g:TagKeys"
+      - name: "dcaas:resources:listByTag"
+        access_level: "list"
+        permission_only: false
+        description:
+          en_US: "Grants permission to query resources by tag."
+          zh_CN: "Grants permission to query resources by tag."
+        resources:
+          - urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:lag:<lag-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+            required: false
+          - urn_template: "dcaas:<region>:<account-id>:gdgw:<gdgw-id>"
+            required: false
+      - name: "dcaas:quota:listUsage"
+        access_level: "list"
+        permission_only: false
+        description:
+          en_US: "Grants permission to query the quotas."
+          zh_CN: "Grants permission to query the quotas."
+    resources:
+      - type_name: "directConnect"
+        urn_template: "dcaas:<region>:<account-id>:directConnect:<directConnect-id>"
+      - type_name: "vgw"
+        urn_template: "dcaas:<region>:<account-id>:vgw:<vgw-id>"
+      - type_name: "vif"
+        urn_template: "dcaas:<region>:<account-id>:vif:<vif-id>"
+    operations:
+      - operation_id: "ShowDirectConnect"
+        operation_action: "dcaas:directConnect:get"
+      - operation_id: "ListDirectConnects"
+        operation_action: "dcaas:directConnect:list"
+      - operation_id: "CreateDirectConnect"
+        operation_action: "dcaas:directConnect:create"
+      - operation_id: "UpdateDirectConnect"
+        operation_action: "dcaas:directConnect:update"
+      - operation_id: "DeleteDirectConnect"
+        operation_action: "dcaas:directConnect:delete"
+      - operation_id: "GetHostedDirectConnect"
+        operation_action: "dcaas:directConnect:getHostedDirectConnect"
+      - operation_id: "ListHostedDirectConnects"
+        operation_action: "dcaas:directConnect:listHostedDirectConnect"
+      - operation_id: "CreateHostedDirectConnect"
+        operation_action: "dcaas:directConnect:createHostedDirectConnect"
+      - operation_id: "UpdateHostedDirectConnect"
+        operation_action: "dcaas:directConnect:updateHostedDirectConnect"
+      - operation_id: "DeleteHostedDirectConnect"
+        operation_action: "dcaas:directConnect:deleteHostedDirectConnect"
+      - operation_id: "ShowVirtualGateway"
+        operation_action: "dcaas:vgw:get"
+      - operation_id: "ListVirtualGateways"
+        operation_action: "dcaas:vgw:list"
+      - operation_id: "UpdateVirtualGateway"
+        operation_action: "dcaas:vgw:update"
+      - operation_id: "DeleteVirtualGateway"
+        operation_action: "dcaas:vgw:delete"
+      - operation_id: "CreateVirtualGateway"
+        operation_action: "dcaas:vgw:create"
+        dependent_actions:
+          - "er:instances:get"
+          - "vpc:vpcs:get"
+      - operation_id: "ShowVirtualInterface"
+        operation_action: "dcaas:vif:get"
+      - operation_id: "ListVirtualInterfaces"
+        operation_action: "dcaas:vif:list"
+      - operation_id: "UpdateVirtualInterface"
+        operation_action: "dcaas:vif:update"
+      - operation_id: "DeleteVirtualInterface"
+        operation_action: "dcaas:vif:delete"
+      - operation_id: "CreateVirtualInterface"
+        operation_action: "dcaas:vif:create"
+      - operation_id: "BatchCreateDeleteDcTags"
+        operation_action: "dcaas:resources:batchTagUntag"
+      - operation_id: "ListDcResourceTags"
+        operation_action: "dcaas:resources:listResourceTag"
+      - operation_id: "ListDcTags"
+        operation_action: "dcaas:resources:listTag"
+      - operation_id: "CreateDcTag"
+        operation_action: "dcaas:resources:tag"
+      - operation_id: "DeleteDcTag"
+        operation_action: "dcaas:resources:unTag"
+      - operation_id: "ListDcResourcesByTag"
+        operation_action: "dcaas:resources:listByTag"
+      - operation_id: "ListUsage"
+        operation_action: "dcaas:quota:listUsage"
+  bindings:
+    - service_principal: "service.DCAAS"
+      internal_policies:
+        - "DCAASAccessERPolicy"
+  policies:
+    - id: "DCAASFullAccessPolicy"
+      name: "DCAASFullAccessPolicy"
+      visible: true
+      description:
+        en_US: "All permissions of DCAAS Service."
+        zh_CN: "All permissions for Direct Connect."
+      document: "{\"Version\": \"5.0\",\"Statement\": [{\"Action\": [\"dcaas:*:*\",\"dc:*:*\",\"bss:discount:view\",\"bss:billDetail:view\",\"bss:unsubscribe:update\",\"bss:balance:view\",\"bss:bill:view\",\"bss:renewal:*\",\"bss:order:*\",\"vpc:routeTables:*\",\"vpc:vpcs:*\",\"vpc:routers:get\",\"vpc:networks:get\",\"er:instances:get\",\"tms:resourceTags:list\",\"eps:enterpriseProjects:list\"],\"Effect\": \"Allow\"}]}"
+    - id: "DCAASReadOnlyPolicy"
+      name: "DCAASReadOnlyPolicy"
+      visible: true
+      description:
+        en_US: "The read-only permissions to all DCAAS resources."
+        zh_CN: "Read-only permissions for Direct Connect."
+      document: "{\"Version\": \"5.0\",\"Statement\": [{\"Action\": [\"dcaas:*:get*\",\"dcaas:*:list*\",\"dc:*:get*\",\"dc:*:list*\",\"vpc:vpcs:list\",\"vpc:routers:get\",\"vpc:networks:get\",\"er:instances:get\",\"tms:resourceTags:list\",\"eps:enterpriseProjects:list\"],\"Effect\": \"Allow\"}]}"
+    - id: "DCAASAccessERPolicy"
+      name: "DCAASAccessERPolicy"
+      visible: false
+      description:
+        en_US: "ER permissions for DCAAS service."
+        zh_CN: "Direct Connect obtains permissions related to Enterprise Router."
+      document: "{\"Version\": \"5.0\",\"Statement\": [{\"Action\": [\"er:instances:get\"], \"Effect\": \"Allow\"}]}"
+  services:
+    - service_principal: "service.DCAAS"
+      service_catalog: "DCAAS"
+      display_name:
+        zh_CN: "Direct Connect"
+        en_US: "Direct Connect"
+      description:
+        zh_CN: "Direct Connect"
+        en_US: "Direct Connect"
+      binding_accounts:
+        - "op_svc_dc"
