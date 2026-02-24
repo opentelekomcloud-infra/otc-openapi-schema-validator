@@ -48,8 +48,13 @@ jobs:
         run: npm run build
 
       - name: Start app in background
+        env:
+          ENABLE_AUTH: "false"
+          PORT: "3000"
+          GITEA_BASE_URL: ${{ secrets.GITEA_BASE_URL }}
+          GITEA_TOKEN: ${{ secrets.GITEA_TOKEN }}
         run: |
-          ENABLE_AUTH=false PORT=3000 npm run start &
+          npm run start &
           npx wait-on http://localhost:3000
 
       - name: Run functional tests
