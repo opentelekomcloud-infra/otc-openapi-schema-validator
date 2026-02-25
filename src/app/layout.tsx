@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import Providers from "./providers";
+export const dynamic = "force-dynamic";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -18,13 +19,12 @@ export const metadata: Metadata = {
   description: "OpenTelekomCloud OpenAPI validation tool",
 };
 
-const authEnabled = process.env.ENABLE_AUTH === "true";
-
 export default function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const authEnabled = process.env.ENABLE_AUTH === "true";
   return (
     <html lang="en" data-theme="light" className="light" style={{ colorScheme: 'light' }}>
     <head>

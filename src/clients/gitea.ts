@@ -19,7 +19,7 @@ class GiteaClient {
   }
 
   async fetchYamlFile(repo: string, path: string): Promise<any> {
-    const url = `${this.baseUrl}/api/v1/repos/docs/${repo}/raw${path}`;
+    const url = `${this.baseUrl}/api/v1/repos/docs/${repo}/raw/${path}`;
 
     log.debug('fetchYamlFile', {
       repo,
