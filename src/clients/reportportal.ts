@@ -52,13 +52,13 @@ export class ReportPortalClient {
       name: launch,
       description,
       mode: mode ?? 'DEFAULT',
-      startTime: new Date().toISOString(),
+      // startTime: new Date().toISOString(),
       attributes,
     };
     const launchBlob = new Blob([JSON.stringify(launchImportRq)], { type: 'application/json' });
-    log.debug("Launch BLOB: ", launchBlob.size);
+    log.debug("Launch BLOB: ", launchBlob);
     form.append('launchImportRq', launchBlob, 'launchImportRq.json');
-
+    log.debug("Attributes: ", form)
     const res = await fetch(url, {
       method: 'POST',
       headers: {
