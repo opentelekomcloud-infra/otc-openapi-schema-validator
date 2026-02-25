@@ -276,7 +276,6 @@ export default async function handler(
     log.debug('rules loaded: ', { manual_total: allManual.length, auto_total: allAuto.length, ruleset });
     let manual = filterByIds(allManual, manual_rules);
     let auto = filterByIds(allAuto, auto_rules);
-    log.debug('rules selected: ', { manual_selected: manual.length, auto_selected: auto.length });
     if (exclude_manual_rules?.length) {
       const excludeManualSet = new Set(exclude_manual_rules);
       manual = manual.filter(r => !r.id || !excludeManualSet.has(r.id));
@@ -286,6 +285,8 @@ export default async function handler(
       const excludeAutoSet = new Set(exclude_auto_rules);
       auto = auto.filter(r => !r.id || !excludeAutoSet.has(r.id));
     }
+    log.debug('rules selected: ', { manual_selected: manual.length, auto_selected: auto.length });
+
     // Run linter
     const { diagnostics, specTitle } = await runLinter(specText, auto);
     log.debug('lint done: ', { diagnostics_count: Array.isArray(diagnostics) ? diagnostics.length : 0, specTitle });
