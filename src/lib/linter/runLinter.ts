@@ -35,6 +35,7 @@ import { checkResponseHeader } from "@/functions/checkResponseHeader";
 import { checkDefaultLimitValue } from "@/functions/checkDefaultLimitValue";
 import { checkPaginationParameters } from "@/functions/checkPaginationParameters";
 import { checkURIFilterParams } from "@/functions/checkURIFilterParams";
+import { checkSortingParams } from "@/functions/checkSortingParams";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -72,7 +73,8 @@ export const functionsMap: {
   checkResponseHeader,
   checkDefaultLimitValue,
   checkPaginationParameters,
-  checkURIFilterParams
+  checkURIFilterParams,
+  checkSortingParams
 };
 
 /**

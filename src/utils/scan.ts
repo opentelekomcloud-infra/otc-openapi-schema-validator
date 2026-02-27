@@ -1,4 +1,4 @@
-import { resolveLocalRef } from "@/utils/schema";
+import {resolveLocalRef, resolveRefDeep} from "@/utils/schema";
 
 /**
  * Collects header names and their logical locations from an OpenAPI spec.
@@ -151,4 +151,36 @@ export function findPathKeyRangeInPathsBlock(content: string, pathKey: string): 
 
   const from = m.index + inMatchIdx;
   return { from, to: from + pathKey.length };
+}
+
+/**
+ * Collects query parameters for an operation, preserving list order.
+ * Includes both `pathItem.parameters` and `operation.parameters` and resolves `$ref`.
+ */
+export function collectQueryParams(
+  pathItem: any,
+  operation: any,
+  spec: any,
+  refCache: Map<string, any>
+): { name: string; index: number; raw: any }[] {
+  const opParams = Array.isArray(operation?.parameters) ? operation.parameters : [];
+  const pathParams = Array.isArray(pathItem?.parameters) ? pathItem.parameters : [];
+  const allParams = [...pathParams, ...opParams];
+
+  const out: { name: string; index: number; raw: any }[] = [];
+
+  for (let i = 0; i < allParams.length; i++) {
+    const resolved = resolveRefDeep(allParams[i], refCache, spec);
+    if (!resolved || typeof resolved !== "object") continue;
+
+    const inVal = String((resolved as any).in ?? "").toLowerCase();
+    if (inVal !== "query") continue;
+
+    const name = String((resolved as any).name ?? "");
+    if (!name) continue;
+
+    out.push({ name: name.toLowerCase(), index: i, raw: resolved });
+  }
+
+  return out;
 }

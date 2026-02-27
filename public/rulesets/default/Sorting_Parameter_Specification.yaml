@@ -1,57 +1,21 @@
 rules:
-  - id: "FIL-030-01-2507-2507-M-1"
-    title: "Sorting Parameter Specification"
-    message: "Sorting Keywords should be specified as sort_key and sort_dir."
+  - id: "FIL-030-01-2507-2507-M"
+    title: "Sorting Parameters Consistency Check"
+    message: "Sorting must use sort_key and sort_dir with valid values and defaults."
     option: Mandatory
-    location: query
-    element: url
+    location: path
     call:
-      function: checkURLSortingParameter
+      function: checkSortingParams
       functionParams:
-        "allowedKeywords": ["sort_key", "sort_dir"]
-    status: devel
-    severity: critical
-
-  - id: "FIL-030-01-2507-2507-M-2"
-    title: "Sorting Parameter Default Direction"
-    message: "Sorting direction must be ascending by default if not specified."
-    option: Mandatory
-    location: query
-    element: url
-    call:
-      function: checkURLSortingDefaultDirection
-      functionParams:
-        "allowedKeywords": ["sort_key", "sort_dir"]
-        "defaultDirection": "asc"
-    status: devel
-    severity: critical
-
-  - id: "FIL-030-01-2507-2507-M-3"
-    title: "Multiple Sorting Parameter Order"
-    message: "Sorting multiple values must be done in the order of sort_key and sort_dir."
-    option: Mandatory
-    location: query
-    element: url
-    call:
-      function: checkURLSortingDefaultDirection
-      functionParams:
-        "KeywordOrder": ["sort_key", "sort_dir"]
-        "checkSequence": True
-        "disallowOtherParams": True
-        "defaultValueNotAllowed": True
-    status: devel
-    severity: critical
-
-  - id: "FIL-030-01-2507-2507-M-4"
-    title: "Check Sorting Mode"
-    message: "Sorting mode, which can be asc ascending and desc descending."
-    option: Mandatory
-    location: query
-    element: url
-    call:
-      function: checkURLSortingValues
-      functionParams:
-        "allowedValues": ["asc", "desc"]
-        "checkEnums": True
-    status: devel
+        methods: ["get"]
+        keywords:
+          key: "sort_key"
+          dir: "sort_dir"
+        allowedDirValues: ["asc", "desc"]
+        defaultDir: "asc"
+        requireTogether: true          # if one exists -> the other must exist
+        enforceOrder: true             # order in parameters list or in examples (best-effort)
+        disallowOtherSortParams: true  # if any param starts with sort/ordering but not these -> error (optional)
+        defaultDirNotAllowed: false    # if you want to forbid default value on sort_dir param
+    status: implemented
     severity: critical
