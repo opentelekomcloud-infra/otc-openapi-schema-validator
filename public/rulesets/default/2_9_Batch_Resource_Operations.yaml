@@ -50,19 +50,21 @@ rules:
 
   - id: 2.9.4
     title: "Batch Resource Operations"
-    message: "Success status code must be 200 (OK) for synchronous batch resource operations."
+    message: "Asynchronous operations must provide 'job_id' in response payload."
     option: mandatory
     location: paths
     element: response
     call: {
-      function: synchronousBatchResourceOperationsStatusCodeCheck,
+      function: asyncOperationsResponseParametersCheck,
       functionParams: {
-        synchronousOperation: true,
-        requiredStatusCode: 200
+        asynchronousOperation: true,
+        responsePayload: true,
+        requiredParameter: job_id,
+        required: true
       }
     }
     severity: medium
-    description: "This rule checks whether success status code is 200 (OK) for synchronous batch resource operations."
+    description: "This rule checks that response payload for asynchronous operations provides 'job_id' parameter."
 
   - id: 2.9.5
     title: "Batch Resource Operations"
@@ -71,10 +73,11 @@ rules:
     location: paths
     element: response
     call: {
-      function: asynchronousBatchResourceOperationsStatusCodeCheck,
+      function: asyncBatchResourceOperationsStatusCodeCheck,
       functionParams: {
-        synchronousOperation: false,
-        requiredStatusCode: 202
+        asynchronousOperation: true,
+        requiredStatusCode: 202,
+        required: true
       }
     }
     severity: medium
@@ -90,7 +93,7 @@ rules:
       function: synchronousBatchResourceOperations,
       functionParams: {
         syncrhonousOperation: true,
-        responseBody: true,
+        responsePayload: true,
         individualResourceStatus: false,
         allResourcesSuccess: true,
         allResourcesFailure: true
@@ -127,8 +130,9 @@ rules:
     call: {
       function: asynchronousBatchResourceOperations,
       functionParams: {
-        synchronousOperation: false,
-        responseBody: true,
+        asynchronousOperation: true,
+        responsePayload: true,
+        requiredParameter: resources,
         dataType: [array of objects]
       }
     }
