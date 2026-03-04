@@ -303,3 +303,93 @@ export function schemaHasPropertyDeep(
     // Not found
     return false;
 }
+
+export function schemaIsObject(schema: any, spec: any, refCache: Map<string, any>): boolean {
+    const s = resolveRefDeep(schema, refCache, spec);
+    if (!s || typeof s !== "object") return false;
+    return String((s as any).type ?? "").toLowerCase() === "object" || !!(s as any).properties;
+}
+
+export function schemaIsArrayOfObjects(schema: any, spec: any, refCache: Map<string, any>): boolean {
+    const s = resolveRefDeep(schema, refCache, spec);
+    if (!s || typeof s !== "object") return false;
+    if (String((s as any).type ?? "").toLowerCase() !== "array") return false;
+    const items = (s as any).items;
+    if (!items) return false;
+    return schemaIsObject(items, spec, refCache);
+}
+
+/**
+ * Returns true if schema is an object wrapper that contains ANY property that is `array<object>`.
+ * This covers shapes like `{ service_items: [ {...}, ... ] }`, `{ tags: [ ... ] }`, etc.
+ */
+export function schemaHasAnyArrayOfObjectsDeep(schema: any, spec: any, refCache: Map<string, any>): boolean {
+    const s = resolveRefDeep(schema, refCache, spec);
+    if (!s || typeof s !== "object") return false;
+
+    const visited = new Set<any>();
+
+    const visit = (node: any): boolean => {
+        const n = resolveRefDeep(node, refCache, spec);
+        if (!n || typeof n !== "object") return false;
+        if (visited.has(n)) return false;
+        visited.add(n);
+
+        if (schemaIsArrayOfObjects(n, spec, refCache)) return true;
+
+        const props = (n as any).properties;
+        if (props && typeof props === "object") {
+            for (const v of Object.values(props)) {
+                if (visit(v)) return true;
+            }
+        }
+
+        const items = (n as any).items;
+        if (items && visit(items)) return true;
+
+        const addl = (n as any).additionalProperties;
+        if (addl && typeof addl === "object" && visit(addl)) return true;
+
+        for (const key of ["allOf", "oneOf", "anyOf"]) {
+            const arr = (n as any)[key];
+            if (Array.isArray(arr)) {
+                for (const sub of arr) {
+                    if (visit(sub)) return true;
+                }
+            }
+        }
+
+        return false;
+    };
+
+    return visit(s);
+}
+
+/**
+ * Extracts requestBody schema from an OpenAPI 3 operation.
+ * Prefers JSON, then XML, otherwise first available media type.
+ */
+export function getRequestBodySchema(operation: any, spec: any, refCache: Map<string, any>): any | null {
+    const rbRaw = operation?.requestBody;
+    if (!rbRaw) return null;
+
+    const rb = resolveRefDeep(rbRaw, refCache, spec);
+    if (!rb || typeof rb !== "object") return null;
+
+    const contentObj = (rb as any).content;
+    if (!contentObj || typeof contentObj !== "object") return null;
+
+    const mediaTypes = Object.keys(contentObj);
+    if (mediaTypes.length === 0) return null;
+
+    const preferred =
+      (contentObj as any)["application/json"] ??
+      (contentObj as any)["application/problem+json"] ??
+      (contentObj as any)["application/xml"] ??
+      (contentObj as any)[mediaTypes[0]];
+
+    const schema = preferred?.schema;
+    if (!schema) return null;
+
+    return resolveRefDeep(schema, refCache, spec);
+}

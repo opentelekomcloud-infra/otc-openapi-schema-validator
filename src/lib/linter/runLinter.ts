@@ -36,6 +36,7 @@ import { checkDefaultLimitValue } from "@/functions/checkDefaultLimitValue";
 import { checkPaginationParameters } from "@/functions/checkPaginationParameters";
 import { checkURIFilterParams } from "@/functions/checkURIFilterParams";
 import { checkSortingParams } from "@/functions/checkSortingParams";
+import { checkBatchUsesPost } from "@/functions/checkBatchUsesPost";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -74,7 +75,8 @@ export const functionsMap: {
   checkDefaultLimitValue,
   checkPaginationParameters,
   checkURIFilterParams,
-  checkSortingParams
+  checkSortingParams,
+  checkBatchUsesPost
 };
 
 /**
