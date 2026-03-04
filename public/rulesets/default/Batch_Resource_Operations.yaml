@@ -1,0 +1,102 @@
+rules:
+  - id: "STS-030-01-2507-2507-M-1"
+    title: "Batch Resource Operations"
+    message: "Batch resource operations must use POST."
+    option: mandatory
+    location: paths
+    element: httpMethod
+    call:
+      function: checkBatchUsesPost
+      functionParams:
+        methodsToScan: ["get","post","put","patch","delete"]
+        batchMatch:
+          keywords: ["batch", "batches", "bulk"]
+          pathContainsAny: ["/action"]     # DC/ER/SMN tags batch
+          queryFlagsAny: ["delete"]        # OBS ?delete
+          requireOneOf:
+            - keywordMatch
+            - payloadLooksBatch
+            - actionPayloadPattern
+        allowedMethods: ["post"]
+    severity: critical
+    status: implemented
+
+  - id: "STS-030-01-2507-2507-M-2"
+    title: "Batch request payload must be array of objects"
+    message: "Batch operations must specify resources in request body as an array of objects (directly or inside a wrapper)."
+    option: mandatory
+    location: paths
+    element: requestBody
+    call:
+      function: checkBatchPayloadArrayOfObjects
+      functionParams:
+        batchMatch:
+          keywords: ["batch", "batches", "bulk"]
+          pathContainsAny: ["/action"]
+          queryFlagsAny: ["delete"]
+          requireOneOf:
+            - keywordMatch
+            - payloadLooksBatch
+            - actionPayloadPattern
+        payload:
+          allowTopLevelArray: true
+          allowObjectWrapperWithAnyArrayOfObjects: true   # all keys (service_items/Object/tags/...)
+          allowActionEnumCreateDeleteWithTagsArray: true  # DC/ER/SMN tags/action
+          contentTypesPreferred: ["application/json","application/xml"]
+    severity: critical
+    status: devel
+
+  - id: "STS-030-01-2507-2507-M-3"
+    title: "Sync batch result granularity"
+    message: "Synchronous batch operations must follow the configured result granularity."
+    option: mandatory
+    location: paths
+    element: response
+    call:
+      function: checkSyncBatchResultGranularity
+      functionParams:
+        batchMatch:
+          keywords: ["batch", "batches", "bulk"]
+          pathContainsAny: ["/action"]
+          queryFlagsAny: ["delete"]
+          requireOneOf:
+            - keywordMatch
+            - payloadLooksBatch
+            - actionPayloadPattern
+        onlyIfResponseHasContent: true
+        contentTypes: ["application/json","application/problem+json"]
+        mode: "auto"
+        perItem:
+          listFieldsAnyOf: ["resources","items","results","statuses"]
+          statusFieldsAnyOf: ["status","result","state","error_code","errorCode","error_message","errorMessage"]
+        allOrNothing:
+          markersAnyOf: ["all_resources_success","all_resources_failure","all_success","all_failure"]
+    severity: medium
+    status: devel
+
+  - id: "ASY-010-01-2507-2507-M"
+    title: "Async batch response contract"
+    message: "Async batch operations must return 202 and include job identifier in response payload."
+    option: mandatory
+    location: paths
+    element: response
+    call:
+      function: checkAsyncBatchResponse
+      functionParams:
+        batchMatch:
+          keywords: ["batch", "batches", "bulk"]
+          pathContainsAny: ["/action"]
+          queryFlagsAny: ["delete"]
+          requireOneOf:
+            - keywordMatch
+            - payloadLooksBatch
+            - actionPayloadPattern
+        asyncMatch:
+          successStatusCode: "202"
+        require:
+          statusCode: "202"
+          jobIdAnyOf: ["job_id","jobId","task_id","taskId"]
+          resourcesListRequired: false # to avoid false positives
+          resourcesListAnyOf: ["resources","items","results"]
+    severity: medium
+    status: devel
