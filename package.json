@@ -17,7 +17,9 @@
     },
     "moduleNameMapper": {
       "^@/(.*)$": "<rootDir>/src/$1"
-    }
+    },
+    "roots": ["<rootDir>/src"],
+    "testPathIgnorePatterns": ["/node_modules/", "/.next/"]
   },
   "dependencies": {
     "@codemirror/lang-javascript": "^6.2.3",
