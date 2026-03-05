@@ -365,11 +365,37 @@ export function schemaHasAnyArrayOfObjectsDeep(schema: any, spec: any, refCache:
     return visit(s);
 }
 
+export type PayloadConfig = {
+    allowTopLevelArray?: boolean;
+    allowObjectWrapperWithAnyArrayOfObjects?: boolean;
+    allowActionEnumCreateDeleteWithTagsArray?: boolean;
+    contentTypesPreferred?: string[];
+};
+
+function pickPreferredMediaType(contentObj: any, preferred: string[]): any {
+    if (!contentObj || typeof contentObj !== "object") return null;
+
+    const keys = Object.keys(contentObj);
+    if (keys.length === 0) return null;
+
+    for (const p of preferred) {
+        if (contentObj[p]) return contentObj[p];
+    }
+
+    // fallback to first media type
+    return contentObj[keys[0]];
+}
+
 /**
  * Extracts requestBody schema from an OpenAPI 3 operation.
  * Prefers JSON, then XML, otherwise first available media type.
  */
-export function getRequestBodySchema(operation: any, spec: any, refCache: Map<string, any>): any | null {
+export function getRequestBodySchema(
+  operation: any,
+  spec: any,
+  refCache: Map<string, any>,
+  payloadCfg?: PayloadConfig
+): any | null {
     const rbRaw = operation?.requestBody;
     if (!rbRaw) return null;
 
@@ -379,16 +405,13 @@ export function getRequestBodySchema(operation: any, spec: any, refCache: Map<st
     const contentObj = (rb as any).content;
     if (!contentObj || typeof contentObj !== "object") return null;
 
-    const mediaTypes = Object.keys(contentObj);
-    if (mediaTypes.length === 0) return null;
-
     const preferred =
-      (contentObj as any)["application/json"] ??
-      (contentObj as any)["application/problem+json"] ??
-      (contentObj as any)["application/xml"] ??
-      (contentObj as any)[mediaTypes[0]];
+      Array.isArray(payloadCfg?.contentTypesPreferred) && payloadCfg!.contentTypesPreferred!.length > 0
+        ? payloadCfg!.contentTypesPreferred!
+        : ["application/json", "application/problem+json", "application/xml"];
 
-    const schema = preferred?.schema;
+    const media = pickPreferredMediaType(contentObj, preferred);
+    const schema = media?.schema;
     if (!schema) return null;
 
     return resolveRefDeep(schema, refCache, spec);

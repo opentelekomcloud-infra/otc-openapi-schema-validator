@@ -44,7 +44,7 @@ rules:
           allowActionEnumCreateDeleteWithTagsArray: true  # DC/ER/SMN tags/action
           contentTypesPreferred: ["application/json","application/xml"]
     severity: critical
-    status: devel
+    status: implemented
 
   - id: "STS-030-01-2507-2507-M-3"
     title: "Sync batch result granularity"

@@ -37,6 +37,7 @@ import { checkPaginationParameters } from "@/functions/checkPaginationParameters
 import { checkURIFilterParams } from "@/functions/checkURIFilterParams";
 import { checkSortingParams } from "@/functions/checkSortingParams";
 import { checkBatchUsesPost } from "@/functions/checkBatchUsesPost";
+import { checkBatchPayloadArrayOfObjects } from "@/functions/checkBatchPayloadArrayOfObjects";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -76,7 +77,8 @@ export const functionsMap: {
   checkPaginationParameters,
   checkURIFilterParams,
   checkSortingParams,
-  checkBatchUsesPost
+  checkBatchUsesPost,
+  checkBatchPayloadArrayOfObjects
 };
 
 /**
