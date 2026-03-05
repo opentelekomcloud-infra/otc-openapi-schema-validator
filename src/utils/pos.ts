@@ -178,3 +178,24 @@ export function findKeyRangeInContent(content: string, key: string, searchStart?
 
     return { from: 0, to: 0 };
 }
+
+export function findRequestBodyPositionInYaml(
+  content: string,
+  path: string,
+  method: string
+): { start: number; end: number } {
+    // Best-effort: find the method token range first.
+    const { start: mStart } = findMethodPositionInYaml(content, path, method);
+    const slice = content.slice(mStart);
+
+    const re = /^\s+requestBody\s*:/m;
+    const match = slice.match(re);
+    if (match?.index != null) {
+        const abs = mStart + match.index + match[0].indexOf("requestBody");
+        return { start: abs, end: abs + "requestBody".length };
+    }
+
+    // Fallback to method token highlight.
+    const { start, end } = findMethodPositionInYaml(content, path, method);
+    return { start, end };
+}
