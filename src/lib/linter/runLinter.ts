@@ -38,6 +38,7 @@ import { checkURIFilterParams } from "@/functions/checkURIFilterParams";
 import { checkSortingParams } from "@/functions/checkSortingParams";
 import { checkBatchUsesPost } from "@/functions/checkBatchUsesPost";
 import { checkBatchPayloadArrayOfObjects } from "@/functions/checkBatchPayloadArrayOfObjects";
+import { checkSyncBatchResultGranularity } from "@/functions/checkSyncBatchResultGranularity";
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -78,7 +79,8 @@ export const functionsMap: {
   checkURIFilterParams,
   checkSortingParams,
   checkBatchUsesPost,
-  checkBatchPayloadArrayOfObjects
+  checkBatchPayloadArrayOfObjects,
+  checkSyncBatchResultGranularity
 };
 
 /**

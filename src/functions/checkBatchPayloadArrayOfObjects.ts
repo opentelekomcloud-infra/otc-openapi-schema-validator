@@ -5,11 +5,11 @@ import { findRequestBodyPositionInYaml} from "@/utils/pos";
 import { BatchMatchConfig, isBatchOperation } from "@/utils/batchDetect";
 import {
   getRequestBodySchema,
-  PayloadConfig,
   schemaHasAnyArrayOfObjectsDeep,
   schemaIsArrayOfObjects
 } from "@/utils/schema";
 import {isActionTagsBatchPayload} from "@/utils/batchPatterns";
+import { PayloadConfig } from "@/types/batch";
 
 /**
  * STS-030-01-2507-2507-M-2
