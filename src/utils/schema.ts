@@ -1,3 +1,25 @@
+import { PayloadConfig, SyncGranularityConfig } from "@/types/batch";
+
+/**
+ * Validates that a parameter matches expected schema conditions.
+ *
+ * Supports resolving `$ref` parameters from `#/components/...`.
+ * Handles both `schema` and OpenAPI `content` parameter styles.
+ *
+ * Validation includes:
+ * - parameter name
+ * - `in` location (query/header/path/cookie)
+ * - parameter type
+ * - optional constraints such as `required`, `description`, and `style`
+ *
+ * @param param Parameter object or `$ref`
+ * @param name Expected parameter name
+ * @param paramIn Parameter location (`query`, `header`, `path`, etc.)
+ * @param type Expected schema type
+ * @param spec Full OpenAPI specification (used for `$ref` resolution)
+ * @param options Optional validation constraints
+ * @returns true if parameter matches the expected schema
+ */
 export function matchParameterSchema(
     param: any,
     name: string,
@@ -56,6 +78,15 @@ export function matchParameterSchema(
     return true;
 }
 
+/**
+ * Resolves a local OpenAPI JSON pointer reference (`#/...`).
+ *
+ * Works with both plain objects and Map-based structures used in some parsers.
+ *
+ * @param ref JSON pointer reference
+ * @param spec OpenAPI specification
+ * @returns resolved object or undefined if resolution fails
+ */
 export const resolveRef = (ref: string, spec: any): any => {
     if (!ref || !ref.startsWith('#/')) return undefined;
     const refPath = ref.slice(2).split('/');
@@ -72,6 +103,17 @@ export const resolveRef = (ref: string, spec: any): any => {
     return resolved;
 };
 
+/**
+ * Recursively extracts all property names from a schema.
+ *
+ * Traverses nested objects, arrays and `$ref` references.
+ *
+ * Useful when validating that response models contain certain fields.
+ *
+ * @param schema Root schema
+ * @param spec OpenAPI specification used for resolving references
+ * @returns Set of property names discovered in the schema
+ */
 export function extractAllProperties(schema: any, spec: any): Set<string> {
     const props = new Set<string>();
 
@@ -98,6 +140,20 @@ export function extractAllProperties(schema: any, spec: any): Set<string> {
     return props;
 }
 
+/**
+ * Normalizes a schema node into a readable type string.
+ *
+ * Handles `$ref`, arrays and implicit object definitions.
+ *
+ * Examples:
+ *   object
+ *   string
+ *   array<object>
+ *
+ * @param node Schema node
+ * @param spec OpenAPI specification
+ * @returns normalized type string
+ */
 export function normalizeType(node: any, spec: any): string {
     if (!node) return 'unknown';
     if (node.$ref) {
@@ -116,6 +172,20 @@ export function normalizeType(node: any, spec: any): string {
     return 'unknown';
 }
 
+/**
+ * Traverses a schema and returns a mapping of property paths to types.
+ *
+ * Paths are expressed using dot notation and [] for arrays.
+ *
+ * Example:
+ *   user.id -> string
+ *   users[].name -> string
+ *
+ * @param schema Root schema
+ * @param spec OpenAPI specification
+ * @param basePath Optional path prefix
+ * @returns Map of property path -> normalized type
+ */
 export function extractPropertyTypes(schema: any, spec: any, basePath = ''): Map<string, string> {
     const types = new Map<string, string>();
 
@@ -148,6 +218,16 @@ export function extractPropertyTypes(schema: any, spec: any, basePath = ''): Map
     return types;
 }
 
+/**
+ * Traverses a schema and extracts enum values.
+ *
+ * Supports nested objects, arrays and `$ref` resolution.
+ *
+ * @param schema Root schema
+ * @param spec OpenAPI specification
+ * @param basePath Optional path prefix
+ * @returns Map of property path -> enum value set
+ */
 export function extractEnumIfExist(schema: any, spec: any, basePath = ''): Map<string, Set<string>> {
     const enums = new Map<string, Set<string>>();
 
@@ -183,6 +263,16 @@ function decodeJsonPointerToken(token: string): string {
     return token.replace(/~1/g, "/").replace(/~0/g, "~");
 }
 
+/**
+ * Resolves chained `$ref` references until a concrete schema object is reached.
+ *
+ * Includes caching and circular reference protection.
+ *
+ * @param obj Schema node that may contain `$ref`
+ * @param refCache Cache for resolved references
+ * @param spec OpenAPI specification
+ * @returns resolved schema node
+ */
 export function resolveRefDeep(obj: any, refCache: any, spec: any): any {
     let curObj: any = obj;
     const seen = new Set<string>();
@@ -221,6 +311,15 @@ export function resolveRefDeep(obj: any, refCache: any, spec: any): any {
     return curObj;
 }
 
+/**
+ * Resolves a single local `$ref` object if present.
+ *
+ * If resolution fails the original object is returned.
+ *
+ * @param spec OpenAPI specification
+ * @param maybeRefObj Object that may contain `$ref`
+ * @returns resolved object or original input
+ */
 export function resolveLocalRef(spec: any, maybeRefObj: any): any {
     if (!maybeRefObj || typeof maybeRefObj !== "object") return maybeRefObj;
 
@@ -245,8 +344,22 @@ export function resolveLocalRef(spec: any, maybeRefObj: any): any {
 }
 
 /**
- * Returns true if `propName` exists as a property key anywhere inside the resolved schema.
- * Traverses objects/arrays and composition keywords. Avoids cycles with `visited`.
+ * Checks whether a property exists anywhere inside a schema.
+ *
+ * Traverses:
+ * - nested objects
+ * - arrays
+ * - additionalProperties
+ * - composition keywords (`allOf`, `oneOf`, `anyOf`)
+ *
+ * Uses a visited set to prevent infinite recursion.
+ *
+ * @param schema Schema to inspect
+ * @param propName Property name to search
+ * @param spec OpenAPI specification
+ * @param refCache Reference cache
+ * @param visited Cycle detection set
+ * @returns true if property exists
  */
 export function schemaHasPropertyDeep(
   schema: any,
@@ -304,12 +417,22 @@ export function schemaHasPropertyDeep(
     return false;
 }
 
+/**
+ * Determines whether a schema represents an object.
+ *
+ * Supports `$ref` resolution and implicit object definitions via `properties`.
+ */
 export function schemaIsObject(schema: any, spec: any, refCache: Map<string, any>): boolean {
     const s = resolveRefDeep(schema, refCache, spec);
     if (!s || typeof s !== "object") return false;
     return String((s as any).type ?? "").toLowerCase() === "object" || !!(s as any).properties;
 }
 
+/**
+ * Determines whether a schema represents `array<object>`.
+ *
+ * Used when validating batch payload structures.
+ */
 export function schemaIsArrayOfObjects(schema: any, spec: any, refCache: Map<string, any>): boolean {
     const s = resolveRefDeep(schema, refCache, spec);
     if (!s || typeof s !== "object") return false;
@@ -320,8 +443,14 @@ export function schemaIsArrayOfObjects(schema: any, spec: any, refCache: Map<str
 }
 
 /**
- * Returns true if schema is an object wrapper that contains ANY property that is `array<object>`.
- * This covers shapes like `{ service_items: [ {...}, ... ] }`, `{ tags: [ ... ] }`, etc.
+ * Detects whether a schema contains any property that is `array<object>`.
+ *
+ * Covers wrapper patterns such as:
+ *   { items: [...] }
+ *   { resources: [...] }
+ *   { service_items: [...] }
+ *
+ * Used for detecting batch-style request payloads.
  */
 export function schemaHasAnyArrayOfObjectsDeep(schema: any, spec: any, refCache: Map<string, any>): boolean {
     const s = resolveRefDeep(schema, refCache, spec);
@@ -365,13 +494,6 @@ export function schemaHasAnyArrayOfObjectsDeep(schema: any, spec: any, refCache:
     return visit(s);
 }
 
-export type PayloadConfig = {
-    allowTopLevelArray?: boolean;
-    allowObjectWrapperWithAnyArrayOfObjects?: boolean;
-    allowActionEnumCreateDeleteWithTagsArray?: boolean;
-    contentTypesPreferred?: string[];
-};
-
 function pickPreferredMediaType(contentObj: any, preferred: string[]): any {
     if (!contentObj || typeof contentObj !== "object") return null;
 
@@ -387,8 +509,14 @@ function pickPreferredMediaType(contentObj: any, preferred: string[]): any {
 }
 
 /**
- * Extracts requestBody schema from an OpenAPI 3 operation.
- * Prefers JSON, then XML, otherwise first available media type.
+ * Extracts the requestBody schema from an OpenAPI operation.
+ *
+ * Media type selection prefers configured types
+ * (JSON → problem+json → XML → fallback).
+ *
+ * Automatically resolves `$ref` chains.
+ *
+ * @returns resolved schema or null
  */
 export function getRequestBodySchema(
   operation: any,
@@ -415,4 +543,168 @@ export function getRequestBodySchema(
     if (!schema) return null;
 
     return resolveRefDeep(schema, refCache, spec);
+}
+
+/**
+ * Extracts the schema from the primary success response (200).
+ *
+ * Filters media types according to configured preferences.
+ *
+ * Used by response validation rules.
+ */
+export function getResponseSchema(
+  operation: any,
+  spec: any,
+  refCache: Map<string, any>,
+  cfg: SyncGranularityConfig
+): any | null {
+    const respRaw = getSuccessResponseObject(operation);
+    if (!respRaw) return null;
+
+    const resp = resolveRefDeep(respRaw, refCache, spec);
+    if (!resp || typeof resp !== "object") return null;
+
+    const contentObj = (resp as any).content;
+    if (!contentObj || typeof contentObj !== "object") {
+        return null;
+    }
+
+    const preferred = Array.isArray(cfg.contentTypes) && cfg.contentTypes.length > 0
+      ? cfg.contentTypes
+      : ["application/json", "application/problem+json"];
+
+    const media = pickPreferredMediaType(contentObj, preferred);
+    const schema = media?.schema;
+    if (!schema) return null;
+
+    return resolveRefDeep(schema, refCache, spec);
+}
+
+function getSuccessResponseObject(operation: any): any | null {
+    const responses = operation?.responses;
+    if (!responses || typeof responses !== "object") return null;
+    return (responses as any)["200"] ?? (responses as any)[200] ?? null;
+}
+
+/**
+ * Checks whether a response contains `content` entries
+ * for configured media types.
+ *
+ * Helps skip validation when operations return no body
+ * (e.g. 204 responses).
+ */
+export function schemaHasContentForConfiguredTypes(operation: any, cfg: SyncGranularityConfig): boolean {
+    const resp = getSuccessResponseObject(operation);
+    if (!resp || typeof resp !== "object") return false;
+
+    const contentObj = (resp as any).content;
+    if (!contentObj || typeof contentObj !== "object") return false;
+
+    const preferred = Array.isArray(cfg.contentTypes) && cfg.contentTypes.length > 0
+      ? cfg.contentTypes
+      : ["application/json", "application/problem+json"];
+
+    return preferred.some((t) => Boolean((contentObj as any)[t]));
+}
+
+/**
+ * Recursively searches for a property schema by name.
+ *
+ * Supports `$ref`, arrays, additionalProperties and
+ * composition constructs.
+ *
+ * @returns the schema node if found
+ */
+export function findFieldSchemaByNameDeep(
+  schema: any,
+  names: string[],
+  spec: any,
+  refCache: Map<string, any>,
+  visited: Set<any>
+): any | null {
+    const resolved = resolveRefDeep(schema, refCache, spec);
+    if (!resolved || typeof resolved !== "object") return null;
+    if (visited.has(resolved)) return null;
+    visited.add(resolved);
+
+    const wanted = names.map((n) => String(n).toLowerCase());
+    const props = (resolved as any).properties;
+    if (props && typeof props === "object") {
+        for (const [k, v] of Object.entries(props)) {
+            if (wanted.includes(String(k).toLowerCase())) return v;
+        }
+        for (const v of Object.values(props)) {
+            const nested = findFieldSchemaByNameDeep(v, names, spec, refCache, visited);
+            if (nested) return nested;
+        }
+    }
+
+    const items = (resolved as any).items;
+    if (items) {
+        const nested = findFieldSchemaByNameDeep(items, names, spec, refCache, visited);
+        if (nested) return nested;
+    }
+
+    const addl = (resolved as any).additionalProperties;
+    if (addl && typeof addl === "object") {
+        const nested = findFieldSchemaByNameDeep(addl, names, spec, refCache, visited);
+        if (nested) return nested;
+    }
+
+    for (const key of ["allOf", "oneOf", "anyOf"]) {
+        const arr = (resolved as any)[key];
+        if (Array.isArray(arr)) {
+            for (const s of arr) {
+                const nested = findFieldSchemaByNameDeep(s, names, spec, refCache, visited);
+                if (nested) return nested;
+            }
+        }
+    }
+
+    return null;
+}
+
+/**
+ * Checks whether a schema contains any property
+ * from a provided list of candidate names.
+ */
+export function schemaHasPropertyAnyOf(
+  schema: any,
+  names: string[],
+  spec: any,
+  refCache: Map<string, any>,
+  visited: Set<any>
+): boolean {
+    return Boolean(findFieldSchemaByNameDeep(schema, names, spec, refCache, visited));
+}
+
+/**
+ * Determines whether a schema behaves like an array.
+ *
+ * Accepts both explicit `type: array` and implicit
+ * schemas containing `items`.
+ */
+export function schemaIsArrayLike(schema: any, spec: any, refCache: Map<string, any>): boolean {
+    const s = resolveRefDeep(schema, refCache, spec);
+    if (!s || typeof s !== "object") return false;
+    return String((s as any).type ?? "").toLowerCase() === "array" || Boolean((s as any).items);
+}
+
+/**
+ * Checks whether items of an array schema contain
+ * one of the configured status fields.
+ *
+ * Used for validating per-item batch operation responses.
+ */
+export function arrayItemsHaveStatusField(
+  arraySchema: any,
+  statusFields: string[],
+  spec: any,
+  refCache: Map<string, any>
+): boolean {
+    const arr = resolveRefDeep(arraySchema, refCache, spec);
+    if (!arr || typeof arr !== "object") return false;
+    const items = (arr as any).items;
+    if (!items) return false;
+    return schemaHasPropertyAnyOf(items, statusFields, spec, refCache, new Set<any>());
 }

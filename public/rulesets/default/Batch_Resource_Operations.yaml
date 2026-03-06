@@ -72,7 +72,7 @@ rules:
         allOrNothing:
           markersAnyOf: ["all_resources_success","all_resources_failure","all_success","all_failure"]
     severity: medium
-    status: devel
+    status: implemented
 
   - id: "ASY-010-01-2507-2507-M"
     title: "Async batch response contract"
