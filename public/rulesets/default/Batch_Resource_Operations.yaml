@@ -99,4 +99,4 @@ rules:
           resourcesListRequired: false # to avoid false positives
           resourcesListAnyOf: ["resources","items","results"]
     severity: medium
-    status: devel
+    status: implemented

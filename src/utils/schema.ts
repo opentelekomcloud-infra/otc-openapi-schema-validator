@@ -1,4 +1,5 @@
 import { PayloadConfig, SyncGranularityConfig } from "@/types/batch";
+import { getResponseObjectByStatus } from "@/utils/spec";
 
 /**
  * Validates that a parameter matches expected schema conditions.
@@ -707,4 +708,49 @@ export function arrayItemsHaveStatusField(
     const items = (arr as any).items;
     if (!items) return false;
     return schemaHasPropertyAnyOf(items, statusFields, spec, refCache, new Set<any>());
+}
+
+/**
+ * Resolves the response schema for a specific HTTP status code.
+ *
+ * Unlike the generic response-schema helper that defaults to the primary success
+ * response, this function is status-code aware and is used by async rules where
+ * the contract is tied to a specific response such as 202 Accepted.
+ *
+ * @param operation OpenAPI operation object
+ * @param statusCode Response status code to inspect
+ * @param spec OpenAPI specification
+ * @param refCache Reference resolution cache
+ * @returns resolved response schema or null if absent
+ */
+export function getResponseSchemaByStatus(
+  operation: any,
+  statusCode: string,
+  spec: any,
+  refCache: Map<string, any>
+): any | null {
+    const respRaw = getResponseObjectByStatus(operation, statusCode);
+    if (!respRaw) return null;
+
+    const resp = resolveRefDeep(respRaw, refCache, spec);
+    if (!resp || typeof resp !== "object") return null;
+
+    const contentObj = (resp as any).content;
+    if (!contentObj || typeof contentObj !== "object") return null;
+
+    const preferred = ["application/json", "application/problem+json", "application/xml"];
+    for (const mediaType of preferred) {
+        const media = (contentObj as any)[mediaType];
+        if (media?.schema) {
+            return resolveRefDeep(media.schema, refCache, spec);
+        }
+    }
+
+    const firstKey = Object.keys(contentObj)[0];
+    const firstMedia = firstKey ? (contentObj as any)[firstKey] : null;
+    if (firstMedia?.schema) {
+        return resolveRefDeep(firstMedia.schema, refCache, spec);
+    }
+
+    return null;
 }
