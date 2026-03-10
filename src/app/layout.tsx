@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "OpenAPI Validator",
-  description: "OpenTelekomCloud OpenAPI validation tool",
+  description: "T Cloud Public (OpenTelekomCloud) OpenAPI validation tool",
 };
 
 export default function RootLayout({
