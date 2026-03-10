@@ -1,4 +1,4 @@
-# OTC OpenAPI Schema Validator
+# T Cloud Public OpenAPI Schema Validator
 
 A web-based tool built with **Next.js 15**, **React 19**, and **Tailwind CSS 4** for validating and visualizing OpenAPI schemas (YAML/JSON).  
 It supports file uploads, URL-based loading (including Internal Gitea-hosted specs), and provides detailed diagnostics and reports.
