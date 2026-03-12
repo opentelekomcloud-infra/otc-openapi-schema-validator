@@ -1,5 +1,5 @@
 import { PayloadConfig, SyncGranularityConfig } from "@/types/batch";
-import { getResponseObjectByStatus } from "@/utils/spec";
+import { getResponseObjectByStatus, isPlainObject } from "@/utils/spec";
 
 /**
  * Validates that a parameter matches expected schema conditions.
@@ -260,6 +260,18 @@ export function extractEnumIfExist(schema: any, spec: any, basePath = ''): Map<s
     return enums;
 }
 
+/**
+ * Decodes a single JSON Pointer token according to RFC 6901.
+ *
+ * Replaces escaped sequences:
+ * - `~1` -> `/`
+ * - `~0` -> `~`
+ *
+ * Used when resolving local `$ref` paths that may contain escaped characters.
+ *
+ * @param token Raw JSON Pointer token.
+ * @returns Decoded token value.
+ */
 function decodeJsonPointerToken(token: string): string {
     return token.replace(/~1/g, "/").replace(/~0/g, "~");
 }
@@ -495,6 +507,16 @@ export function schemaHasAnyArrayOfObjectsDeep(schema: any, spec: any, refCache:
     return visit(s);
 }
 
+/**
+ * Selects the most suitable media type object from an OpenAPI `content` map.
+ *
+ * The function prefers media types in the provided order and falls back to the
+ * first available content entry if none of the preferred types exist.
+ *
+ * @param contentObj OpenAPI `content` object.
+ * @param preferred Ordered list of preferred media types.
+ * @returns The selected media type definition or null if none is available.
+ */
 function pickPreferredMediaType(contentObj: any, preferred: string[]): any {
     if (!contentObj || typeof contentObj !== "object") return null;
 
@@ -581,6 +603,15 @@ export function getResponseSchema(
     return resolveRefDeep(schema, refCache, spec);
 }
 
+/**
+ * Returns the primary success response object for an operation.
+ *
+ * Currently, this helper checks for `200` using both string and numeric keys,
+ * because parsers may normalize response codes differently.
+ *
+ * @param operation OpenAPI operation object.
+ * @returns The success response object or null if no 200 response exists.
+ */
 function getSuccessResponseObject(operation: any): any | null {
     const responses = operation?.responses;
     if (!responses || typeof responses !== "object") return null;
@@ -753,4 +784,161 @@ export function getResponseSchemaByStatus(
     }
 
     return null;
+}
+
+/**
+ * Collects all reachable property paths from a schema.
+ *
+ * Traverses nested objects, arrays and composition constructs (`allOf`, `oneOf`, `anyOf`),
+ * resolving `$ref` links along the way.
+ *
+ * Paths use dot notation for objects and `[]` for arrays.
+ * Example:
+ * - `user.id`
+ * - `items[]`
+ * - `items[].name`
+ *
+ * @param schema Root schema to inspect.
+ * @param spec OpenAPI specification.
+ * @param refCache Reference cache used by `$ref` resolution.
+ * @param basePath Optional path prefix.
+ * @param visited Cycle-detection set.
+ * @returns Set of discovered schema paths.
+ */
+export function collectSchemaPaths(schema: any, spec: any, refCache: Map<string, any>, basePath = "", visited = new Set<any>()): Set<string> {
+    const result = new Set<string>();
+    const resolved = resolveRefDeep(schema, refCache, spec);
+    if (!resolved || typeof resolved !== "object") return result;
+    if (visited.has(resolved)) return result;
+    visited.add(resolved);
+
+    const props = (resolved as any).properties;
+    if (props && typeof props === "object") {
+        for (const [key, value] of Object.entries(props)) {
+            const nextPath = basePath ? `${basePath}.${key}` : key;
+            result.add(nextPath);
+            const childPaths = collectSchemaPaths(value, spec, refCache, nextPath, visited);
+            for (const p of childPaths) result.add(p);
+        }
+    }
+
+    const items = (resolved as any).items;
+    if (items) {
+        const nextBase = `${basePath}[]`;
+        result.add(nextBase);
+        const childPaths = collectSchemaPaths(items, spec, refCache, nextBase, visited);
+        for (const p of childPaths) result.add(p);
+    }
+
+    for (const key of ["allOf", "oneOf", "anyOf"]) {
+        const arr = (resolved as any)[key];
+        if (Array.isArray(arr)) {
+            for (const part of arr) {
+                const childPaths = collectSchemaPaths(part, spec, refCache, basePath, visited);
+                for (const p of childPaths) result.add(p);
+            }
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Collects all required field paths from a schema.
+ *
+ * Traverses nested objects, arrays and composition constructs while resolving `$ref` links.
+ * Only fields listed in `required` arrays are included at each level.
+ *
+ * Paths use dot notation for objects and `[]` for arrays.
+ *
+ * @param schema Root schema to inspect.
+ * @param spec OpenAPI specification.
+ * @param refCache Reference cache used by `$ref` resolution.
+ * @param basePath Optional path prefix.
+ * @param visited Cycle-detection set.
+ * @returns Set of required schema paths.
+ */
+export function collectRequiredSchemaPaths(schema: any, spec: any, refCache: Map<string, any>, basePath = "", visited = new Set<any>()): Set<string> {
+    const result = new Set<string>();
+    const resolved = resolveRefDeep(schema, refCache, spec);
+    if (!resolved || typeof resolved !== "object") return result;
+    if (visited.has(resolved)) return result;
+    visited.add(resolved);
+
+    const required = Array.isArray((resolved as any).required) ? (resolved as any).required : [];
+    const props = (resolved as any).properties;
+
+    if (props && typeof props === "object") {
+        for (const key of required) {
+            const nextPath = basePath ? `${basePath}.${key}` : key;
+            result.add(nextPath);
+        }
+
+        for (const [key, value] of Object.entries(props)) {
+            const nextPath = basePath ? `${basePath}.${key}` : key;
+            const childPaths = collectRequiredSchemaPaths(value, spec, refCache, nextPath, visited);
+            for (const p of childPaths) result.add(p);
+        }
+    }
+
+    const items = (resolved as any).items;
+    if (items) {
+        const nextBase = `${basePath}[]`;
+        const childPaths = collectRequiredSchemaPaths(items, spec, refCache, nextBase, visited);
+        for (const p of childPaths) result.add(p);
+    }
+
+    for (const key of ["allOf", "oneOf", "anyOf"]) {
+        const arr = (resolved as any)[key];
+        if (Array.isArray(arr)) {
+            for (const part of arr) {
+                const childPaths = collectRequiredSchemaPaths(part, spec, refCache, basePath, visited);
+                for (const p of childPaths) result.add(p);
+            }
+        }
+    }
+
+    return result;
+}
+
+/**
+ * Collects all field paths present in an example payload.
+ *
+ * Traverses nested objects and arrays and produces paths using dot notation
+ * for objects and `[]` for arrays.
+ *
+ * Example:
+ * - `user.id`
+ * - `items[]`
+ * - `items[].name`
+ *
+ * This helper is used to compare example payload structure with schema-defined paths.
+ *
+ * @param value Example payload value.
+ * @param basePath Optional path prefix.
+ * @returns Set of discovered example paths.
+ */
+export function collectExamplePaths(value: any, basePath = ""): Set<string> {
+    const result = new Set<string>();
+
+    if (Array.isArray(value)) {
+        const arrayPath = `${basePath}[]`;
+        if (basePath) result.add(arrayPath);
+        for (const item of value) {
+            const childPaths = collectExamplePaths(item, arrayPath);
+            for (const p of childPaths) result.add(p);
+        }
+        return result;
+    }
+
+    if (!isPlainObject(value)) return result;
+
+    for (const [key, child] of Object.entries(value)) {
+        const nextPath = basePath ? `${basePath}.${key}` : key;
+        result.add(nextPath);
+        const childPaths = collectExamplePaths(child, nextPath);
+        for (const p of childPaths) result.add(p);
+    }
+
+    return result;
 }

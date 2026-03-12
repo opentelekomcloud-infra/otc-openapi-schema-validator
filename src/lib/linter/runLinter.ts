@@ -40,6 +40,11 @@ import { checkBatchUsesPost } from "@/functions/checkBatchUsesPost";
 import { checkBatchPayloadArrayOfObjects } from "@/functions/checkBatchPayloadArrayOfObjects";
 import { checkSyncBatchResultGranularity } from "@/functions/checkSyncBatchResultGranularity";
 import { checkAsyncBatchResponse } from "@/functions/checkAsyncBatchResponse";
+import { checkExamplesFormat } from "@/functions/checkExamplesFormat";
+
+const log = {
+  debug: (...args: any[]) => console.debug("[runLinter]", ...args),
+};
 
 export const functionsMap: {
   [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
@@ -82,7 +87,8 @@ export const functionsMap: {
   checkBatchUsesPost,
   checkBatchPayloadArrayOfObjects,
   checkSyncBatchResultGranularity,
-  checkAsyncBatchResponse
+  checkAsyncBatchResponse,
+  checkExamplesFormat
 };
 
 /**
@@ -103,7 +109,7 @@ export async function runLinter(
     if (!Array.isArray(selectedRules) || selectedRules.length === 0) {
       return { diagnostics, specTitle };
     }
-
+    log.debug("loaded rules: ", selectedRules)
     const runnable = selectedRules.filter(
       (rule: any) =>
         !!rule?.call?.function &&

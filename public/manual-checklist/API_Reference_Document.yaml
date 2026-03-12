@@ -1,0 +1,7 @@
+rules:
+  - id: "DOC-030-01-2507-2507-M"
+    title: "Each change in the API reference document must be recorded in the revision history"
+    message: "The change of each interface must be specific to the parameter level"
+    option: Mandatory
+    task: "The record must contain next details: date, version, description, authors"
+    severity: high

@@ -1,0 +1,98 @@
+rules:
+  - id: "DOC-040-01-2507-2507-M"
+    title: "API Reference Document Sample Requirements"
+    message: "Operation examples must be present or absent according to method-specific requirements, and must match the defined API contract."
+    option: Mandatory
+    location: paths
+    element:
+      - requestBody
+      - responses
+    call:
+      function: checkExamplesFormat
+      functionParams:
+        methods:
+          get:
+            requestExample: forbidden
+            responseExample: required
+            requestValidation:
+              includeRequestBodySchema: false
+              includeOperationParameters:
+                query: true
+                path: true
+                header: false
+                cookie: false
+          post:
+            requestExample: required
+            responseExample: required
+            requestValidation:
+              includeRequestBodySchema: true
+              includeOperationParameters:
+                query: false
+                path: false
+                header: false
+                cookie: false
+          put:
+            requestExample: required
+            responseExample: required
+            requestValidation:
+              includeRequestBodySchema: true
+              includeOperationParameters:
+                query: false
+                path: false
+                header: false
+                cookie: false
+          patch:
+            requestExample: required
+            responseExample: required
+            requestValidation:
+              includeRequestBodySchema: true
+              includeOperationParameters:
+                query: false
+                path: false
+                header: false
+                cookie: false
+          delete:
+            requestExample: forbidden
+            responseExample: forbidden
+            requestValidation:
+              includeRequestBodySchema: false
+              includeOperationParameters:
+                query: false
+                path: false
+                header: false
+                cookie: false
+        exampleSources:
+          request:
+            - content.example
+            - content.examples
+          response:
+            - content.example
+            - content.examples
+        responseSelection:
+          mode: successOnly
+          include:
+            - "200"
+            - "201"
+            - "202"
+            - "204"
+        formatValidation:
+          application/json: json
+          application/problem+json: json
+        requestValidation:
+          includeRequestBodySchema: true
+          includeOperationParameters:
+            query: false
+            path: false
+            header: false
+            cookie: false
+          requireRequiredBodyFields: true
+          forbidUndefinedFields: true
+        responseValidation:
+          validateAgainstResponseSchema: true
+          forbidUndefinedFields: true
+        consistencyMode: strict # lenient
+        requireAtLeastOneExample: true
+        allowSingleExample: true
+        allowExamplesObject: true
+    severity: critical
+    status: implemented
