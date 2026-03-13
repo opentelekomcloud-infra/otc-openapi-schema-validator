@@ -1,0 +1,106 @@
+rules:
+  - id: 2.7.1
+    title: "Request and Response Parameter Formats"
+    message: "Request and response  parameters are named in a snake case format. All letters are in lowercase."
+    option: mandatory
+    reference: "ARG-010-01-2507-2509-M"
+    location: paths
+    element: 
+        - requestBody
+        - responses
+        - parameters
+    calls: 
+    - function: validateSnakeCase
+      functionParams: 
+        method: 
+          - "post"
+          - "put"
+          - "get"
+          - "patch"
+          - "delete" 
+    - function: validateAcronymWhitelist
+      functionParams: 
+        acronymsFile: "public/acronyms.yaml"
+        allowed_acronyms:
+          - id
+          - api
+          - uuid
+          - ip
+          - os
+        dictionaryApiUrl: "https://api.dictionaryapi.dev/api/v2/entries/en/{word}"
+        method: 
+          - "post"
+          - "put"
+          - "get"
+          - "patch"
+          - "delete"             
+    severity: critical
+    description: "Enforces naming convention compliance for request and response parameters according to ARG-010-01-2507-2509-M."
+
+  - id: 2.7.2
+    title: "The project_id parameter is an optional parameter in the URI."
+    message: "The project_id parameter is optional only for APIs that support global services."
+    option: optional
+    reference: "ARG-040-01-2507-2507-O"
+    location: operations
+    element: operation
+    calls: 
+     function: validateProjectIdByTagScope
+     functionParams:
+        tagScopeField: tags
+        globalScopeTag: global
+        regionalScopeTag: regional
+        parameterName: project_id
+        parameterLocation: path
+    severity: high
+    description: "This rule ensures that the URI path structure aligns with the service scope defined by tags:
+                 In IAM 5.0, cloud service resources are isolated based on accounts.
+                 Strong dependency on project_id in cloud service APIs must be removed.
+                 The project_id parameter is optional and must not be used as a criterion
+                 for resource isolation in new services.
+                 Legacy services may continue to use project_id."
+
+  - id: 2.7.3
+    title: "Parameter Design Avoids Redundancy"
+    message: "Parameter design contains redundant, unnecessary, or undocumented reserved parameters. Avoid duplicate semantics and remove unused mandatory parameters."
+    option: optional
+    reference: "ARG-050-01-2507-2507-O"
+    location: paths
+    element:     
+      - parameters
+      - requestBody
+      - responses
+    calls: 
+    - function: validateNoRedundantParameters
+      functionParams:
+        checkDuplicateMeaning: true
+        checkUnusedParameters: true
+        requireReservedFlagForUnused: true
+        reservedFieldName: "x-reserved"
+        reservedDescriptionRequired: true
+    severity: high
+    description: "Parameter design must be as simple as possible and avoid multiple parameters
+                  with the same meaning. Essential parameters must be carefully evaluated for necessity.
+                  Unused request or response parameters must not be exposed in the API.
+                  If such parameters already exist, they must be clearly marked as reserved
+                  and documented as not currently in use."
+  - id: 2.7.4
+    title: "Root Body Parameter Should Match Resource Type"
+    message: "The root body parameter name should match the resource type (singular for single resource, plural for collection)."
+    option: optional
+    reference: "ARG-060-01-2507-2507-O"
+    location: paths
+    element:
+      - requestBody
+      - responses
+    calls:
+    - function: validateRootNodeMatchesResource
+      functionParams:
+        enforcePluralForCollections: true
+        enforceSingularForSingleResource: true
+        deriveResourceFromPath: true
+    severity: medium
+    description: "The root node of the request and response body for creating and querying
+                  resources should be named after the resource type for better readability,
+                  clarity, and future extensibility.For collection queries, the root node should use the plural form.
+                  For single resource queries or creation, the singular form should be used."
