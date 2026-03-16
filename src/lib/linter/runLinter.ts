@@ -41,6 +41,7 @@ import { checkBatchPayloadArrayOfObjects } from "@/functions/checkBatchPayloadAr
 import { checkSyncBatchResultGranularity } from "@/functions/checkSyncBatchResultGranularity";
 import { checkAsyncBatchResponse } from "@/functions/checkAsyncBatchResponse";
 import { checkExamplesFormat } from "@/functions/checkExamplesFormat";
+import { checkVersionConvention } from "@/functions/checkVersionConvention";
 
 const log = {
   debug: (...args: any[]) => console.debug("[runLinter]", ...args),
@@ -88,7 +89,8 @@ export const functionsMap: {
   checkBatchPayloadArrayOfObjects,
   checkSyncBatchResultGranularity,
   checkAsyncBatchResponse,
-  checkExamplesFormat
+  checkExamplesFormat,
+  checkVersionConvention
 };
 
 /**
