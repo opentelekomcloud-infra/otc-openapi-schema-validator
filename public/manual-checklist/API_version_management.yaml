@@ -1,0 +1,7 @@
+rules:
+  - id: "VER-010-01-2507-2507-M"
+    title: "Compatibility with Native OpenStack APIs"
+    message: "The native OpenStack APIs are compatible with the native community."
+    option: Mandatory
+    location: info
+    element: version
