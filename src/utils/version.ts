@@ -7,7 +7,7 @@ export type VersionConventionMode =
 /**
  * Removes optional single or double quotes around a version string.
  */
-function stripOuterQuotes(value: string): string {
+export function stripOuterQuotes(value: string): string {
   const trimmed = String(value ?? "").trim();
   if (
     (trimmed.startsWith('"') && trimmed.endsWith('"')) ||

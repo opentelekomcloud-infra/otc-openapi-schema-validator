@@ -70,10 +70,10 @@ rules:
     location: info
     element: version
     call: {
-      function: incompatibleChangeVersioningCheck,
+      function: checkIncompatibleChangeVersioning,
       functionParams: {
         "versionPattern": "^v[0-9]+$"
       }
     }
     severity: "high"
-    status: devel
+    status: implemented
