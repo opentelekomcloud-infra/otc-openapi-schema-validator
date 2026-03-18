@@ -1,4 +1,4 @@
-import { marked } from "marked";
+import {marked} from "marked";
 import yaml from "js-yaml";
 
 /**
@@ -72,25 +72,108 @@ export const convertImageFromLinkToBase64 = async (imageUrl: string): Promise<st
     });
 };
 
-export async function fetchRepoMap(spec: any): Promise<Record<string, string> | null> {
+type RepoDescriptor = {
+    reponame: string;
+    filename?: string;
+};
+
+type RawRepoEntry = Record<string, RepoDescriptor>;
+
+/**
+ * Normalizes a single service entry from `repositories.yaml`.
+ *
+ * Expected raw format:
+ *   - ER:
+ *       reponame: enterprise-router
+ *       filename: enterprise-router
+ *
+ * Returns only the descriptor object:
+ *   { reponame, filename }
+ */
+function normalizeRepoEntry(entry: Record<string, unknown>): RepoDescriptor | null {
+    const [title, value] = Object.entries(entry)[0] ?? [];
+    if (!title || typeof value !== "object" || value == null) return null;
+
+    const obj = value as Record<string, unknown>;
+    const reponame = String(obj.reponame ?? "").trim();
+    const filename = String(obj.filename ?? reponame).trim();
+
+    if (!reponame) return null;
+
+    return {
+        reponame,
+        filename: filename || reponame,
+    };
+}
+
+/**
+ * Accepts either:
+ * - a normalized descriptor: { reponame, filename }
+ * - or a raw wrapped entry: { CCE: { reponame, filename } }
+ *
+ * and always returns a clean descriptor.
+ */
+function toRepoDescriptor(repo: RepoDescriptor | RawRepoEntry | null | undefined): RepoDescriptor | null {
+    if (!repo || typeof repo !== "object") return null;
+
+    const directRepoName = String((repo as RepoDescriptor).reponame ?? "").trim();
+    if (directRepoName) {
+        const direct = repo as RepoDescriptor;
+        return {
+            reponame: directRepoName,
+            filename: String(direct.filename ?? directRepoName).trim() || directRepoName,
+        };
+    }
+
+    return normalizeRepoEntry(repo as Record<string, unknown>);
+}
+
+export async function fetchRepoMap(spec: any): Promise<RepoDescriptor | null> {
     const url = buildFetchUrl("/gitea/repositories.yaml");
 
     try {
         const response = await fetch(url);
         const text = await response.text();
 
-        const parsed = yaml.load(text) as { services: Record<string, string>[] };
-        const serviceEntry = parsed.services.find((entry) => Object.keys(entry).includes(spec.info.title));
-        return serviceEntry ?? null;
+        const parsed = yaml.load(text) as { services?: Record<string, unknown>[] };
+        const services = Array.isArray(parsed?.services) ? parsed.services : [];
+        const title = String(spec?.info?.title ?? "").trim();
+        const serviceEntry = services.find((entry) => Object.prototype.hasOwnProperty.call(entry ?? {}, title));
+        if (!serviceEntry) {
+            console.error("Service title not found in repositories.yaml:", title);
+            return null;
+        }
+
+        return normalizeRepoEntry(serviceEntry);
     } catch (e) {
         console.error("Failed to load repositories.yaml:", e);
         return null;
     }
 }
 
-export async function fetchSpecFromGitea(repo: string, path: string, headers?: Record<string, string>): Promise<any | null> {
+export async function fetchSpecFromGitea(
+    repo: RepoDescriptor | RawRepoEntry,
+    path?: string,
+    headers?: Record<string, string>
+): Promise<any | null> {
     try {
-        const url = buildFetchUrl(`/api/gitea?repo=${encodeURIComponent(repo)}&path=${encodeURIComponent(path)}`);
+        const descriptor = toRepoDescriptor(repo);
+        if (!descriptor) {
+            throw new Error("Failed to resolve repository descriptor from repositories.yaml entry");
+        }
+
+        const repoName = String(descriptor.reponame ?? "").trim();
+        const fileName = String(descriptor.filename ?? descriptor.reponame).trim();
+        const resolvedPath = path ?? `/openapi/${fileName}.yaml`;
+
+        if (!repoName) {
+            throw new Error("Missing repository name in RepoDescriptor");
+        }
+        if (!fileName && !path) {
+            throw new Error("Missing filename in RepoDescriptor");
+        }
+
+        const url = buildFetchUrl(`/api/gitea?repo=${encodeURIComponent(repoName)}&path=${encodeURIComponent(resolvedPath)}`);
 
         const internalKey =
           typeof window === "undefined" ? process.env.ZITADEL_X_INTERNAL_API_KEY : undefined;
@@ -102,8 +185,9 @@ export async function fetchSpecFromGitea(repo: string, path: string, headers?: R
 
         const response = await fetch(url, {
             headers: Object.keys(mergedHeaders).length > 0 ? mergedHeaders : undefined,
-        });        const data = await response.json();
-        if (!response.ok) throw new Error(data.error || 'Failed to fetch YAML');
+        });
+        const data = await response.json();
+        if (!response.ok) throw new Error(data.error || "Failed to fetch YAML");
         return data.yaml;
     } catch (error) {
         console.error("Failed to fetch spec YAML from gitea portal:", error);

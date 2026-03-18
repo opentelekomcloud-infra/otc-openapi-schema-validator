@@ -42,6 +42,7 @@ import { checkSyncBatchResultGranularity } from "@/functions/checkSyncBatchResul
 import { checkAsyncBatchResponse } from "@/functions/checkAsyncBatchResponse";
 import { checkExamplesFormat } from "@/functions/checkExamplesFormat";
 import { checkVersionConvention } from "@/functions/checkVersionConvention";
+import { checkIncompatibleChangeVersioning } from "@/functions/checkIncompatibleChangeVersioning";
 
 const log = {
   debug: (...args: any[]) => console.debug("[runLinter]", ...args),
@@ -90,7 +91,8 @@ export const functionsMap: {
   checkSyncBatchResultGranularity,
   checkAsyncBatchResponse,
   checkExamplesFormat,
-  checkVersionConvention
+  checkVersionConvention,
+  checkIncompatibleChangeVersioning
 };
 
 /**

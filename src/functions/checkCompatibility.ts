@@ -414,15 +414,15 @@ function checkResponseHeaderChange(remoteSpec: any, spec: any, content: string, 
 export async function checkCompatibility(spec: any, content: string, rule: any): Promise<Diagnostic[]> {
     const diagnostics: Diagnostic[] = [];
 
-    const service = await fetchRepoMap(spec);
-    if (!service) return diagnostics;
-    const repoName = Object.values(service)[0];
+    const repo = await fetchRepoMap(spec);
+    if (!repo) return diagnostics;
 
-    let remoteSpec = remoteSpecCache[repoName];
+    const cacheKey = `${repo.reponame}:${repo.filename || repo.reponame}`;
+    let remoteSpec = remoteSpecCache[cacheKey];
     if (!remoteSpec) {
-        remoteSpec = await fetchSpecFromGitea(repoName, `/openapi/${repoName}.yaml`);
+        remoteSpec = await fetchSpecFromGitea(repo);
         if (!remoteSpec) return diagnostics;
-        remoteSpecCache[repoName] = remoteSpec;
+        remoteSpecCache[cacheKey] = remoteSpec;
     }
 
     switch (rule.id) {

@@ -1,3 +1,8 @@
 services:
   # title: ER must match to repo name where open API spec are stores
-  - ER: enterprise-router
+  - ER:
+      reponame: enterprise-router
+      filename: enterprise-router
+  - CCE:
+      reponame: cloud-container-engine
+      filename: cce_v3_en
