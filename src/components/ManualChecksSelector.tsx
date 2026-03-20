@@ -156,9 +156,6 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
                         });
                         // Only update if there are changes.
                         if (JSON.stringify(prevRules) !== JSON.stringify(mergedRules)) {
-                            if (onManualRulesChange) {
-                                onManualRulesChange(mergedRules);
-                            }
                             return mergedRules;
                         }
                         return prevRules;
