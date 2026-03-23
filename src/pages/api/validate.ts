@@ -59,7 +59,7 @@ interface ManualRule { id: string; title?: string; description?: string; [k: str
 interface AutoRule   { id: string; name?: string; status?: string; option?: string; [k: string]: any }
 
 function resolvePath(p: string) {
-  return path.isAbsolute(p) ? p : path.join(process.cwd(), p);
+  return path.isAbsolute(p) ? p : path.join(/*turbopackIgnore: true*/ process.cwd(), p);
 }
 
 async function loadYaml<T = any>(absPath: string): Promise<T | null> {

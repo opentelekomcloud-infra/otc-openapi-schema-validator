@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useRef, useEffect, SyntheticEvent, useMemo } from "react";
+import React, { useState, useRef, useEffect, SyntheticEvent, useMemo, useCallback } from "react";
 import Image from "next/image";
 import CodeMirror from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
@@ -286,9 +286,9 @@ const HomePage = () => {
         }
     };
 
-    const handleManualRulesChange = (rules: ManualRule[]) => {
+    const handleManualRulesChange = useCallback((rules: ManualRule[]) => {
         setManualRules(rules);
-    };
+    }, []);
 
     // Helper functions for Lint Issues table
     const ariaSortFor = (key: 'line'|'id'|'summary'|'severity') =>

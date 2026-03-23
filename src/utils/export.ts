@@ -1,6 +1,4 @@
-import {jsPDF} from "jspdf";
 import {convertImageFromLinkToBase64, convertMarkdownToPlainText} from "@/utils/utils";
-import {autoTable} from "jspdf-autotable";
 import {ManualRule} from "@/components/ManualChecksSelector";
 import {EditorView} from "@codemirror/view";
 import React from "react";
@@ -14,7 +12,12 @@ export const exportPDF = async (
   editorViewRef: React.RefObject<EditorView | null>,
   out?: string
 ) => {
-  const doc = new jsPDF() as jsPDF & { lastAutoTable: { finalY: number } };
+  const [{ jsPDF }, { autoTable }] = await Promise.all([
+    import("jspdf/dist/jspdf.es.min.js"),
+    import("jspdf-autotable/es"),
+  ]);
+
+  const doc = new jsPDF() as any;
   const base64String = await convertImageFromLinkToBase64("/images/logo.png");
   const totalPagesExp = "{total_pages_count_string}";
 
