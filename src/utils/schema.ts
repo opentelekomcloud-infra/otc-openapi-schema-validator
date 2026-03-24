@@ -942,3 +942,43 @@ export function collectExamplePaths(value: any, basePath = ""): Set<string> {
 
     return result;
 }
+
+/**
+ * Extracts the terminal field name from a schema path.
+ *
+ * The helper takes a dot-notated schema path produced by schema traversal
+ * utilities and returns only the leaf field name. If the leaf represents an
+ * array item path, the trailing `[]` marker is removed.
+ *
+ * Examples:
+ * - `user.id` -> `id`
+ * - `items[].name` -> `name`
+ * - `items[]` -> `items`
+ *
+ * @param path Schema path in dot notation.
+ * @returns The leaf field name without array suffix markers.
+ */
+export function extractFieldNameFromSchemaPath(path: string): string {
+    const leaf = path.split(".").pop() ?? path;
+    return leaf.replace(/\[\]$/g, "");
+}
+
+/**
+ * Determines whether a collected schema path should be ignored for field-name checks.
+ *
+ * Array container paths such as `items[]` or bare `[]` do not represent actual
+ * field names and should not be validated as request/response parameter names.
+ *
+ * Examples:
+ * - `[]` -> true
+ * - `items[]` -> true
+ * - `items[].name` -> false
+ * - `user.id` -> false
+ *
+ * @param path Schema path in dot notation.
+ * @returns true if the path refers only to an array container marker.
+ */
+export function shouldIgnoreFieldPath(path: string): boolean {
+    const leaf = path.split(".").pop() ?? path;
+    return leaf === "[]" || leaf.endsWith("[]");
+}

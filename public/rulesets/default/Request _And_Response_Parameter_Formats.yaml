@@ -1,0 +1,93 @@
+rules:
+  - id: "ARG-010-01-2507-2509-M"
+    title: "Request and Response Parameter Naming Convention"
+    message: "Request and response parameters must use snake_case with lowercase letters, and tokens should be valid English words or approved abbreviations."
+    description: "Enforces snake_case naming for request parameters and request/response body fields. Token validation may use the English dictionary and approved abbreviations loaded from the abbreviations API."
+    option: Mandatory
+    location: paths
+    element:
+      - parameters
+      - requestBody
+      - responses
+    call:
+      function: checkParameterIsSnakeCase
+      functionParams:
+        methods: ["get", "post", "put", "patch", "delete"]
+        checkRequestParameters: true
+        checkRequestBodyFields: true
+        checkResponseBodyFields: true
+        validateTokensAgainstDictionary: true
+        validateAllowedAbbreviations: true
+        ignorePathVersionTokens: true
+        allowDigitsInsideTokens: true
+    severity: critical
+    status: implemented
+
+  - id: "ARG-040-01-2507-2507-O"
+    title: "project_id Path Parameter Scope Consistency"
+    message: "The project_id path parameter must be optional only for APIs marked as global services."
+    option: Optional
+    location: operations
+    element: parameters
+    call:
+      function: checkProjectIdByTagScope
+      functionParams:
+        scopeField: "tags"
+        scopeTags:
+          global: "global"
+          regional: "regional"
+        parameterName: "project_id"
+        parameterLocation: "path"
+        requireForRegional: true
+        optionalForGlobal: true
+        failWhenScopeTagMissing: false
+    severity: high
+    description: "Ensures that project_id usage is consistent with the scope indicated by operation tags. Regional APIs are expected to require project_id, while global APIs may keep it optional."
+
+  - id: "ARG-050-01-2507-2507-O"
+    title: "Reserved and Redundant Parameter Design"
+    message: "Parameters must not expose undocumented reserved fields or duplicate semantics without explicit documentation."
+    option: Optional
+    location: paths
+    element:
+      - parameters
+      - requestBody
+      - responses
+    call:
+      function: checkNoRedundantParameters
+      functionParams:
+        checkReservedMarkerForUnused: true
+        reservedFieldName: "x-reserved"
+        reservedDescriptionRequired: true
+        checkDuplicateNamesWithinSameContainer: true
+        semanticDuplicateDetectionMode: "descriptionBased"
+        minDescriptionSimilarityThreshold: 0.85
+        compareScopesSeparately: true
+    severity: high
+    description: "Checks that reserved or currently unused parameters are explicitly marked and documented, and that duplicate semantics are not introduced inside the same parameter/body/response container without justification."
+
+  - id: "ARG-060-01-2507-2507-O"
+    title: "Root Body Parameter Should Match Resource Type"
+    message: "The root body parameter name should match the resource type, using singular form for single resources and plural form for collections."
+    option: Optional
+    location: paths
+    element:
+      - requestBody
+      - responses
+    call:
+      function: checkRootNodeMatchesResource
+      functionParams:
+        deriveResourceFromPath: true
+        splitPathTokensUsingUtils: true
+        ignorePathVersionTokens: true
+        useEnglishWordValidation: true
+        enforcePluralForCollections: true
+        enforceSingularForSingleResource: true
+        detectCollectionByMethodAndPath: true
+        collectionResponseMethods: ["get"]
+        singleResourceRequestMethods: ["post", "put", "patch"]
+        ignoreWrapperNames: ["request_id", "page_info", "total_count", "count", "metadata"]
+        allowedGenericCollectionWrappers: ["items", "resources", "results"]
+        pluralizationMode: "simpleEnglish"
+    severity: medium
+    description: "Checks that the top-level request and response body node matches the resource type derived from the path. Collection responses should use plural resource names, while single-resource request/response bodies should use singular names."

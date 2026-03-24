@@ -43,6 +43,7 @@ import { checkAsyncBatchResponse } from "@/functions/checkAsyncBatchResponse";
 import { checkExamplesFormat } from "@/functions/checkExamplesFormat";
 import { checkVersionConvention } from "@/functions/checkVersionConvention";
 import { checkIncompatibleChangeVersioning } from "@/functions/checkIncompatibleChangeVersioning";
+import { checkParameterIsSnakeCase } from "@/functions/checkParameterIsSnakeCase";
 
 const log = {
   debug: (...args: any[]) => console.debug("[runLinter]", ...args),
@@ -92,7 +93,8 @@ export const functionsMap: {
   checkAsyncBatchResponse,
   checkExamplesFormat,
   checkVersionConvention,
-  checkIncompatibleChangeVersioning
+  checkIncompatibleChangeVersioning,
+  checkParameterIsSnakeCase
 };
 
 /**
