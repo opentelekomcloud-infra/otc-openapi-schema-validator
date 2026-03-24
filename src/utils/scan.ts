@@ -184,3 +184,45 @@ export function collectQueryParams(
 
   return out;
 }
+
+/**
+ * Collects OpenAPI operations filtered by HTTP method.
+ *
+ * The helper walks through `spec.paths`, keeps only valid HTTP method entries,
+ * applies the optional `configuredMethods` filter, and returns normalized records
+ * containing:
+ * - `path`: the OpenAPI path key
+ * - `method`: the lowercase HTTP method name
+ * - `operation`: the operation object itself
+ * - `pathItem`: the parent path item object
+ *
+ * This helper is useful for rules that need to iterate over operations in a
+ * consistent way without repeating path/method traversal logic.
+ *
+ * @param spec OpenAPI specification object.
+ * @param configuredMethods Optional list of HTTP methods to include.
+ * @returns Array of collected operations with their path and parent path item.
+ */
+export function collectOperationMethods(spec: any, configuredMethods?: string[]): Array<{ path: string; method: string; operation: any; pathItem: any }> {
+  const result: Array<{ path: string; method: string; operation: any; pathItem: any }> = [];
+  const allowedMethods = Array.isArray(configuredMethods)
+    ? configuredMethods.map((m) => String(m).toLowerCase())
+    : ["get", "post", "put", "patch", "delete"];
+
+  for (const path of Object.keys(spec?.paths ?? {})) {
+    const pathItem = spec.paths[path];
+    if (!pathItem || typeof pathItem !== "object") continue;
+
+    for (const method of Object.keys(pathItem)) {
+      const lowered = String(method).toLowerCase();
+      if (!allowedMethods.includes(lowered)) continue;
+      if (!["get", "post", "put", "patch", "delete", "options", "head"].includes(lowered)) continue;
+
+      const operation = pathItem[method];
+      if (!operation || typeof operation !== "object") continue;
+      result.push({ path, method: lowered, operation, pathItem });
+    }
+  }
+
+  return result;
+}
