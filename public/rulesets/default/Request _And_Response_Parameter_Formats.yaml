@@ -26,6 +26,7 @@ rules:
   - id: "ARG-040-01-2507-2507-O"
     title: "project_id Path Parameter Scope Consistency"
     message: "The project_id path parameter must be optional only for APIs marked as global services."
+    description: "Ensures that project_id usage is consistent with the scope indicated by operation tags. Regional APIs are expected to require project_id, while global APIs may keep it optional."
     option: Optional
     location: operations
     element: parameters
@@ -42,7 +43,7 @@ rules:
         optionalForGlobal: true
         failWhenScopeTagMissing: false
     severity: high
-    description: "Ensures that project_id usage is consistent with the scope indicated by operation tags. Regional APIs are expected to require project_id, while global APIs may keep it optional."
+    status: implemented
 
   - id: "ARG-050-01-2507-2507-O"
     title: "Reserved and Redundant Parameter Design"

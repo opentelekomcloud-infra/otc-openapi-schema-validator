@@ -12,8 +12,6 @@ import {
 import {SnakeCaseConfig, validateFieldNameTokens} from "@/utils/naming";
 import {collectOperationMethods} from "@/utils/scan";
 
-
-
 function checkParameters(operation: any, pathItem: any, spec: any, pathTokens: string[], cfg: SnakeCaseConfig): string[] {
     const problems: string[] = [];
     const allParams = [
