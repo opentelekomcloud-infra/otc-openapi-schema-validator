@@ -289,3 +289,26 @@ export function findInfoVersionPosition(content: string): { start: number; end: 
     end: absoluteLineStart + Math.max(versionKeyOffset, 0) + "version".length,
   };
 }
+
+/**
+ * Collects HTTP operations from the OpenAPI spec.
+ */
+export function collectOperations(spec: any): Array<{ path: string; method: string; operation: any; pathItem: any }> {
+  const result: Array<{ path: string; method: string; operation: any; pathItem: any }> = [];
+
+  for (const path of Object.keys(spec?.paths ?? {})) {
+    const pathItem = spec.paths[path];
+    if (!pathItem || typeof pathItem !== "object") continue;
+
+    for (const method of Object.keys(pathItem)) {
+      const lowered = String(method).toLowerCase();
+      if (!["get", "post", "put", "patch", "delete", "options", "head"].includes(lowered)) continue;
+
+      const operation = pathItem[method];
+      if (!operation || typeof operation !== "object") continue;
+      result.push({ path, method: lowered, operation, pathItem });
+    }
+  }
+
+  return result;
+}

@@ -60,6 +60,34 @@ export function pushMethodDiagnostic(
 }
 
 /**
+ * Creates a diagnostic anchored to the operation method.
+ *
+ * @param path OpenAPI path string (e.g. "/v1/resources/{id}").
+ * @param content Full YAML document text.
+ * @param method HTTP method name (get, post, put, etc.).
+ * @param diagnostics Mutable diagnostics array to append the result to.
+ * @param rule Rule definition object containing severity and message.
+ * @param details message
+ */
+export function pushOperationDiagnostic(
+  diagnostics: Diagnostic[],
+  content: string,
+  path: string,
+  method: string,
+  rule: any,
+  details: string
+): void {
+  const { start, end } = findMethodPositionInYaml(content, path, method);
+  diagnostics.push({
+    from: start,
+    to: end,
+    severity: mapSeverity(rule.severity),
+    message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message} ${details}`,
+    source: getSource(rule),
+  });
+}
+
+/**
  * Removes duplicated diagnostics.
  *
  * Two diagnostics are considered duplicates if they share the same
