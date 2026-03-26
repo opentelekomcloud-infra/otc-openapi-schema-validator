@@ -48,6 +48,7 @@ rules:
   - id: "ARG-050-01-2507-2507-O"
     title: "Reserved and Redundant Parameter Design"
     message: "Parameters must not expose undocumented reserved fields or duplicate semantics without explicit documentation."
+    description: "Checks that reserved or currently unused parameters are explicitly marked and documented, and that duplicate semantics are not introduced inside the same parameter/body/response container without justification."
     option: Optional
     location: paths
     element:
@@ -65,7 +66,7 @@ rules:
         minDescriptionSimilarityThreshold: 0.85
         compareScopesSeparately: true
     severity: high
-    description: "Checks that reserved or currently unused parameters are explicitly marked and documented, and that duplicate semantics are not introduced inside the same parameter/body/response container without justification."
+    status: implemented
 
   - id: "ARG-060-01-2507-2507-O"
     title: "Root Body Parameter Should Match Resource Type"
