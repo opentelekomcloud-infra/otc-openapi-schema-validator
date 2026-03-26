@@ -46,6 +46,7 @@ import { checkIncompatibleChangeVersioning } from "@/functions/checkIncompatible
 import { checkParameterIsSnakeCase } from "@/functions/checkParameterIsSnakeCase";
 import { checkProjectIdByTagScope } from "@/functions/checkProjectIdByTagScope";
 import { checkNoRedundantParameters } from "@/functions/checkNoRedundantParameters";
+import { checkRootNodeMatchesResource } from "@/functions/checkRootNodeMatchesResource";
 
 const log = {
   debug: (...args: any[]) => console.debug("[runLinter]", ...args),
@@ -98,7 +99,8 @@ export const functionsMap: {
   checkIncompatibleChangeVersioning,
   checkParameterIsSnakeCase,
   checkProjectIdByTagScope,
-  checkNoRedundantParameters
+  checkNoRedundantParameters,
+  checkRootNodeMatchesResource
 };
 
 /**
