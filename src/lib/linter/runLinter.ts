@@ -45,6 +45,7 @@ import { checkVersionConvention } from "@/functions/checkVersionConvention";
 import { checkIncompatibleChangeVersioning } from "@/functions/checkIncompatibleChangeVersioning";
 import { checkParameterIsSnakeCase } from "@/functions/checkParameterIsSnakeCase";
 import { checkProjectIdByTagScope } from "@/functions/checkProjectIdByTagScope";
+import { checkNoRedundantParameters } from "@/functions/checkNoRedundantParameters";
 
 const log = {
   debug: (...args: any[]) => console.debug("[runLinter]", ...args),
@@ -96,7 +97,8 @@ export const functionsMap: {
   checkVersionConvention,
   checkIncompatibleChangeVersioning,
   checkParameterIsSnakeCase,
-  checkProjectIdByTagScope
+  checkProjectIdByTagScope,
+  checkNoRedundantParameters
 };
 
 /**
