@@ -6,3 +6,6 @@ services:
   - CCE:
       reponame: cloud-container-engine
       filename: cce_v3_en
+  - EVS:
+      reponame: elastic-volume-service
+      filename: evs_v2_en_openapi_v3_converted
