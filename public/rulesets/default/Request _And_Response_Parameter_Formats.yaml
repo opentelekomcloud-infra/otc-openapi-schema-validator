@@ -41,7 +41,7 @@ rules:
         parameterLocation: "path"
         requireForRegional: true
         optionalForGlobal: true
-        failWhenScopeTagMissing: false
+        failWhenScopeTagMissing: true
     severity: high
     status: implemented
 
@@ -71,6 +71,7 @@ rules:
   - id: "ARG-060-01-2507-2507-O"
     title: "Root Body Parameter Should Match Resource Type"
     message: "The root body parameter name should match the resource type, using singular form for single resources and plural form for collections."
+    description: "Checks that the top-level request and response body node matches the resource type derived from the path. Collection responses should use plural resource names, while single-resource request/response bodies should use singular names."
     option: Optional
     location: paths
     element:
@@ -92,4 +93,4 @@ rules:
         allowedGenericCollectionWrappers: ["items", "resources", "results"]
         pluralizationMode: "simpleEnglish"
     severity: medium
-    description: "Checks that the top-level request and response body node matches the resource type derived from the path. Collection responses should use plural resource names, while single-resource request/response bodies should use singular names."
+    status: implemented
