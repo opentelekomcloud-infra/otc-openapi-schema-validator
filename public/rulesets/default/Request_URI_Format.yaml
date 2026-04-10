@@ -190,4 +190,4 @@ rules:
           - critical: 6
     description: Check whether URI path doesn't contain too many nested delimitations with "/"
     status: implemented
-    severity: critical
+    severity: high
