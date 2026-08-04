@@ -4,10 +4,11 @@ import fs from 'node:fs/promises';
 import { runLinter } from '@/lib/linter/runLinter';
 import { buildRobotXml } from '@/lib/export/buildRobotXml';
 import { reportPortalClient } from '@/clients/reportportal';
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { getSeverityLabel } from "@/utils/mapSeverity";
 import { giteaClient } from '@/clients/gitea';
 import { requireApiAuth } from "@/lib/apiAuth";
+import { prepareOpenApiDocument } from "@/lib/openapi/prepareOpenApiDocument";
 
 const log = {
   debug: (...args: any[]) => console.debug("[Validate]", ...args),
@@ -259,6 +260,18 @@ export default async function handler(
       return res.status(400).json({ error: 'Specification content is empty after reading provided source.' });
     }
 
+    let preparedSpec;
+    try {
+      preparedSpec = await prepareOpenApiDocument(specText);
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : String(error);
+      return res.status(400).json({ error: message });
+    }
+    specText = preparedSpec.content;
+    if (preparedSpec.conversion.converted) {
+      log.debug('spec converted', preparedSpec.conversion);
+    }
+
     // Load all rules, then filter if IDs provided
     let allManual: ManualRule[] = [];
     let allAuto: AutoRule[] = [];
@@ -340,6 +353,7 @@ export default async function handler(
       return res.status(200).json({
         success: true,
         launch: payload,
+        conversion: preparedSpec.conversion,
       });
     }
 
@@ -354,6 +368,7 @@ export default async function handler(
     log.debug('response', { mode: 'json', ms: Date.now() - t0, diagnostics: diagnosticsWithLines.length });
     return res.status(200).json({
       diagnostics: diagnosticsWithLines,
+      conversion: preparedSpec.conversion,
       rules: {
         manual,
         auto,

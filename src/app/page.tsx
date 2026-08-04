@@ -62,6 +62,7 @@ const HomePage = () => {
     const headerRef = useRef<HTMLDivElement>(null);
     const footerRef = useRef<HTMLDivElement>(null);
     const [isExporting, setIsExporting] = useState(false);
+    const [conversionNotice, setConversionNotice] = useState<string | null>(null);
 
     const [totalAvailableRules, setTotalAvailableRules] = useState<number>(0);
 
@@ -233,12 +234,36 @@ const HomePage = () => {
             const file = target.files[0];
             if (file.name.endsWith(".yaml") || file.name.endsWith(".yml")) {
                 const reader = new FileReader();
-                reader.onload = (e) => {
-                  prevDiagsRef.current = [];
-                  setDiagnostics([]);
-                  setSpecTitle(null);
-                  lintRunIdRef.current += 1;
-                  setCode(e.target?.result as string);
+                reader.onload = async (e) => {
+                  try {
+                    const originalContent = e.target?.result as string;
+                    const response = await fetch("/api/convert", {
+                      method: "POST",
+                      headers: { "content-type": "application/json" },
+                      body: JSON.stringify({ file_content: originalContent }),
+                    });
+                    const prepared = await response.json();
+                    if (!response.ok) {
+                      throw new Error(prepared?.error || "Unable to prepare the uploaded specification.");
+                    }
+
+                    prevDiagsRef.current = [];
+                    setDiagnostics([]);
+                    setSpecTitle(null);
+                    lintRunIdRef.current += 1;
+                    setCode(prepared.content);
+                    setConversionNotice(
+                      prepared.conversion.converted
+                        ? `Converted Swagger ${prepared.conversion.from} to OpenAPI ${prepared.conversion.to} before validation.`
+                        : null
+                    );
+                  } catch (error: unknown) {
+                    const message = error instanceof Error ? error.message : String(error);
+                    setConversionNotice(null);
+                    alert(message);
+                  } finally {
+                    target.value = "";
+                  }
                 };
                 reader.readAsText(file);
             } else {
@@ -327,6 +352,11 @@ const HomePage = () => {
             <scale-logo variant="white"></scale-logo>
           </div>
           <h1 className="ml-3 font-bold">OpenAPI Specification Validation</h1>
+          {conversionNotice && (
+            <span className="ml-4 text-sm text-green-700" role="status">
+              {conversionNotice}
+            </span>
+          )}
           <div className="flex gap-3 ml-auto mr-4">
             {/* Load YAML */}
             <scale-button

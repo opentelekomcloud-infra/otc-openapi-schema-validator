@@ -1,5 +1,5 @@
 import {marked} from "marked";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 
 /**
  * In the browser, relative URLs are fine. In Node (API routes / server-side), `fetch` requires an absolute URL.

@@ -1,4 +1,4 @@
-import yaml from 'js-yaml';
+import * as yaml from 'js-yaml';
 import { Diagnostic } from '@codemirror/lint';
 
 import { checkHttpsServers } from '@/functions/checkHttpsServers';

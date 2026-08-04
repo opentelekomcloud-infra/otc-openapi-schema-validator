@@ -1,7 +1,7 @@
 # T Cloud Public OpenAPI Schema Validator
 
 A web-based tool built with **Next.js 15**, **React 19**, and **Tailwind CSS 4** for validating and visualizing OpenAPI schemas (YAML/JSON).  
-It supports file uploads, URL-based loading (including Internal Gitea-hosted specs), and provides detailed diagnostics and reports.
+It supports file uploads, URL-based loading (including Internal Gitea-hosted specs), and provides detailed diagnostics and reports. Swagger 2.0 documents are automatically converted to OpenAPI 3.0.3 before validation; existing OpenAPI 3 documents are validated unchanged.
 
 ---
 
@@ -136,6 +136,7 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
 
 **Behavior**
 - If `file_content` is provided, it takes precedence.
+- Swagger 2.0 input is converted to OpenAPI 3.0.3 before rules run. JSON responses include a `conversion` object indicating whether conversion occurred.
 - If `path` is an **HTTP/HTTPS URL**. For Gitea URL, expected next shape: `/:owner/:repo/src/:branch/path/to/file.yaml`.
 - If `path` is a **server path**, the file is read from disk (if accessible to the server).
 - `ruleset` directory is read from `public/rulesets/<ruleset>`; only auto‑rules with `status: implemented` are used.
