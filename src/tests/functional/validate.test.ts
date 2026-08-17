@@ -145,6 +145,7 @@ paths: {}
 
     expect(json).toHaveProperty("diagnostics");
     expect(Array.isArray(json.diagnostics)).toBe(true);
+    expect(json).toHaveProperty("conversion", { converted: false });
 
     expect(json).toHaveProperty("rules");
     expect(json.rules).toHaveProperty("manual");
@@ -158,6 +159,38 @@ paths: {}
       expect(d).toHaveProperty("lineNumber");
       expect(d).toHaveProperty("severity");
     }
+  });
+
+  it("converts Swagger 2.0 file content before validation", async () => {
+    const spec = `
+swagger: "2.0"
+info:
+  title: Legacy API
+  version: 1.0.0
+basePath: /v1
+schemes: [https]
+host: api.example.com
+paths: {}
+`.trim();
+
+    const res = await fetch(`${baseUrl}${validatePath}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ file_content: spec, ruleset: "default" }),
+    });
+
+    expect(res.status).toBe(200);
+    const json = await readJsonOrThrow(res);
+    expect(json.conversion).toEqual({
+      converted: true,
+      from: "2.0",
+      to: "3.0.3",
+    });
+    expect(json.diagnostics).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ message: expect.stringContaining("Missing 'openapi' field") }),
+      ])
+    );
   });
 
   it("returns 405 on GET (or 404 if route missing)", async () => {

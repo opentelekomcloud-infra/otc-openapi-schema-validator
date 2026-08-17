@@ -6,7 +6,7 @@ rules:
     location: info
     element: version
     call: {
-      function: versionConventionCheck,
+      function: checkVersionConvention,
       functionParams: {
         "mode": "presenceAndPrefix",
         "versionPattern": "^v.+$"
@@ -22,7 +22,7 @@ rules:
     location: info
     element: version
     call: {
-      function: versionConventionCheck,
+      function: checkVersionConvention,
       functionParams: {
         "mode": "formatCompliance",
         "versionPattern": "^v[0-9]+(\\.[0-9]+)?(\\.[0-9]+)?$"
@@ -38,7 +38,7 @@ rules:
     location: info
     element: version
     call: {
-      function: versionConventionCheck,
+      function: checkVersionConvention,
       functionParams: {
         "mode": "maxSegments",
         "maxVersions": 4
@@ -54,7 +54,7 @@ rules:
     location: info
     element: version
     call: {
-      function: versionConventionCheck,
+      function: checkVersionConvention,
       functionParams: {
         "mode": "normalization",
         "deprecatedPattern": "^v[0-9]+(\\.[0-9]+){1,2}$"
