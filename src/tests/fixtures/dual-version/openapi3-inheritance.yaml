@@ -1,0 +1,44 @@
+openapi: 3.0.3
+info: {title: Native Inheritance API, version: v1}
+servers:
+  - url: https://fixtures.example.invalid/
+paths:
+  /v1/resources:
+    get:
+      operationId: listResources
+      responses:
+        "200":
+          description: Resource collection
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ResourceList"}
+              example: {resources: [{resource_id: resource-1, name: sample, metadata: {"label/name~": sample}}], count: 1}
+components:
+  schemas:
+    BaseResource:
+      type: object
+      required: [resource_id]
+      properties:
+        resource_id: {type: string}
+        created_at: {type: string, format: date-time, example: "2026-01-01T00:00:00Z"}
+    Resource:
+      allOf:
+        - {$ref: "#/components/schemas/BaseResource"}
+        - type: object
+          required: [name]
+          properties:
+            name: {type: string}
+            metadata: {$ref: "#/components/schemas/ResourceMeta"}
+    ResourceMeta:
+      type: object
+      properties:
+        label/name~: {type: string}
+    ResourceName: {$ref: "#/components/schemas/ResourceMeta/properties/label~1name~0"}
+    ResourceList:
+      type: object
+      required: [resources, count]
+      properties:
+        resources:
+          type: array
+          items: {$ref: "#/components/schemas/Resource"}
+        count: {type: integer}

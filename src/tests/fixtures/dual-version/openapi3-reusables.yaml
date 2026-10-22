@@ -1,0 +1,43 @@
+openapi: 3.0.3
+info: {title: Native Reusable API, version: v1}
+servers:
+  - url: https://fixtures.example.invalid/
+security:
+  - Token: []
+paths:
+  /v1/resources/{resource_id}:
+    parameters:
+      - {$ref: "#/components/parameters/ResourceId"}
+      - {$ref: "#/components/parameters/Limit"}
+    get:
+      operationId: getResource
+      parameters:
+        - {name: limit, in: query, schema: {type: integer, default: 25}}
+      responses:
+        "200": {$ref: "#/components/responses/ResourceResponse"}
+    delete:
+      operationId: deleteResource
+      responses:
+        "204": {description: Deleted}
+components:
+  securitySchemes:
+    Token: {type: apiKey, name: X-Auth-Token, in: header}
+  parameters:
+    ResourceId: {name: resource_id, in: path, required: true, schema: {type: string}}
+    Limit: {name: limit, in: query, schema: {type: integer, default: 1000}}
+  responses:
+    ResourceResponse:
+      description: Resource details
+      headers:
+        X-Request-Id: {schema: {type: string}}
+      content:
+        application/json:
+          schema: {$ref: "#/components/schemas/ResourceAlias"}
+          example: {resource_id: resource-1}
+  schemas:
+    ResourceAlias: {$ref: "#/components/schemas/Resource"}
+    Resource:
+      type: object
+      required: [resource_id]
+      properties:
+        resource_id: {type: string}

@@ -1,0 +1,45 @@
+openapi: 3.0.3
+info: {title: Native Form API, version: v1}
+servers:
+  - url: https://fixtures.example.invalid/
+paths:
+  /v1/uploads:
+    post:
+      operationId: uploadFile
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file]
+              properties:
+                file: {type: string, format: binary}
+                caption: {type: string}
+      responses:
+        "201":
+          description: Uploaded file name
+          content:
+            text/plain:
+              schema: {type: string}
+              example: sample.txt
+  /v1/metadata:
+    post:
+      operationId: createMetadata
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: {type: string}
+                count: {type: integer, default: 1}
+      responses:
+        "200":
+          description: Stored metadata
+          content:
+            application/json:
+              schema: {type: object, properties: {name: {type: string}}}
+              example: {name: sample}
