@@ -7,7 +7,7 @@ import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
 import { linter, lintGutter } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
-import RulesetsSelector from "@/components/RulesetsSelector";
+import RulesetsSelector, { type Rule } from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
 import { exportJUnit, exportPDF, exportReportPortal } from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
@@ -286,9 +286,9 @@ const HomePage = () => {
         setShowExportModal(true);
     };
 
-    const handleSelectionChange = (newSelection: Record<string, any>) => {
+    const handleSelectionChange = useCallback((newSelection: Rule[]) => {
         setSelectedRules(newSelection);
-    };
+    }, []);
 
     const handleDiagnosticClick = (from: number) => {
         if (editorViewRef.current && scrollRef.current) {

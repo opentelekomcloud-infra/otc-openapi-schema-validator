@@ -64,7 +64,7 @@ export const exportPDF = async (
     rule.id,
     rule.title,
     convertMarkdownToPlainText(rule.message),
-    rule.option,
+    rule.option ?? "",
     rule.verified ? "Verified" : "Unverified",
   ]);
   autoTable(doc, {

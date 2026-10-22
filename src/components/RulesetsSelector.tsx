@@ -1,24 +1,13 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import * as yaml from "js-yaml";
-import { RulesetsStructure } from "@/utils/extract";
+import type { RulesetsStructure } from "@/utils/extract";
+import type { AutoRule } from "@/lib/linter/ruleCatalog";
+import { getImplementedRules, loadRuleCatalog } from "@/lib/linter/ruleCatalog";
+import { functionsMap } from "@/lib/linter/runLinter";
 import styles from "@/components/Table.module.css";
 
-export type Rule = {
-    id: string;
-    title: string;
-    message: string;
-    option: string;
-    location: string;
-    element: string;
-    then: {
-        function: string;
-        functionParams?: any;
-    };
-    severity: string;
-    status: string;
-};
+export type Rule = AutoRule;
 
 type RulesetsSelectorProps = {
     onSelectionChange?: (selectedRules: Rule[]) => void;
@@ -29,6 +18,7 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSel
     const [rulesets, setRulesets] = useState<RulesetsStructure>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
+    const [rulesLoading, setRulesLoading] = useState(false);
 
     const [selectedRuleset, setSelectedRuleset] = useState<string>("");
     const [allRules, setAllRules] = useState<Rule[]>([]);
@@ -76,12 +66,13 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSel
             try {
                 const res = await fetch("/api/rulesets");
                 if (!res.ok) {
-                    console.error("Failed to fetch rulesets");
+                    throw new Error(`Failed to fetch rulesets: HTTP ${res.status}`);
                 }
                 const data: RulesetsStructure = await res.json();
                 setRulesets(data);
-            } catch (err: any) {
-                setError(err.message);
+            } catch (err: unknown) {
+                console.error("Failed to fetch rulesets", err);
+                setError(err instanceof Error ? err.message : String(err));
             } finally {
                 setLoading(false);
             }
@@ -90,47 +81,46 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSel
     }, []);
 
     useEffect(() => {
+        let cancelled = false;
+        setAllRules([]);
+        setSelectedRules([]);
+        onTotalRulesChange?.(0);
+        onSelectionChange?.([]);
+        setError("");
+        setRulesLoading(Boolean(selectedRuleset));
+
         async function fetchAllRules() {
-            const rulesArray: Rule[] = [];
-            if (selectedRuleset && rulesets[selectedRuleset]) {
+            try {
                 const fileNames = rulesets[selectedRuleset];
-                for (const file of fileNames) {
-                    try {
-                        const res = await fetch(`/rulesets/${selectedRuleset}/${file}.yaml`);
-                        if (!res.ok) continue;
-                        const text = await res.text();
-                        const data = yaml.load(text) as any;
-                        if (data?.rules && Array.isArray(data.rules)) {
-                            rulesArray.push(...data.rules);
-                        }
-                    } catch (error) {
-                        console.error("Error fetching rules for", file, error);
-                    }
-                }
-            }
-            const implementedRules = rulesArray.filter(rule => rule.status === "implemented");
-            setAllRules(implementedRules);
+                if (!fileNames) throw new Error(`Unknown ruleset: ${selectedRuleset}`);
+                const files = fileNames.map((file) => `/rulesets/${selectedRuleset}/${file}.yaml`);
+                const rules = await loadRuleCatalog(files, async (file) => {
+                    const response = await fetch(file);
+                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+                    return response.text();
+                });
+                const implementedRules = getImplementedRules(rules, functionsMap);
+                if (cancelled) return;
+                setAllRules(implementedRules);
+                onTotalRulesChange?.(implementedRules.length);
 
-            // report total available rules (independent of selection / severity filter)
-            onTotalRulesChange?.(implementedRules.length);
-
-            const mandatoryRules = implementedRules.filter(
-                (rule) => rule.option.toLowerCase() === "mandatory"
-            );
-            setSelectedRules(mandatoryRules);
-            if (onSelectionChange) {
-                onSelectionChange(mandatoryRules);
+                const mandatoryRules = implementedRules.filter(
+                    (rule) => rule.option.toLowerCase() === "mandatory"
+                );
+                setSelectedRules(mandatoryRules);
+                onSelectionChange?.(mandatoryRules);
+            } catch (error: unknown) {
+                if (cancelled) return;
+                console.error("Failed to load ruleset", error);
+                setError(error instanceof Error ? error.message : String(error));
+            } finally {
+                if (!cancelled) setRulesLoading(false);
             }
         }
 
-        if (selectedRuleset) {
-            fetchAllRules();
-        } else {
-            setAllRules([]);
-            setSelectedRules([]);
-            onTotalRulesChange?.(0);
-        }
-    }, [selectedRuleset, rulesets]);
+        if (selectedRuleset) fetchAllRules();
+        return () => { cancelled = true; };
+    }, [selectedRuleset, rulesets, onSelectionChange, onTotalRulesChange]);
 
     const handleRulesetChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
         setSelectedRuleset(e.target.value);
@@ -170,7 +160,6 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSel
     };
 
     if (loading) return <p>Loading rulesets...</p>;
-    if (error) return <p>Error: {error}</p>;
 
     const rulesetNames = Object.keys(rulesets);
     const visibleRules = applySeverityFilter(allRules);
@@ -192,7 +181,9 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange }: RulesetsSel
                     ))}
                 </select>
             </div>
-            {selectedRuleset && (
+            {error && <p role="alert">Error: {error}</p>}
+            {rulesLoading && <p role="status">Loading rules...</p>}
+            {selectedRuleset && !rulesLoading && !error && (
                 <>
                     <div className="flex items-center space-x-4 mb-2">
                         <scale-button

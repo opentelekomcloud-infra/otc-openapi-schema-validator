@@ -80,6 +80,6 @@ rules:
           "access-control-request-headers",
           "access-control-request-method",
           "connection"
-        ]
+          ]
     severity: medium
     status: implemented

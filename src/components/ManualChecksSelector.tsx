@@ -1,8 +1,8 @@
 'use client';
 
 import React, { useState, useEffect } from "react";
-import * as yaml from "js-yaml";
-import { RulesetsStructure } from "@/utils/extract";
+import type { RulesetsStructure } from "@/utils/extract";
+import { loadRuleCatalog } from "@/lib/linter/ruleCatalog";
 import ReactMarkdown from "react-markdown";
 import styles from "@/components/Table.module.css";
 
@@ -10,7 +10,7 @@ export type ManualRule = {
     id: string;
     title: string;
     message: string;
-    option: string;
+    option?: string;
     verified?: boolean;
 };
 
@@ -18,10 +18,19 @@ type ManualChecksSelectorProps = {
     onManualRulesChange?: (manualRules: ManualRule[]) => void;
 };
 
+async function fetchAllManualRules(structure: RulesetsStructure): Promise<ManualRule[]> {
+    const files = Object.values(structure).flat().map((file) => `/manual-checklist/${file}`);
+    const rules = await loadRuleCatalog(files, async (file) => {
+        const response = await fetch(file);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.text();
+    });
+    return rules.map((rule) => ({ ...rule, verified: false }));
+}
+
 const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
                                                                        onManualRulesChange,
                                                                    }) => {
-    const [rulesets, setRulesets] = useState<RulesetsStructure>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
@@ -84,89 +93,49 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
         }
     }, [manualRules, onManualRulesChange]);
 
-    // Fetch rulesets structure.
-    useEffect(() => {
-        async function fetchRulesets() {
-            try {
-                const res = await fetch("/api/manuals");
-                if (!res.ok) {
-                    console.error("Failed to fetch rules for manual checks");
-                }
-                const data: RulesetsStructure = await res.json();
-                setRulesets(data);
-            } catch (err: any) {
-                setError(err.message);
-            } finally {
-                setLoading(false);
-            }
-        }
-        fetchRulesets();
-    }, []);
-
-    // Function to fetch all manual rules (from all files).
-    async function fetchAllManualRules() {
-        const allRules: ManualRule[] = [];
-        for (const folder in rulesets) {
-            for (const fileName of rulesets[folder]) {
-                try {
-                    const res = await fetch(`/manual-checklist/${fileName}`);
-                    if (!res.ok) {
-                        console.error(`Failed to fetch manual rule file ${fileName}`);
-                        continue;
-                    }
-                    const text = await res.text();
-                    const data = yaml.load(text) as any;
-                    if (data && data.rules && Array.isArray(data.rules)) {
-                        const newRules = data.rules.map((rule: any) => ({
-                            ...rule,
-                            verified: false,
-                        }));
-                        allRules.push(...newRules);
-                    }
-                } catch (err) {
-                    console.error("Error fetching manual rule file", err);
-                }
-            }
-        }
-        return allRules;
-    }
-
-    // Polling: Re-fetch manual rules every 30 seconds after initial localStorage load.
+    // Load immediately after restoring verification state, then refresh every 30 seconds.
     useEffect(() => {
         if (!initialized) return;
-        const intervalId = setInterval(async () => {
+        let cancelled = false;
+        let refreshing = false;
+        async function refresh() {
+            if (refreshing) return;
+            refreshing = true;
             try {
-                // First, update the rulesets.
                 const resRulesets = await fetch("/api/manuals");
                 if (!resRulesets.ok) {
-                    console.error("Failed to fetch rules for manual checks");
-                    return;
+                    throw new Error(`Failed to fetch manual checks: HTTP ${resRulesets.status}`);
                 }
                 const updatedRulesets: RulesetsStructure = await resRulesets.json();
-                setRulesets(updatedRulesets);
-
-                if (Object.keys(updatedRulesets).length > 0) {
-                    // Then, fetch all manual rules using the updated rulesets.
-                    const fetchedRules = await fetchAllManualRules();
-                    setManualRules((prevRules) => {
-                        // Merge new rules with previous ones preserving the verified state.
-                        const mergedRules = fetchedRules.map((newRule) => {
-                            const existingRule = prevRules.find((r) => r.id === newRule.id);
-                            return existingRule ? { ...newRule, verified: existingRule.verified } : newRule;
-                        });
-                        // Only update if there are changes.
-                        if (JSON.stringify(prevRules) !== JSON.stringify(mergedRules)) {
-                            return mergedRules;
-                        }
-                        return prevRules;
+                const fetchedRules = await fetchAllManualRules(updatedRulesets);
+                if (cancelled) return;
+                setError("");
+                setManualRules((prevRules) => {
+                    const mergedRules = fetchedRules.map((newRule) => {
+                        const existingRule = prevRules.find((r) => r.id === newRule.id);
+                        return existingRule ? { ...newRule, verified: existingRule.verified } : newRule;
                     });
-                }
-            } catch (err: any) {
-                console.error("Polling error:", err.message);
+                    if (JSON.stringify(prevRules) !== JSON.stringify(mergedRules)) {
+                        return mergedRules;
+                    }
+                    return prevRules;
+                });
+            } catch (err: unknown) {
+                if (cancelled) return;
+                console.error("Failed to load manual checks", err);
+                setError(err instanceof Error ? err.message : String(err));
+            } finally {
+                refreshing = false;
+                if (!cancelled) setLoading(false);
             }
-        }, 30000);
-        return () => clearInterval(intervalId);
-    }, [initialized, onManualRulesChange, rulesets]);
+        }
+        refresh();
+        const intervalId = setInterval(refresh, 30000);
+        return () => {
+            cancelled = true;
+            clearInterval(intervalId);
+        };
+    }, [initialized]);
 
     // Toggle verified state for a rule.
     const handleRuleToggle = (ruleId: string) => {
@@ -177,7 +146,7 @@ const ManualChecksSelector: React.FC<ManualChecksSelectorProps> = ({
     };
 
     if (loading) return <p>Loading rulesets...</p>;
-    if (error) return <p>Error: {error}</p>;
+    if (error) return <p role="alert">Error: {error}</p>;
 
     return (
         <div>

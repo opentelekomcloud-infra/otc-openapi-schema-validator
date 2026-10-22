@@ -142,6 +142,7 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
 - If `path` is an **HTTP/HTTPS URL**. For Gitea URL, expected next shape: `/:owner/:repo/src/:branch/path/to/file.yaml`.
 - If `path` is a **server path**, the file is read from disk (if accessible to the server).
 - `ruleset` directory is read from `public/rulesets/<ruleset>`; only auto‑rules with `status: implemented` are used.
+- Rule catalogs load atomically: unreadable or malformed YAML, duplicate IDs, and invalid implemented function bindings produce an error instead of partial validation. The UI displays catalog errors; the validation API returns HTTP 500 for a broken server-side catalog. Rules explicitly marked `unsupported` are not executed.
 - `export: "xml"` builds **Robot XML** and imports a launch to **ReportPortal** (defaults used in server: project `openapi`, dynamic launch name/description). Response includes the created launch payload.
 - `export: "pdf"` currently returns **501** (use the UI export instead).
 

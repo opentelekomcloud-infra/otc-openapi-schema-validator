@@ -1,7 +1,8 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { runLinter } from '@/lib/linter/runLinter';
+import { functionsMap, runLinter } from '@/lib/linter/runLinter';
+import { getImplementedRules, loadRuleCatalog } from '@/lib/linter/ruleCatalog';
 import { buildRobotXml } from '@/lib/export/buildRobotXml';
 import { reportPortalClient } from '@/clients/reportportal';
 import * as yaml from "js-yaml";
@@ -63,24 +64,10 @@ function resolvePath(p: string) {
   return path.isAbsolute(p) ? p : path.join(/*turbopackIgnore: true*/ process.cwd(), p);
 }
 
-async function loadYaml<T = any>(absPath: string): Promise<T | null> {
-  try {
-    const txt = await fs.readFile(absPath, 'utf8');
-    return yaml.load(txt) as T;
-  } catch {
-    return null;
-  }
-}
-
 async function listFilesDeep(dir: string, exts = ['.yaml', '.yml']): Promise<string[]> {
   const out: string[] = [];
   async function walk(d: string) {
-    let entries: any[] = [];
-    try {
-      entries = await fs.readdir(d, { withFileTypes: true });
-    } catch {
-      return;
-    }
+    const entries = await fs.readdir(d, { withFileTypes: true });
     for (const e of entries) {
       const p = path.join(d, e.name);
       if (e.isDirectory && e.isDirectory()) await walk(p);
@@ -95,14 +82,8 @@ async function listFilesDeep(dir: string, exts = ['.yaml', '.yml']): Promise<str
 async function loadAllManualRules(): Promise<ManualRule[]> {
   const root = path.join(process.cwd(), 'public', 'manual-checklist');
   const files = await listFilesDeep(root);
-  const acc: ManualRule[] = [];
-  for (const f of files) {
-    const data = await loadYaml<any>(f);
-    if (data?.rules && Array.isArray(data.rules)) {
-      for (const r of data.rules) acc.push({ ...r, verified: false });
-    }
-  }
-  return acc;
+  const rules = await loadRuleCatalog(files, (file) => fs.readFile(file, 'utf8'));
+  return rules.map((rule) => ({ ...rule, verified: false }));
 }
 
 // Helper for safe path joining
@@ -140,16 +121,8 @@ async function loadAllAutoRules(ruleset: string = 'default'): Promise<AutoRule[]
     throw new Error(`Ruleset folder not found: ${ruleset}`);
   }
   const files = await listFilesDeep(root);
-  const acc: AutoRule[] = [];
-  for (const f of files) {
-    const data = await loadYaml<any>(f);
-    if (data?.rules && Array.isArray(data.rules)) {
-      for (const r of data.rules) {
-        if ((r?.status || '').toLowerCase() === 'implemented') acc.push(r as AutoRule);
-      }
-    }
-  }
-  return acc;
+  const rules = await loadRuleCatalog(files, (file) => fs.readFile(file, 'utf8'));
+  return getImplementedRules(rules, functionsMap);
 }
 
 function filterByIds<T extends { id?: string }>(items: T[], ids?: string[]) {

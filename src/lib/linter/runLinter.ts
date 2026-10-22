@@ -47,6 +47,8 @@ import { checkParameterIsSnakeCase } from "@/functions/checkParameterIsSnakeCase
 import { checkProjectIdByTagScope } from "@/functions/checkProjectIdByTagScope";
 import { checkNoRedundantParameters } from "@/functions/checkNoRedundantParameters";
 import { checkRootNodeMatchesResource } from "@/functions/checkRootNodeMatchesResource";
+import { getSource } from "@/functions/common";
+import { assertRuleFunction } from "@/lib/linter/ruleCatalog";
 
 const log = {
   debug: (...args: any[]) => console.debug("[runLinter]", ...args),
@@ -122,17 +124,12 @@ export async function runLinter(
       return { diagnostics, specTitle };
     }
     log.debug("loaded rules: ", selectedRules)
-    const runnable = selectedRules.filter(
-      (rule: any) =>
-        !!rule?.call?.function &&
-        typeof functionsMap[rule.call.function] === 'function'
-    );
-
     const results = await Promise.all(
-      runnable.map(async (rule: any) => {
-        const funcName = rule.call.function as string;
-        const ruleFunc = functionsMap[funcName];
+      selectedRules.map(async (rule: any): Promise<Diagnostic[]> => {
+        const funcName = rule?.call?.function;
         try {
+          assertRuleFunction(rule, functionsMap);
+          const ruleFunc = functionsMap[rule.call.function];
           const out = await ruleFunc(spec, content, rule);
           return Array.isArray(out) ? out : [];
         } catch (err: any) {
@@ -144,8 +141,8 @@ export async function runLinter(
               message: `Rule "${funcName}" execution failed: ${
                 err?.message || String(err)
               }`,
-              source: funcName,
-            } as Diagnostic,
+              source: rule?.id ? getSource(rule) : "ruleset",
+            },
           ];
         }
       })
