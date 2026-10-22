@@ -4,8 +4,11 @@ import {getSource} from "@/functions/common";
 
 export function checkOASSpec(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
-    const required = rule.call.functionParams.requiredValues || [];
-    const optional = rule.call.functionParams.optionalValues || [];
+    const format = spec?.swagger !== undefined && spec?.openapi === undefined ? "swagger" : "openapi";
+    const params = rule.call.functionParams;
+    const formatParams = params.formats?.[format] ?? params;
+    const required: string[] = formatParams.requiredValues || [];
+    const optional: string[] = formatParams.optionalValues || [];
     const topLevelKeys = Object.keys(spec || {});
     for (const key of required) {
         if (!(key in spec)) {

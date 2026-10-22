@@ -3,6 +3,8 @@
 A web-based tool built with **Next.js 15**, **React 19**, and **Tailwind CSS 4** for validating and visualizing OpenAPI schemas (YAML/JSON).  
 It supports file uploads, URL-based loading (including Internal Gitea-hosted specs), and provides detailed diagnostics and reports. Swagger 2.0 documents are automatically converted to OpenAPI 3.0.3 before validation; existing OpenAPI 3 documents are validated unchanged.
 
+The format-version and top-level-field rules accept native Swagger 2.0 and OpenAPI 3.0.x documents. OpenAPI 3.1 is not allowed by the default format-version rule. Automatic conversion in the upload and validation API remains enabled pending adaptation of the other rules.
+
 ---
 
 ## Getting Started

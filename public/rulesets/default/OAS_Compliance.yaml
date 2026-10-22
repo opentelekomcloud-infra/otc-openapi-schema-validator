@@ -1,21 +1,22 @@
 rules:
   - id: "BAS-110-01-2507-2507-M"
-    title: The API description file complies with the OAS 3.0.+ design specifications.
+    title: The API description file complies with Swagger 2.0 or OpenAPI 3.0.x.
     option: Mandatory
-    message: OpenAPI specification must be compliant with OAS 3.0.+
-    location: openapi
+    message: The specification must use Swagger 2.0 or OpenAPI 3.0.x.
+    location: file
     element: version
     call:
       function: checkOASVersion
       functionParams:
         allowedVersions:
+          - "2.0"
           - "3.0"
-    description: This rule checks whether delivered OpenAPI specification complains with OAS 3.0.+ versions.
+    description: This rule checks the swagger or openapi format version independently of info.version.
     status: implemented
     severity: critical
 
   - id: "BAS-110-01-2507-2507-M-1"
-    title: The API description file complies with the OAS 3.0 design specifications
+    title: The API description file follows the Swagger 2.0 or OpenAPI 3.0 structure
     option: Mandatory
     message: The deliverables must meet the specifications and must be checked in the tool. Complying with the YAML interface definition design specifications for cloud services.
     location: file
@@ -23,16 +24,36 @@ rules:
     call:
       function: checkOASSpec
       functionParams:
-        requiredValues:
-          - openapi
-          - info
-          - paths
-        optionalValues:
-          - servers
-          - security
-          - tags
-          - externalDocs
-          - components
-    description: This rule checks whether delivered OpenAPI specification is following the agreed template OAS structure
+        formats:
+          swagger:
+            requiredValues:
+              - swagger
+              - info
+              - paths
+            optionalValues:
+              - host
+              - basePath
+              - schemes
+              - consumes
+              - produces
+              - definitions
+              - parameters
+              - responses
+              - securityDefinitions
+              - security
+              - tags
+              - externalDocs
+          openapi:
+            requiredValues:
+              - openapi
+              - info
+              - paths
+            optionalValues:
+              - servers
+              - security
+              - tags
+              - externalDocs
+              - components
+    description: This rule checks the top-level fields against the template for the declared specification format.
     status: implemented
     severity: critical
