@@ -1,16 +1,16 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import { jsonPointer } from "@/lib/openapi/references";
 
 export function checkHttpsServers(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     if (Array.isArray(spec.servers)) {
-        spec.servers.forEach((server: any) => {
+        spec.servers.forEach((server: any, index: number) => {
             if (typeof server.url === "string" && !server.url.startsWith("https://")) {
-                const index = content.indexOf(server.url);
-                const start = index >= 0 ? index : 0;
-                const end = index >= 0 ? start + server.url.length : content.length;
+                const { from: start, to: end } = sourceMap(content).locate(jsonPointer(["servers", index, "url"]), "value");
                 diagnostics.push({
                     from: start,
                     to: end,

@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { operationRange } from "@/lib/openapi/sourceMap";
 
 export function checkAllowedMethods(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -16,9 +17,7 @@ export function checkAllowedMethods(spec: any, content: string, rule: any): Diag
         for (const method in pathItem) {
             const methodLower = method.toLowerCase();
             if (!allowedMethods.includes(methodLower)) {
-                const index = content.indexOf(`${method}:`);
-                const start = index >= 0 ? index : 0;
-                const end = index >= 0 ? start + method.length : content.length;
+                const { from: start, to: end } = operationRange(content, pathKey, method);
                 diagnostics.push({
                     from: start,
                     to: end,

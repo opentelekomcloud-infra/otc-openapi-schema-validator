@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { pathRange } from "@/lib/openapi/sourceMap";
 
 export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -37,16 +38,10 @@ export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
             .filter(missing => !normalizedOptionalMethods.includes(missing));
 
         if (missingMethods.length > 0) {
-            function escapeRegExp(string: string): string {
-                return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            }
-
-            const pathPattern = new RegExp(`^\\s*["']?${escapeRegExp(path)}["']?:`, "m");
-            const match = content.match(pathPattern);
-            const pathIndex = match?.index ?? -1;
+            const range = pathRange(content, path);
             diagnostics.push({
-                from: pathIndex >= 0 ? pathIndex : 0,
-                to: pathIndex >= 0 ? pathIndex + path.length : content.length,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `${rule.message} Missing: ${missingMethods.join(", ")}`,
                 source: getSource(rule),

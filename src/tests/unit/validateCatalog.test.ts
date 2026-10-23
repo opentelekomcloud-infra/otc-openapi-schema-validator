@@ -144,6 +144,21 @@ describe("/api/validate catalog integrity", () => {
         ]);
     });
 
+    test("reports lineNumber from the exact engine content, not stale diagnostic metadata", async () => {
+        const content = "openapi: 3.0.3\r\ninfo: {title: Demo, version: v1}\r\npaths: {}\r\n";
+        const diagnostic = {
+            from: content.indexOf("paths"), to: content.indexOf("paths") + 5,
+            severity: "error" as const, source: "DOC-040-01-2507-2507-M", message: "Mapped source", lineNumber: 99,
+        };
+        lint.mockResolvedValueOnce({ diagnostics: [diagnostic], specTitle: "Demo" });
+        const res = await validate({ file_content: content });
+        expect(lint.mock.calls[0][0]).toBe(content);
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            diagnostics: [expect.objectContaining({ from: diagnostic.from, to: diagnostic.to, lineNumber: 3 })],
+        }));
+    });
+
     test("preserves 400 for an unknown ruleset directory", async () => {
         const res = await validate({ ruleset: "nonexistent-t02-ruleset" });
 

@@ -120,7 +120,7 @@ describe("format-version compliance", () => {
         const content = '# Original comment\nswagger: "2.1"\npaths: {}\n';
         const [diagnostic] = checkOASVersion(yaml.load(content), content, versionRule);
 
-        expect(content.slice(diagnostic.from, diagnostic.to)).toBe("2.1");
+        expect(content.slice(diagnostic.from, diagnostic.to)).toBe('"2.1"');
     });
 });
 

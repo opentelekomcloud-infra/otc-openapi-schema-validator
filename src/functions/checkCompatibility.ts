@@ -3,6 +3,7 @@ import { mapSeverity } from "@/utils/mapSeverity";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import { resolveRef, extractAllProperties, extractPropertyTypes, extractEnumIfExist } from "@/utils/schema";
 import {getSource} from "@/functions/common";
+import { pathRange } from "@/lib/openapi/sourceMap";
 
 const remoteSpecCache: Record<string, any> = {};
 
@@ -15,9 +16,7 @@ function checkDeletedApi(remoteSpec: any, spec: any, content: string, diagnostic
         const currentPathItem = spec.paths[pathKey];
 
         if (!currentPathItem) {
-            const index = content.indexOf(pathKey);
-            const start = index >= 0 ? index : 0;
-            const end = start + pathKey.length;
+            const { from: start, to: end } = pathRange(content, pathKey);
 
             diagnostics.push({
                 from: start,
@@ -35,9 +34,7 @@ function checkDeletedApi(remoteSpec: any, spec: any, content: string, diagnostic
             const currentOperation = currentPathItem[method];
 
             if (remoteOperation && !currentOperation) {
-                const index = content.indexOf(pathKey);
-                const start = index >= 0 ? index : 0;
-                const end = start + pathKey.length;
+                const { from: start, to: end } = pathRange(content, pathKey);
 
                 diagnostics.push({
                     from: start,
@@ -82,10 +79,10 @@ function checkEnumDecrease(remoteSpec: any, spec: any, content: string, diagnost
                         const removed: string[] = [];
                         for (const v of oldSet) if (!newSet.has(v)) removed.push(v);
                         if (removed.length) {
-                            const index = content.indexOf(pathKey);
+                            const range = pathRange(content, pathKey);
                             diagnostics.push({
-                                from: index >= 0 ? index : 0,
-                                to: index >= 0 ? index + pathKey.length : 0,
+                                from: range.from,
+                                to: range.to,
                                 severity: mapSeverity(rule.severity),
                                 message: `Enum values removed for request body property "${propPath}" in ${method.toUpperCase()} ${pathKey}: ${removed.join(', ')}.`,
                                 source: getSource(rule),
@@ -115,10 +112,10 @@ function checkEnumDecrease(remoteSpec: any, spec: any, content: string, diagnost
                             const removed: string[] = [];
                             for (const v of oldSet) if (!newSet.has(v)) removed.push(v);
                             if (removed.length) {
-                                const index = content.indexOf(pathKey);
+                                const range = pathRange(content, pathKey);
                                 diagnostics.push({
-                                    from: index >= 0 ? index : 0,
-                                    to: index >= 0 ? index + pathKey.length : 0,
+                                    from: range.from,
+                                    to: range.to,
                                     severity: mapSeverity(rule.severity),
                                     message: `Enum values removed for response property "${propPath}" (code ${code}) in ${method.toUpperCase()} ${pathKey}: ${removed.join(', ')}.`,
                                     source: getSource(rule),
@@ -156,10 +153,10 @@ function checkDeletedRequestResponseParam(remoteSpec: any, spec: any, content: s
                     const currentProps = extractAllProperties(currentSchema, spec);
                     for (const key of remoteProps) {
                         if (!currentProps.has(key)) {
-                            const index = content.indexOf(pathKey);
+                            const range = pathRange(content, pathKey);
                             diagnostics.push({
-                                from: index >= 0 ? index : 0,
-                                to: index >= 0 ? index + pathKey.length : 0,
+                                from: range.from,
+                                to: range.to,
                                 severity: mapSeverity(rule.severity),
                                 message: `Request body property "${key}" was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
                                 source: getSource(rule),
@@ -181,10 +178,10 @@ function checkDeletedRequestResponseParam(remoteSpec: any, spec: any, content: s
                         const currentProps = extractAllProperties(currentSchema, spec);
                         for (const key of remoteProps) {
                             if (!currentProps.has(key)) {
-                                const index = content.indexOf(pathKey);
+                                const range = pathRange(content, pathKey);
                                 diagnostics.push({
-                                    from: index >= 0 ? index : 0,
-                                    to: index >= 0 ? index + pathKey.length : 0,
+                                    from: range.from,
+                                    to: range.to,
                                     severity: mapSeverity(rule.severity),
                                     message: `Response property "${key}" in code ${code} was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
                                     source: getSource(rule),
@@ -222,10 +219,10 @@ function checkAddedRequestBodyParam(remoteSpec: any, spec: any, content: string,
                     const currentProps = extractAllProperties(currentSchema, spec);
                     for (const key of currentProps) {
                         if (!remoteProps.has(key)) {
-                            const index = content.indexOf(pathKey);
+                            const range = pathRange(content, pathKey);
                             diagnostics.push({
-                                from: index >= 0 ? index : 0,
-                                to: index >= 0 ? index + pathKey.length : 0,
+                                from: range.from,
+                                to: range.to,
                                 severity: mapSeverity(rule.severity),
                                 message: `Request body property "${key}" was added in method ${method.toUpperCase()} at path "${pathKey}".`,
                                 source: getSource(rule),
@@ -267,10 +264,10 @@ function checkDeletedRequestResponseParamTypes(remoteSpec: any, spec: any, conte
                         if (!currentTypes.has(propPath)) continue; // deletion is handled by another rule
                         const newType = currentTypes.get(propPath)!;
                         if (oldType !== newType) {
-                            const index = content.indexOf(pathKey);
+                            const range = pathRange(content, pathKey);
                             diagnostics.push({
-                                from: index >= 0 ? index : 0,
-                                to: index >= 0 ? index + pathKey.length : 0,
+                                from: range.from,
+                                to: range.to,
                                 severity: mapSeverity(rule.severity),
                                 message: `Type of request body property "${propPath}" changed from "${oldType}" to "${newType}" in method ${method.toUpperCase()} at path "${pathKey}".`,
                                 source: getSource(rule),
@@ -298,10 +295,10 @@ function checkDeletedRequestResponseParamTypes(remoteSpec: any, spec: any, conte
                             if (!currentTypes.has(propPath)) continue; // deletion handled elsewhere
                             const newType = currentTypes.get(propPath)!;
                             if (oldType !== newType) {
-                                const index = content.indexOf(pathKey);
+                                const range = pathRange(content, pathKey);
                                 diagnostics.push({
-                                    from: index >= 0 ? index : 0,
-                                    to: index >= 0 ? index + pathKey.length : 0,
+                                    from: range.from,
+                                    to: range.to,
                                     severity: mapSeverity(rule.severity),
                                     message: `Type of response property "${propPath}" (code ${code}) changed from "${oldType}" to "${newType}" in method ${method.toUpperCase()} at path "${pathKey}".`,
                                     source: getSource(rule),
@@ -335,10 +332,10 @@ function checkResponseDeleted(remoteSpec: any, spec: any, content: string, diagn
 
                 for (const code in remoteResponses) {
                     if (!(code in currentResponses)) {
-                        const index = content.indexOf(pathKey);
+                        const range = pathRange(content, pathKey);
                         diagnostics.push({
-                            from: index >= 0 ? index : 0,
-                            to: index >= 0 ? index + pathKey.length : 0,
+                            from: range.from,
+                            to: range.to,
                             severity: mapSeverity(rule.severity),
                             message: `Response code ${code} was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
                             source: getSource(rule),
@@ -381,10 +378,10 @@ function checkResponseHeaderChange(remoteSpec: any, spec: any, content: string, 
                     // Deletions
                     for (const key of remoteKeys) {
                         if (!currentKeys.has(key)) {
-                            const index = content.indexOf(pathKey);
+                            const range = pathRange(content, pathKey);
                             diagnostics.push({
-                                from: index >= 0 ? index : 0,
-                                to: index >= 0 ? index + pathKey.length : 0,
+                                from: range.from,
+                                to: range.to,
                                 severity: mapSeverity(rule.severity),
                                 message: `Response header "${key}" was deleted for code ${code} in ${method.toUpperCase()} at path "${pathKey}".`,
                                 source: getSource(rule),
@@ -395,10 +392,10 @@ function checkResponseHeaderChange(remoteSpec: any, spec: any, content: string, 
                     // Additions/changes
                     for (const key of currentKeys) {
                         if (!remoteKeys.has(key)) {
-                            const index = content.indexOf(pathKey);
+                            const range = pathRange(content, pathKey);
                             diagnostics.push({
-                                from: index >= 0 ? index : 0,
-                                to: index >= 0 ? index + pathKey.length : 0,
+                                from: range.from,
+                                to: range.to,
                                 severity: mapSeverity(rule.severity),
                                 message: `Response header "${key}" was added for code ${code} in ${method.toUpperCase()} at path "${pathKey}".`,
                                 source: getSource(rule),

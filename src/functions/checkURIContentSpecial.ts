@@ -1,6 +1,7 @@
 import {Diagnostic} from "@codemirror/lint";
 import {mapSeverity} from "@/utils/mapSeverity";
 import {findInvalidPercentEscape} from "@/utils/strings";
+import { pathRange } from "@/lib/openapi/sourceMap";
 
 export function checkURIContentSpecial(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -29,21 +30,11 @@ export function checkURIContentSpecial(spec: any, content: string, rule: any): D
             : `${idPrefix}${base}\nPath: ${path}`;
     };
 
-    const findPosition = (needle: string, offset = 0) => {
-        try {
-            return content.indexOf(needle, offset);
-        } catch {
-            return -1;
-        }
-    };
-
     for (const path of paths) {
         if (rule?.call?.functionParams?.checkInvalidPercentEscape) {
             const invalid = findInvalidPercentEscape(String(path));
             if (invalid) {
-                const pathIdx = findPosition(path);
-                const from = pathIdx >= 0 ? pathIdx + invalid.index : 0;
-                const to = pathIdx >= 0 ? pathIdx + invalid.index + invalid.length : Math.min(1, content.length);
+                const { from, to } = pathRange(content, path);
                 diagnostics.push({
                     from,
                     to,
@@ -58,10 +49,10 @@ export function checkURIContentSpecial(spec: any, content: string, rule: any): D
         const segments = String(path).split('/').filter(Boolean);
         for (const seg of segments) {
             if (seg === '.' || seg === '..') {
-                const idx = findPosition(path);
+                const range = pathRange(content, path);
                 diagnostics.push({
-                    from: idx >= 0 ? idx : 0,
-                    to: idx >= 0 ? idx + path.length : Math.min(1, content.length),
+                    from: range.from,
+                    to: range.to,
                     severity: mapSeverity(rule?.severity),
                     message: mkMessage(path, `Found forbidden segment "${seg}".`),
                 });
@@ -79,9 +70,7 @@ export function checkURIContentSpecial(spec: any, content: string, rule: any): D
             }
 
             if (!forbiddenSet.has(ch)) continue;
-            const pathIdx = findPosition(path);
-            const from = pathIdx >= 0 ? pathIdx + i : 0;
-            const to = pathIdx >= 0 ? pathIdx + i + 1 : Math.min(1, content.length);
+            const { from, to } = pathRange(content, path);
 
             diagnostics.push({
                 from,

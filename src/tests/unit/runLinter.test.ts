@@ -62,6 +62,25 @@ describe("rule execution errors", () => {
         expect(tests[0][0]).not.toContain('status="PASS"');
     });
 
+    test.each(["openapi: 3.0.3\npaths: [", "openapi: 3.0.3\npaths: [}\n"])("parser errors retain exact original offsets: %j", async (text) => {
+        const { diagnostics } = await runLinter(text, [baseRule]);
+        const from = text.includes("}") ? text.indexOf("}") : text.length;
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0]).toMatchObject({ source: "parser", from, to: Math.min(text.length, from + 1), lineNumber: 2 });
+    });
+
+    test("invalid rule offsets are explicit rule failures, not silently clamped successes", async () => {
+        jest.spyOn(functionsMap, "checkOASVersion").mockReturnValue([{
+            from: -1, to: content.length + 1, severity: "warning", message: "Invalid range",
+        }]);
+        const { diagnostics } = await runLinter(content, [baseRule]);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0]).toMatchObject({
+            source: `Rule ${baseRule.id} - ${baseRule.title}`, severity: "error", lineNumber: 1,
+            message: expect.stringContaining("outside the original content"),
+        });
+    });
+
     test("preserves successful validation and parser diagnostics", async () => {
         await expect(runLinter(content, [baseRule])).resolves.toEqual({
             diagnostics: [],

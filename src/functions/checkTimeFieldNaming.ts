@@ -1,7 +1,8 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
-import {findKeyRangeInContent, findParameterPositionInYaml} from "@/utils/pos";
+import { objectRange } from "@/lib/openapi/sourceMap";
+import type { SourceRange } from "@/types/openapi";
 import { resolveRefDeep } from "@/utils/schema";
 
 export function checkTimeFieldNaming(spec: any, content: string, rule: any): Diagnostic[] {
@@ -77,14 +78,14 @@ export function checkTimeFieldNaming(spec: any, content: string, rule: any): Dia
         return timeCandidateRe.test(n) || camelCaseAtRe.test(n);
     }
 
-    function evaluateName(nameRaw: string, range?: { from: number; to: number }, searchStart?: number) {
+    function evaluateName(nameRaw: string, range: SourceRange) {
         const name = String(nameRaw).trim();
         if (!shouldEvaluate(name)) return;
 
         // Explicitly not recommended
         if (notRecommended.has(name)) {
             const suggestion = suggestionMap.get(name);
-            const r = range ?? findKeyRangeInContent(content, name, searchStart);
+            const r = range;
             push(r.from, r.to, name, suggestion);
             return;
         }
@@ -93,31 +94,31 @@ export function checkTimeFieldNaming(spec: any, content: string, rule: any): Dia
         // Keep recommended allow-list to prevent noise on known-good names.
         if (!recommended.has(name)) {
             const suggestion = suggestionMap.get(name);
-            const r = range ?? findKeyRangeInContent(content, name, searchStart);
+            const r = range;
             push(r.from, r.to, name, suggestion);
         }
     }
 
     // Walk schemas and validate property keys
-    function schemaWalk(schema: any, searchStart?: number, seen = visitedSchemas) {
+    function schemaWalk(schema: any, seen = visitedSchemas) {
         const s = resolveRefDeep(schema, refCache, spec);
         if (!s || typeof s !== "object") return;
         if (seen.has(s as object)) return;
         seen.add(s as object);
 
-        if (s.allOf && Array.isArray(s.allOf)) for (const sub of s.allOf) schemaWalk(sub, searchStart, seen);
-        if (s.oneOf && Array.isArray(s.oneOf)) for (const sub of s.oneOf) schemaWalk(sub, searchStart, seen);
-        if (s.anyOf && Array.isArray(s.anyOf)) for (const sub of s.anyOf) schemaWalk(sub, searchStart, seen);
+        if (s.allOf && Array.isArray(s.allOf)) for (const sub of s.allOf) schemaWalk(sub, seen);
+        if (s.oneOf && Array.isArray(s.oneOf)) for (const sub of s.oneOf) schemaWalk(sub, seen);
+        if (s.anyOf && Array.isArray(s.anyOf)) for (const sub of s.anyOf) schemaWalk(sub, seen);
 
         if (s.properties && typeof s.properties === "object") {
             for (const [k, v] of Object.entries<any>(s.properties)) {
-                evaluateName(k, undefined, searchStart);
-                schemaWalk(v, searchStart, seen);
+                evaluateName(k, objectRange(spec, content, s.properties, k));
+                schemaWalk(v, seen);
             }
         }
 
-        if (s.items) schemaWalk(s.items, searchStart, seen);
-        if (s.additionalProperties && typeof s.additionalProperties === "object") schemaWalk(s.additionalProperties, searchStart, seen);
+        if (s.items) schemaWalk(s.items, seen);
+        if (s.additionalProperties && typeof s.additionalProperties === "object") schemaWalk(s.additionalProperties, seen);
     }
 
     // Scan operations: parameters + request/response schemas.
@@ -144,12 +145,7 @@ export function checkTimeFieldNaming(spec: any, content: string, rule: any): Dia
                     const name = resolved?.name;
                     if (typeof name !== "string") continue;
 
-                    try {
-                        const { start, end } = findParameterPositionInYaml(content, pathKey, m, name);
-                        evaluateName(name, { from: start, to: end });
-                    } catch {
-                        evaluateName(name);
-                    }
+                    evaluateName(name, objectRange(spec, content, resolved, "name", "value"));
                 }
 
                 // requestBody schemas

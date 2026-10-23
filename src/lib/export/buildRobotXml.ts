@@ -1,5 +1,6 @@
 import {convertMarkdownToPlainText} from '@/utils/utils';
 import { getSeverityLabel } from '@/utils/mapSeverity';
+import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
 
 // Build Robot Framework compliant XML (schema v4) from diagnostics + rules
 export function buildRobotXml(
@@ -65,19 +66,7 @@ export function buildRobotXml(
   };
 
   const computeLineNumber = (diag: any): number | string => {
-    if (typeof diag?.lineNumber === 'number') return diag.lineNumber;
-    if (typeof diag?.from === 'number') {
-      if (typeof content === 'string' && content.length > 0) {
-        const idx = Math.max(0, Math.min(diag.from, content.length));
-        let count = 1;
-        for (let i = 0; i < idx; i++) {
-          if (content.charCodeAt(i) === 10) count++;
-        }
-        return count;
-      }
-      return diag.from;
-    }
-    return 'N/A';
+    return diagnosticLineNumber(content, diag);
   };
 
   const VROOT = 'virtual:///Compliance_Validation';

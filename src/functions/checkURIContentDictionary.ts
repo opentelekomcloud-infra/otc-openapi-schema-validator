@@ -1,3 +1,4 @@
+import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { splitPathIntoTokens, looksLikeAbbreviation, looksLikeUnknownWord, getAllowedAbbreviations } from "@/utils/englishWords";
@@ -43,7 +44,7 @@ export function checkURIContentDictionary(spec: any, content: string, rule: any)
         }
 
         if (suspiciousAbbrevs.length || suspiciousWords.length) {
-            const index = content.indexOf(pathKey);
+            const range = pathRange(content, pathKey);
             const parts: string[] = [];
 
             if (suspiciousAbbrevs.length) {
@@ -57,8 +58,8 @@ export function checkURIContentDictionary(spec: any, content: string, rule: any)
             const extra = parts.join("; ");
 
             diagnostics.push({
-                from: index >= 0 ? index : 0,
-                to: index >= 0 ? index + pathKey.length : 0,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" may use uncommon abbreviations or non-dictionary terms (${extra}). Please avoid unusual abbreviations and use clear, consistent nouns in URIs.`,
                 source: getSource(rule),

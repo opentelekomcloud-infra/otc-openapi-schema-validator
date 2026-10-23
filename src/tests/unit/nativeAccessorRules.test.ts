@@ -4,6 +4,8 @@ import * as yaml from "js-yaml";
 import { getImplementedRules, loadRuleCatalog, type AutoRule } from "@/lib/linter/ruleCatalog";
 import { functionsMap, runLinter } from "@/lib/linter/runLinter";
 import { getSource } from "@/functions/common";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import { jsonPointer, NativeReferenceError } from "@/lib/openapi/references";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import {
     array, buildScenario, object, readFixture, schemas, type Dialect, type JsonObject,
@@ -49,8 +51,8 @@ function ruleFor(id: string): AutoRule {
     return rule;
 }
 
-async function check(spec: JsonObject, rule: AutoRule) {
-    return (await runLinter(yaml.dump(spec, { lineWidth: -1, noRefs: true }), [rule])).diagnostics;
+async function check(spec: JsonObject, rule: AutoRule, format: "yaml" | "json" = "yaml") {
+    return (await runLinter(format === "json" ? JSON.stringify(spec) : yaml.dump(spec, { lineWidth: -1, noRefs: true }), [rule])).diagnostics;
 }
 
 describe.each<Dialect>(["swagger2", "openapi3"])("%s real parameter rules", (dialect) => {
@@ -288,6 +290,11 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native DOC-040", (dialect) 
         expect(diagnostics).toHaveLength(2);
         expect(diagnostics.some((entry) => entry.message.includes("missing required body field 'resource.name'"))).toBe(true);
         expect(diagnostics.some((entry) => entry.message.includes("enum values"))).toBe(true);
+        const content = yaml.dump(spec, { lineWidth: -1, noRefs: true });
+        const enumIssue = diagnostics.find((entry) => entry.message.includes("enum values"))!;
+        expect(content.slice(enumIssue.from, enumIssue.to)).toBe("invalid");
+        const missingField = diagnostics.find((entry) => entry.message.includes("missing required body field"))!;
+        expect(content.slice(missingField.from, missingField.to)).toBe("resource");
     });
 
     test("undefined request fields are not hidden by a valid native payload", async () => {
@@ -366,4 +373,116 @@ test("DOC-040 resolves named Example and response refs; externalValue fails expl
     const diagnostics = await check(spec, rule);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatchObject({ source: getSource(rule), severity: "error", message: expect.stringContaining("External example payloads are unsupported") });
+});
+
+describe.each<Dialect>(["swagger2", "openapi3"])("%s exact source diagnostic wiring", (dialect) => {
+    test("snake-case diagnostics highlight the native parameter name, not just its method", async () => {
+        const rule = ruleFor("ARG-010-01-2507-2509-M");
+        const spec = buildScenario("snakeCase", dialect, "negative", rule);
+        const content = JSON.stringify(spec);
+        const diagnostics = await check(spec, rule, "json");
+        expect(diagnostics).toHaveLength(1);
+        expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toBe('"resourceName"');
+    });
+
+    test.each(["yaml", "json"] as const)("missing header anchors only its own POST in %s", async (format) => {
+        const rule = ruleFor("HDR-010-01-2507-2507-M-3");
+        const spec = buildScenario("requiredHeader", dialect, "negative", rule);
+        const [path, operation] = Object.entries(object(spec.paths))[0];
+        const good = buildScenario("requiredHeader", dialect, "positive", rule);
+        spec.paths = { "/decoy": Object.values(object(good.paths))[0], [path]: operation };
+        const content = format === "json" ? JSON.stringify(spec) : yaml.dump(spec, { lineWidth: -1, noRefs: true });
+        const diagnostics = await check(spec, rule, format);
+        expect(diagnostics).toHaveLength(1);
+        const expected = sourceMap(content).locate(jsonPointer(["paths", path, "post"]));
+        expect(diagnostics[0]).toMatchObject({ from: expected.from, to: expected.to, lineNumber: expected.lineNumber });
+        expect(diagnostics[0].from).toBeGreaterThan(content.indexOf("/decoy"));
+    });
+
+    test("referenced custom parameter header and response header retain separate concrete sources", async () => {
+        const original = ruleFor("HDR-020-01-2507-2507-M-3");
+        const rule = { ...original, call: { ...original.call, functionParams: { ...original.call.functionParams, header_format: "^X-[a-z-]+$" } } };
+        const parameter = { in: "header", name: "X-Bad", ...(dialect === "swagger2" ? { type: "string" } : { schema: { type: "string" } }) };
+        const spec: JsonObject = {
+            ...(dialect === "swagger2" ? { swagger: "2.0", parameters: { Header: parameter } }
+                : { openapi: "3.0.3", components: { parameters: { Header: parameter } } }),
+            paths: { "/resources.responses.a.headers.b": { get: {
+                parameters: [{ $ref: dialect === "swagger2" ? "#/parameters/Header" : "#/components/parameters/Header" }],
+                responses: { "200": { headers: { "X-Bad": dialect === "swagger2" ? { type: "string" } : { schema: { type: "string" } } } } },
+            } } },
+        };
+        const content = JSON.stringify(spec);
+        const diagnostics = await check(spec, rule, "json");
+        expect(diagnostics).toHaveLength(2);
+        for (const diagnostic of diagnostics) expect(content.slice(diagnostic.from, diagnostic.to)).toBe('"X-Bad"');
+        expect(diagnostics[0].from).not.toBe(diagnostics[1].from);
+    });
+
+    test("execution errors preserve rule ID and highlight the actual broken reference value", async () => {
+        const rule = ruleFor("HDR-010-01-2507-2507-M-3");
+        const spec = buildScenario("requiredHeader", dialect, "positive", rule);
+        const operation = object(object(Object.values(object(spec.paths))[0]).post);
+        operation.parameters = [{ $ref: "#/missing" }];
+        const content = JSON.stringify(spec);
+        const diagnostics = await check(spec, rule, "json");
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0]).toMatchObject({ source: getSource(rule), severity: "error", message: expect.stringContaining("execution failed") });
+        expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toBe('"#/missing"');
+    });
+});
+
+test("response header status ranges do not drift after skipped responses or integer-key sorting", async () => {
+    const rule = ruleFor("HDR-020-01-2507-2507-M-2");
+    const body = { content: { "application/json": { schema: { type: "object" } } } };
+    const content = '{"openapi":"3.0.3","paths":{"/skipped":{"get":{"responses":{"200":{"description":"no body"}}}},"/target":{"get":{"responses":{"201":' +
+        JSON.stringify(body) + ',"200":' + JSON.stringify(body) + "}}}}}";
+    const { diagnostics } = await runLinter(content, [rule]);
+    expect(diagnostics).toHaveLength(2);
+    for (const [index, status] of ["200", "201"].entries()) {
+        const expected = sourceMap(content).locate(jsonPointer(["paths", "/target", "get", "responses", status]));
+        expect(diagnostics[index]).toMatchObject({ from: expected.from, to: expected.to });
+    }
+});
+
+test("a reference failure in a foreign baseline cannot highlight an unrelated current node", async () => {
+    const rule = ruleFor("BAS-080-01-2507-2507-M");
+    const spec: JsonObject = { openapi: "3.0.3", paths: {}, components: { schemas: { Same: { $ref: "#/current" } } } };
+    const content = JSON.stringify(spec);
+    const remoteNode = { $ref: "#/missing" };
+    jest.spyOn(functionsMap, "checkCompatibility").mockImplementation(() => {
+        throw new NativeReferenceError("UNRESOLVED_REFERENCE", "#/missing", "#/components/schemas/Same", "Unavailable baseline target", { sourceNode: remoteNode });
+    });
+    const diagnostics = await check(spec, rule, "json");
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({ from: 0, to: content.length, source: getSource(rule), severity: "error", fallback: "missing" });
+});
+
+test("snake-case body findings highlight the shared property's own source through refs", async () => {
+    const rule = ruleFor("ARG-010-01-2507-2509-M");
+    const spec: JsonObject = {
+        openapi: "3.0.3",
+        paths: { "/v1/resources": { post: {
+            requestBody: { content: { "application/json": { schema: { $ref: "#/components/schemas/Body" } } } },
+            responses: { "200": { content: { "application/json": { schema: { $ref: "#/components/schemas/Body" } } } } },
+        } } },
+        components: { schemas: { Body: { type: "object", properties: { resourceName: { type: "string" } } } } },
+    };
+    const content = JSON.stringify(spec);
+    const diagnostics = await check(spec, rule, "json");
+    expect(diagnostics.length).toBeGreaterThan(0);
+    for (const diagnostic of diagnostics) expect(content.slice(diagnostic.from, diagnostic.to)).toBe('"resourceName"');
+});
+
+test("time-format findings highlight the failing example value, not another schema's same-named property", async () => {
+    const rule = ruleFor("TIM-010-01-2507-2507-M-1");
+    const spec = buildScenario("timestamp", "openapi3", "negative", rule);
+    const definitions = schemas(spec, "openapi3");
+    object(spec.components).schemas = {
+        Earlier: { properties: { created_at: { type: "string", example: "2026-01-01T00:00:00Z" } } },
+        ...definitions,
+    };
+    const content = JSON.stringify(spec);
+    const diagnostics = await check(spec, rule, "json");
+    expect(diagnostics).toHaveLength(1);
+    expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toBe('"not-a-date"');
 });

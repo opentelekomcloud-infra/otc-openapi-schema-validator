@@ -4,6 +4,7 @@ import { collectEffectiveParameterNodes } from "@/lib/openapi/parameters";
 import { collectDocumentOperations } from "@/lib/openapi/operations";
 import type { NativeExample, RuleConfig } from "@/types/example";
 import { collectRequestExamples, collectResponseExamples } from "@/lib/openapi/examples";
+import { sourceMap } from "@/lib/openapi/sourceMap";
 
 /**
  * Returns the response object for a specific HTTP status code from an OpenAPI operation.
@@ -161,41 +162,11 @@ export function extractResponseExamples(
 }
 
 /**
- * Locates the `info.version` value in the raw YAML document.
- *
- * The function searches inside the `info:` block and highlights the version value
- * when found. If the value cannot be located reliably, it falls back to the full
- * document range so the diagnostic is still visible.
+ * Locates the original YAML/JSON scalar for info.version, or its existing parent.
  */
 export function findInfoVersionPosition(content: string): { start: number; end: number } {
-  const infoMatch = content.match(/^\s*info\s*:\s*$/m);
-  if (!infoMatch || infoMatch.index == null) {
-    return { start: 0, end: content.length };
-  }
-
-  const afterInfo = content.slice(infoMatch.index);
-  const versionMatch = afterInfo.match(/^\s+version\s*:\s*(.+?)\s*$/m);
-  if (!versionMatch || versionMatch.index == null) {
-    return { start: 0, end: content.length };
-  }
-
-  const absoluteLineStart = infoMatch.index + versionMatch.index;
-  const fullLine = versionMatch[0];
-  const valuePart = versionMatch[1] ?? "";
-  const valueOffsetInLine = fullLine.lastIndexOf(valuePart);
-
-  if (valueOffsetInLine >= 0 && valuePart.length > 0) {
-    return {
-      start: absoluteLineStart + valueOffsetInLine,
-      end: absoluteLineStart + valueOffsetInLine + valuePart.length,
-    };
-  }
-
-  const versionKeyOffset = fullLine.indexOf("version");
-  return {
-    start: absoluteLineStart + Math.max(versionKeyOffset, 0),
-    end: absoluteLineStart + Math.max(versionKeyOffset, 0) + "version".length,
-  };
+  const { from: start, to: end } = sourceMap(content).locate("#/info/version", "value");
+  return { start, end };
 }
 
 /**

@@ -49,6 +49,21 @@ import { checkNoRedundantParameters } from "@/functions/checkNoRedundantParamete
 import { checkRootNodeMatchesResource } from "@/functions/checkRootNodeMatchesResource";
 import { getSource } from "@/functions/common";
 import { assertRuleFunction } from "@/lib/linter/ruleCatalog";
+import { objectRange, sourceLineNumber, sourceMap } from "@/lib/openapi/sourceMap";
+import { NativeReferenceError, appendPointer } from "@/lib/openapi/references";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
+import { NativeExampleError } from "@/lib/openapi/exampleError";
+
+function executionRange(content: string, error: unknown, document: unknown) {
+  if (error instanceof NativeReferenceError && error.sourceNode !== undefined) {
+    return objectRange(document, content, error.sourceNode, "$ref", "value");
+  }
+  if (error instanceof NativeReferenceError || error instanceof NativeAccessorError || error instanceof NativeExampleError) {
+    const pointer = error instanceof NativeReferenceError ? appendPointer(error.pointer, "$ref") : error.pointer;
+    return sourceMap(content).locate(pointer, error instanceof NativeReferenceError ? "value" : "key");
+  }
+  return sourceMap(content).locate("#");
+}
 
 const log = {
   debug: (...args: any[]) => console.debug("[runLinter]", ...args),
@@ -105,6 +120,10 @@ export const functionsMap: {
   checkRootNodeMatchesResource
 };
 
+export interface SourceDiagnostic extends Diagnostic {
+  readonly lineNumber: number;
+}
+
 /**
  * Run the OpenAPI linter for a set of selected rules.
  * This is environment-agnostic (can be called from browser or server).
@@ -112,8 +131,8 @@ export const functionsMap: {
 export async function runLinter(
   content: string,
   selectedRules: any
-): Promise<{ diagnostics: Diagnostic[]; specTitle?: string }> {
-  let diagnostics: Diagnostic[] = [];
+): Promise<{ diagnostics: SourceDiagnostic[]; specTitle?: string }> {
+  let diagnostics: SourceDiagnostic[] = [];
   let specTitle: string | undefined;
 
   try {
@@ -125,18 +144,24 @@ export async function runLinter(
     }
     log.debug("loaded rules: ", selectedRules)
     const results = await Promise.all(
-      selectedRules.map(async (rule: any): Promise<Diagnostic[]> => {
+      selectedRules.map(async (rule: any): Promise<SourceDiagnostic[]> => {
         const funcName = rule?.call?.function;
         try {
           assertRuleFunction(rule, functionsMap);
           const ruleFunc = functionsMap[rule.call.function];
           const out = await ruleFunc(spec, content, rule);
-          return Array.isArray(out) ? out : [];
+          if (!Array.isArray(out)) return [];
+          return out.map((diagnostic) => {
+            if (!Number.isInteger(diagnostic.from) || !Number.isInteger(diagnostic.to) ||
+                diagnostic.from < 0 || diagnostic.to < diagnostic.from || diagnostic.to > content.length) {
+              throw new RangeError("Rule produced a diagnostic outside the original content.");
+            }
+            return { ...diagnostic, lineNumber: sourceLineNumber(content, diagnostic.from) };
+          });
         } catch (err: any) {
           return [
             {
-              from: 0,
-              to: content.length,
+              ...executionRange(content, err, spec),
               severity: 'error',
               message: `Rule "${funcName}" execution failed: ${
                 err?.message || String(err)
@@ -150,9 +175,12 @@ export async function runLinter(
 
     diagnostics = results.flat();
   } catch (error: any) {
+    const position = error instanceof yaml.YAMLException ? error.mark?.position : undefined;
+    const from = typeof position === "number" && position >= 0 && position <= content.length ? position : 0;
     diagnostics.push({
-      from: 0,
-      to: content.length,
+      from,
+      to: position === undefined ? content.length : Math.min(content.length, from + 1),
+      lineNumber: sourceLineNumber(content, from),
       severity: 'error',
       message: 'Specification parsing error: ' + error.message,
       source: 'parser',

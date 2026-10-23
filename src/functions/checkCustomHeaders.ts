@@ -4,6 +4,7 @@ import { getSource } from "@/functions/common";
 import { safeRegex } from "@/utils/regex";
 import { collectHeaderLocations } from "@/utils/scan";
 import { isCustomHeader } from "@/utils/headers";
+import { sourceMap } from "@/lib/openapi/sourceMap";
 
 /**
  * HDR-020-01-2507-2507-M-3
@@ -44,9 +45,6 @@ export function checkCustomHeaders(spec: any, content: string, rule: any): Diagn
 
   const headers = collectHeaderLocations(spec);
 
-  let paramCursor = 0;
-  let responseCursor = 0;
-
   for (const h of headers) {
     if (!isCustomHeader(h.headerName, standardHeaders)) continue;
 
@@ -54,38 +52,8 @@ export function checkCustomHeaders(spec: any, content: string, rule: any): Diagn
     if (!headerRegex) continue;
 
     if (!headerRegex.test(h.headerName)) {
-      // Plain sequential scan to get stable positions per occurrence.
-      // We rely on traversal order and keep separate cursors for parameters vs responses.
-      const isResponseHeader = h.jsonPointer.includes(".responses.") && h.jsonPointer.includes(".headers.");
-
-      let src: { from: number; to: number } = { from: 0, to: 0 };
-
-      if (isResponseHeader) {
-        const needleKey = `${h.headerName}:`;
-        const needleQuotedKey = `"${h.headerName}":`;
-
-        let idx = content.indexOf(needleKey, responseCursor);
-        let len = needleKey.length;
-
-        // Prefer unquoted key; if not found, try quoted key.
-        if (idx === -1) {
-          idx = content.indexOf(needleQuotedKey, responseCursor);
-          len = needleQuotedKey.length;
-        }
-
-        if (idx !== -1) {
-          src = { from: idx, to: idx + len };
-          responseCursor = idx + len;
-        }
-      } else {
-        // Parameters: header name is stored as `name: <header>` in YAML.
-        const needleName = `name: ${h.headerName}`;
-        const idx = content.indexOf(needleName, paramCursor);
-        if (idx !== -1) {
-          src = { from: idx, to: idx + needleName.length };
-          paramCursor = idx + needleName.length;
-        }
-      }
+      const isResponseHeader = h.direction === "response";
+      const src = sourceMap(content).locate(h.sourcePointer, isResponseHeader ? "key" : "value", true);
 
       diagnostics.push({
         from: src.from,

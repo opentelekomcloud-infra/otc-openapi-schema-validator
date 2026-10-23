@@ -10,6 +10,7 @@ import { getSeverityLabel } from "@/utils/mapSeverity";
 import { giteaClient } from '@/clients/gitea';
 import { requireApiAuth } from "@/lib/apiAuth";
 import { prepareOpenApiDocument } from "@/lib/openapi/prepareOpenApiDocument";
+import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
 
 const log = {
   debug: (...args: any[]) => console.debug("[Validate]", ...args),
@@ -276,20 +277,9 @@ export default async function handler(
     // Run linter
     const { diagnostics, specTitle } = await runLinter(specText, auto);
     log.debug('lint done: ', { diagnostics_count: Array.isArray(diagnostics) ? diagnostics.length : 0, specTitle });
-    // Helper to compute line number (1-based) from character offset
-    const computeLine = (text: string, idx: number) => {
-      if (typeof idx !== 'number' || idx < 0) return 'N/A' as const;
-      const clamped = Math.min(Math.max(0, idx), text.length);
-      let line = 1;
-      for (let i = 0; i < clamped; i++) {
-        if (text.charCodeAt(i) === 10 /* \n */) line++;
-      }
-      return line;
-    };
-
     const diagnosticsWithLines = (diagnostics || []).map((d: any) => ({
       ...d,
-      lineNumber: typeof d?.lineNumber === 'number' ? d.lineNumber : computeLine(specText, (d?.from as number) ?? -1),
+      lineNumber: diagnosticLineNumber(specText, d),
       severity: getSeverityLabel(d?.severity),
     }));
 

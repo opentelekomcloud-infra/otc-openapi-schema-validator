@@ -2,6 +2,7 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { violatingIndexRange } from "@/utils/pos";
 import {getSource} from "@/functions/common";
+import { appendPointer } from "@/lib/openapi/references";
 
 const DEFAULT_CHINESE_UNICODE_RANGE = "\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF";
 
@@ -17,7 +18,7 @@ type WalkCtx = {
     forbiddenLanguages: string[];
 };
 
-function pushIfViolation(value: unknown, pointer: string, ctx: WalkCtx) {
+function pushIfViolation(value: unknown, pointer: string, sourcePointer: string, ctx: WalkCtx) {
     if (typeof value !== "string" || !value.trim()) return;
 
     // Currently we only implement forbiddenLanguages: ['zh'] by detecting Chinese characters.
@@ -32,7 +33,7 @@ function pushIfViolation(value: unknown, pointer: string, ctx: WalkCtx) {
 
     if (!containsForbiddenChars(value, forbiddenRe)) return;
 
-    const { from, to } = violatingIndexRange(ctx.content, pointer, value, forbiddenRe, pointer.length);
+    const { from, to } = violatingIndexRange(ctx.content, sourcePointer);
     ctx.diagnostics.push({
         from,
         to,
@@ -42,12 +43,12 @@ function pushIfViolation(value: unknown, pointer: string, ctx: WalkCtx) {
     });
 }
 
-function walkObject(node: any, pointer: string, ctx: WalkCtx) {
+function walkObject(node: any, pointer: string, ctx: WalkCtx, sourcePointer = `#${pointer}`) {
     if (!node || typeof node !== "object") return;
 
     if (Array.isArray(node)) {
         for (let i = 0; i < node.length; i++) {
-            walkObject(node[i], `${pointer}/${i}`, ctx);
+            walkObject(node[i], `${pointer}/${i}`, ctx, appendPointer(sourcePointer, i));
         }
         return;
     }
@@ -56,12 +57,12 @@ function walkObject(node: any, pointer: string, ctx: WalkCtx) {
         const nextPtr = `${pointer}/${k}`;
 
         if (ctx.elementKeys.has(k)) {
-            pushIfViolation(v, nextPtr, ctx);
+            pushIfViolation(v, nextPtr, appendPointer(sourcePointer, k), ctx);
         }
 
         // Continue traversal for nested objects
         if (v && typeof v === "object") {
-            walkObject(v, nextPtr, ctx);
+            walkObject(v, nextPtr, ctx, appendPointer(sourcePointer, k));
         }
     }
 }

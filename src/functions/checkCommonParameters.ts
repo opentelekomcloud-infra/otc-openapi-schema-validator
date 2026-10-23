@@ -1,7 +1,8 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { looksLikeAbbreviation, looksLikeUnknownWord, getAllowedAbbreviations } from "@/utils/englishWords";
-import {findKeyRangeInContent, findParameterPositionInYaml} from "@/utils/pos";
+import { objectRange } from "@/lib/openapi/sourceMap";
+import type { SourceRange } from "@/types/openapi";
 import { getSource } from "@/functions/common";
 import { resolveRefDeep } from "@/utils/schema";
 
@@ -12,7 +13,6 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
     if (!spec?.paths) return diagnostics;
 
     const reported = new Set<string>();
-    const opAnchorCache = new Map<string, number>();
     const refCache = new Map<string, any>();
 
     const HTTP_METHODS = new Set(["get", "put", "post", "patch", "delete", "head", "options", "trace"]);
@@ -87,32 +87,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         });
     }
 
-    function findOperationAnchorIndex(pathKey: string, method: string): number {
-        const cacheKey = `${pathKey}#${method}`;
-        const cached = opAnchorCache.get(cacheKey);
-        if (typeof cached === "number") return cached;
-        const pathNeedles = [`\n  ${pathKey}:`, `\n${pathKey}:`];
-        let pathIdx = -1;
-        for (const n of pathNeedles) {
-            pathIdx = content.indexOf(n);
-            if (pathIdx >= 0) break;
-        }
-        const searchFromPath = pathIdx >= 0 ? pathIdx : 0;
-
-        const methodNeedles = [`\n    ${method}:`, `\n  ${method}:`];
-        let methodIdx = -1;
-        for (const n of methodNeedles) {
-            methodIdx = content.indexOf(n, searchFromPath);
-            if (methodIdx >= 0) break;
-        }
-        const anchor = methodIdx >= 0 ? methodIdx : searchFromPath;
-        opAnchorCache.set(cacheKey, anchor);
-        return anchor;
-    }
-
-
-
-    function evaluateName(nameRaw: string, range?: { from: number; to: number }, searchStart?: number, dedupeContext?: string) {
+    function evaluateName(nameRaw: string, range: SourceRange, dedupeContext?: string) {
         const name = String(nameRaw).trim().toLowerCase();
         if (!name) return;
 
@@ -121,7 +96,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         }
 
         if (notAllowedNames.has(name)) {
-            const r = range ?? findKeyRangeInContent(content, nameRaw, searchStart);
+            const r = range;
             pushDiagnosticAtRange(
                 r.from,
                 r.to,
@@ -133,7 +108,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
 
         const suspicious = isSuspiciousName(nameRaw);
         if (suspicious.badTokens.length) {
-            const r = range ?? findKeyRangeInContent(content, nameRaw, searchStart);
+            const r = range;
             pushDiagnosticAtRange(
                 r.from,
                 r.to,
@@ -143,57 +118,24 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         }
     }
 
-    function findRefUsageRangeInOperation(pathKey: string, method: string, ref: string): { from: number; to: number } {
-        // Reuse cached operation anchor to avoid repeated scanning.
-        const opAnchor = findOperationAnchorIndex(pathKey, method);
-
-        const idx = content.indexOf(ref, opAnchor);
-        if (idx >= 0) {
-            return { from: idx, to: idx + ref.length };
-        }
-
-        const refKeyIdx = content.indexOf("$ref", opAnchor);
-        if (refKeyIdx >= 0) {
-            return { from: refKeyIdx, to: refKeyIdx + 4 };
-        }
-
-        return { from: 0, to: 0 };
-    }
-
     function collectParameterNamesForOperation(pathKey: string, method: string, operation: any) {
         const opParams: any[] = [];
         if (Array.isArray(spec.paths?.[pathKey]?.parameters)) opParams.push(...spec.paths[pathKey].parameters);
         if (Array.isArray(operation?.parameters)) opParams.push(...operation.parameters);
 
         const ctx = `${pathKey}#${method}`;
-        const opAnchor = findOperationAnchorIndex(pathKey, method);
-
         for (const p of opParams) {
-            const ref = typeof p?.$ref === "string" ? p.$ref : null;
             const resolved = resolveRefDeep(p, refCache, spec);
             const name = resolved?.name;
             if (typeof name !== "string") continue;
 
-            if (ref) {
-                const r = findRefUsageRangeInOperation(pathKey, method, ref);
-                evaluateName(name, r.from || r.to ? { from: r.from, to: r.to } : undefined, opAnchor, ctx);
-                continue;
-            }
-
-            try {
-                const { start, end } = findParameterPositionInYaml(content, pathKey, method, name);
-                evaluateName(name, { from: start, to: end }, opAnchor, ctx);
-            } catch {
-                evaluateName(name, undefined, opAnchor, ctx);
-            }
+            evaluateName(name, objectRange(spec, content, resolved, "name", "value"), ctx);
         }
     }
 
     function schemaWalk(
         schema: any,
-        visitor: (propName: string) => void,
-        searchStart?: number,
-        dedupeContext?: string,
+        visitor: (propName: string, owner: object) => void,
         seen = new WeakSet<object>()
     ) {
         const s = resolveRefDeep(schema, refCache, spec);
@@ -202,33 +144,33 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         seen.add(s as object);
 
         if (s.allOf && Array.isArray(s.allOf)) {
-            for (const sub of s.allOf) schemaWalk(sub, visitor, searchStart, dedupeContext, seen);
+            for (const sub of s.allOf) schemaWalk(sub, visitor, seen);
         }
         if (s.oneOf && Array.isArray(s.oneOf)) {
-            for (const sub of s.oneOf) schemaWalk(sub, visitor, searchStart, dedupeContext, seen);
+            for (const sub of s.oneOf) schemaWalk(sub, visitor, seen);
         }
         if (s.anyOf && Array.isArray(s.anyOf)) {
-            for (const sub of s.anyOf) schemaWalk(sub, visitor, searchStart, dedupeContext, seen);
+            for (const sub of s.anyOf) schemaWalk(sub, visitor, seen);
         }
 
         if (s.properties && typeof s.properties === "object") {
             for (const [k, v] of Object.entries(s.properties)) {
-                visitor(k);
-                schemaWalk(v, visitor, searchStart, dedupeContext, seen);
+                visitor(k, s.properties);
+                schemaWalk(v, visitor, seen);
             }
         }
 
         if (s.items) {
-            schemaWalk(s.items, visitor, searchStart, dedupeContext, seen);
+            schemaWalk(s.items, visitor, seen);
         }
 
         // AdditionalProperties can also contain schema
         if (s.additionalProperties && typeof s.additionalProperties === "object") {
-            schemaWalk(s.additionalProperties, visitor, searchStart, dedupeContext, seen);
+            schemaWalk(s.additionalProperties, visitor, seen);
         }
     }
 
-    function exampleWalk(example: any, visitor: (propName: string) => void, seen = new WeakSet<object>()) {
+    function exampleWalk(example: any, visitor: (propName: string, owner: object) => void, seen = new WeakSet<object>()) {
         if (example === null || example === undefined) return;
         if (typeof example !== "object") return;
         if (seen.has(example as object)) return;
@@ -242,29 +184,13 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         }
 
         for (const [k, v] of Object.entries(example)) {
-            visitor(k);
+            visitor(k, example);
             exampleWalk(v, visitor, seen);
         }
     }
 
-    // Helper to find the schema usage (schema key or $ref) inside operation content
-    function findSchemaUsageRangeInOperation(pathKey: string, method: string, schemaObj: any): { from: number; to: number } {
-        const ref = typeof schemaObj?.$ref === "string" ? schemaObj.$ref : null;
-        if (ref) {
-            return findRefUsageRangeInOperation(pathKey, method, ref);
-        }
-        // Fallback: highlight the `schema` key near the method
-        const anchor = findOperationAnchorIndex(pathKey, method);
-        const idx = content.indexOf("schema:", anchor);
-        if (idx >= 0) {
-            return { from: idx, to: idx + "schema".length };
-        }
-        return { from: 0, to: 0 };
-    }
-
     function collectBodyAndResponseNames(pathKey: string, method: string, operation: any) {
         const ctx = `${pathKey}#${method}`;
-        const opAnchor = findOperationAnchorIndex(pathKey, method);
 
         // requestBody
         if (operation?.requestBody) {
@@ -274,17 +200,16 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
                 for (const media of Object.values<any>(contentObj)) {
                     const schema = media?.schema;
                     if (schema) {
-                        const schemaUsageRange = findSchemaUsageRangeInOperation(pathKey, method, schema);
-                        schemaWalk(schema, (prop) => evaluateName(prop, schemaUsageRange, opAnchor, ctx), opAnchor, ctx);
+                        schemaWalk(schema, (prop, owner) => evaluateName(prop, objectRange(spec, content, owner, prop), ctx));
                     }
                     // Also validate keys used in examples (if provided)
                     if (media?.example) {
-                        exampleWalk(media.example, (k) => evaluateName(k, undefined, opAnchor, ctx));
+                        exampleWalk(media.example, (k, owner) => evaluateName(k, objectRange(spec, content, owner, k), ctx));
                     }
                     if (media?.examples && typeof media.examples === "object") {
                         for (const ex of Object.values<any>(media.examples)) {
                             const val = ex?.value ?? ex;
-                            exampleWalk(val, (k) => evaluateName(k, undefined, opAnchor, ctx));
+                            exampleWalk(val, (k, owner) => evaluateName(k, objectRange(spec, content, owner, k), ctx));
                         }
                     }
                 }
@@ -300,17 +225,16 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
                     for (const media of Object.values<any>(contentObj)) {
                         const schema = media?.schema;
                         if (schema) {
-                            const schemaUsageRange = findSchemaUsageRangeInOperation(pathKey, method, schema);
-                            schemaWalk(schema, (prop) => evaluateName(prop, schemaUsageRange, opAnchor, ctx), opAnchor, ctx);
+                            schemaWalk(schema, (prop, owner) => evaluateName(prop, objectRange(spec, content, owner, prop), ctx));
                         }
                         // Also validate keys used in examples (if provided)
                         if (media?.example) {
-                            exampleWalk(media.example, (k) => evaluateName(k, undefined, opAnchor, ctx));
+                            exampleWalk(media.example, (k, owner) => evaluateName(k, objectRange(spec, content, owner, k), ctx));
                         }
                         if (media?.examples && typeof media.examples === "object") {
                             for (const ex of Object.values<any>(media.examples)) {
                                 const val = ex?.value ?? ex;
-                                exampleWalk(val, (k) => evaluateName(k, undefined, opAnchor, ctx));
+                                exampleWalk(val, (k, owner) => evaluateName(k, objectRange(spec, content, owner, k), ctx));
                             }
                         }
                     }

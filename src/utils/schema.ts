@@ -597,6 +597,11 @@ export function getResponseSchemaByStatus(
     )?.node ?? null;
 }
 
+export interface SchemaFieldSource {
+    readonly owner: object;
+    readonly key: string;
+}
+
 /**
  * Collects all reachable property paths from a schema.
  *
@@ -614,9 +619,13 @@ export function getResponseSchemaByStatus(
  * @param refCache Reference cache used by `$ref` resolution.
  * @param basePath Optional path prefix.
  * @param visited Cycle-detection set.
+ * @param sources Optional original property owners for source diagnostics.
  * @returns Set of discovered schema paths.
  */
-export function collectSchemaPaths(schema: any, spec: any, refCache: Map<string, any>, basePath = "", visited = new Set<any>()): Set<string> {
+export function collectSchemaPaths(
+    schema: any, spec: any, refCache: Map<string, any>, basePath = "", visited = new Set<any>(),
+    sources?: Map<string, SchemaFieldSource>,
+): Set<string> {
     const result = new Set<string>();
     const resolved = resolveRefDeep(schema, refCache, spec);
     if (!resolved || typeof resolved !== "object") return result;
@@ -628,7 +637,8 @@ export function collectSchemaPaths(schema: any, spec: any, refCache: Map<string,
         for (const [key, value] of Object.entries(props)) {
             const nextPath = basePath ? `${basePath}.${key}` : key;
             result.add(nextPath);
-            const childPaths = collectSchemaPaths(value, spec, refCache, nextPath, visited);
+            if (!sources?.has(nextPath)) sources?.set(nextPath, { owner: props, key });
+            const childPaths = collectSchemaPaths(value, spec, refCache, nextPath, visited, sources);
             for (const p of childPaths) result.add(p);
         }
     }
@@ -637,7 +647,7 @@ export function collectSchemaPaths(schema: any, spec: any, refCache: Map<string,
     if (items) {
         const nextBase = `${basePath}[]`;
         result.add(nextBase);
-        const childPaths = collectSchemaPaths(items, spec, refCache, nextBase, visited);
+        const childPaths = collectSchemaPaths(items, spec, refCache, nextBase, visited, sources);
         for (const p of childPaths) result.add(p);
     }
 
@@ -645,7 +655,7 @@ export function collectSchemaPaths(schema: any, spec: any, refCache: Map<string,
         const arr = (resolved as any)[key];
         if (Array.isArray(arr)) {
             for (const part of arr) {
-                const childPaths = collectSchemaPaths(part, spec, refCache, basePath, visited);
+                const childPaths = collectSchemaPaths(part, spec, refCache, basePath, visited, sources);
                 for (const p of childPaths) result.add(p);
             }
         }

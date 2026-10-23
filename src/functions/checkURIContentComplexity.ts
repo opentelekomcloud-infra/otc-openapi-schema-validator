@@ -1,3 +1,4 @@
+import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
@@ -48,10 +49,10 @@ export function checkURIContentComplexity(spec: any, content: string, rule: any)
         const dynamicSeverity = severityForDepth(depth);
         if (!dynamicSeverity) continue;
 
-        const index = content.indexOf(pathKey);
+        const range = pathRange(content, pathKey);
         diagnostics.push({
-            from: index >= 0 ? index : 0,
-            to: index >= 0 ? index + pathKey.length : 0,
+            from: range.from,
+            to: range.to,
             severity: mapSeverity(dynamicSeverity),
             message: `Path "${pathKey}" is overly complex (resource depth: ${depth}). Consider simplifying the URI by removing redundant nested segments.`,
             source: getSource(rule),

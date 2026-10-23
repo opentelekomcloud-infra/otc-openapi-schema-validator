@@ -2,6 +2,8 @@ import { findMethodPositionInYaml } from "@/utils/pos";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { Diagnostic } from "@codemirror/lint";
 import { getSource } from "@/functions/common";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import type { SourceRange } from "@/types/openapi";
 
 /**
  * Pushes a diagnostic message for a specific path+method location in the YAML document.
@@ -47,9 +49,11 @@ export function pushMethodDiagnostic(
   path: string,
   method: string,
   rule: any,
-  details: string
+  details: string,
+  location?: string | SourceRange,
 ): void {
-  const { start, end } = findMethodPositionInYaml(content, path, method);
+  const range = typeof location === "string" ? sourceMap(content).locate(location, "value") : location;
+  const { start, end } = range ? { start: range.from, end: range.to } : findMethodPositionInYaml(content, path, method);
   diagnostics.push({
     from: start,
     to: end,

@@ -6,9 +6,10 @@ import { functionsMap, runLinter } from "@/lib/linter/runLinter";
 import { getSource } from "@/functions/common";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
+import { sourceLineNumber } from "@/lib/openapi/sourceMap";
 import { coverageLedger, additionalCoverageGaps, type CoverageEntry } from "../fixtures/dual-version/coverageLedger";
 import {
-    buildScenario, scenarioDefinition, type Dialect, type Variant,
+    buildScenario, object, scenarioDefinition, type Dialect, type Variant,
 } from "../fixtures/dual-version/scenarios";
 
 jest.mock("@/utils/utils", () => ({
@@ -55,7 +56,8 @@ function ruleFor(entry: CoverageEntry): AutoRule {
 }
 
 async function checkCase(
-    entry: CoverageEntry, dialect: Dialect, variant: Variant, baselineDialect: Dialect = dialect
+    entry: CoverageEntry, dialect: Dialect, variant: Variant, baselineDialect: Dialect = dialect,
+    format: "yaml" | "json" | "flow-yaml" = "yaml",
 ) {
     const rule = ruleFor(entry);
     const scenario = scenarioDefinition(entry.scenario);
@@ -64,7 +66,8 @@ async function checkCase(
         repoMap.mockResolvedValue({ reponame: `fixture-${++baselineKey}`, filename: "baseline" });
         fetchBaseline.mockResolvedValue(buildScenario(entry.scenario, baselineDialect, "positive", rule));
     }
-    const content = yaml.dump(spec, { lineWidth: -1, noRefs: true });
+    const content = format === "json" ? JSON.stringify(spec)
+        : yaml.dump(spec, { lineWidth: -1, noRefs: true, ...(format === "flow-yaml" ? { flowLevel: 0 } : {}) });
     const { diagnostics } = await runLinter(content, [rule]);
     expect(diagnostics.some((diagnostic) =>
         diagnostic.source === "parser" || diagnostic.message.includes("execution failed")
@@ -90,6 +93,12 @@ async function checkCase(
         expect(diagnostics[0].from).toBeGreaterThanOrEqual(0);
         expect(diagnostics[0].to).toBeGreaterThanOrEqual(diagnostics[0].from);
         expect(diagnostics[0].to).toBeLessThanOrEqual(content.length);
+        expect(diagnostics[0]).toMatchObject({ lineNumber: sourceLineNumber(content, diagnostics[0].from) });
+        if (entry.scenario === "deletedOperation") {
+            const currentPath = Object.keys(object(spec.paths))[0];
+            const expected = format === "json" ? JSON.stringify(currentPath) : currentPath;
+            expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toBe(expected);
+        }
     }
 }
 
@@ -136,6 +145,11 @@ describe.each(coverageLedger)("$ruleId -> $functionName [$scenario]", (entry) =>
     const scenario = scenarioDefinition(entry.scenario);
     test(`OpenAPI 3: ${scenario.positive}`, () => checkCase(entry, "openapi3", "positive"));
     test(`OpenAPI 3: ${scenario.negative}`, () => checkCase(entry, "openapi3", "negative"));
+    test.each(["json", "flow-yaml"] as const)("OpenAPI 3 %s preserves positive and negative rule predicates", async (format) => {
+        await checkCase(entry, "openapi3", "positive", "openapi3", format);
+        jest.clearAllMocks();
+        await checkCase(entry, "openapi3", "negative", "openapi3", format);
+    });
 
     test("has distinct positive/negative native Swagger fixtures, without v3 containers or refs", () => {
         const rule = ruleFor(entry);
@@ -156,6 +170,11 @@ describe.each(coverageLedger)("$ruleId -> $functionName [$scenario]", (entry) =>
     } else {
         test(`Swagger 2: ${scenario.positive}`, () => checkCase(entry, "swagger2", "positive"));
         test(`Swagger 2: ${scenario.negative}`, () => checkCase(entry, "swagger2", "negative"));
+        test.each(["json", "flow-yaml"] as const)("Swagger 2 %s preserves implemented predicates", async (format) => {
+            await checkCase(entry, "swagger2", "positive", "swagger2", format);
+            jest.clearAllMocks();
+            await checkCase(entry, "swagger2", "negative", "swagger2", format);
+        });
     }
 
     if (scenario.baseline) {

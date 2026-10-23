@@ -1,3 +1,4 @@
+import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
@@ -31,10 +32,10 @@ export function checkURILength(spec: any, content: string, rule: any): Diagnosti
         const lengthBytes = getByteLength(encoded);
 
         if (lengthBytes > maxLength) {
-            const index = content.indexOf(pathKey);
+            const range = pathRange(content, pathKey);
             diagnostics.push({
-                from: index >= 0 ? index : 0,
-                to: index >= 0 ? index + pathKey.length : 0,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" exceeds the maximum allowed URI length of ${maxLength} bytes after encoding (actual: ${lengthBytes}).`,
                 source: getSource(rule),

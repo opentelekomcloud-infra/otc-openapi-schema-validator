@@ -1,6 +1,8 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import { jsonPointer } from "@/lib/openapi/references";
 
 /**
  * COD-040-01-2507-2507-M
@@ -94,22 +96,7 @@ export function checkResponseEncapsulation(spec: any, content: string, rule: any
                 const hasValidHeader = Object.keys(headersBlock).length === 0 || headersKeys.every((header: PropertyKey) => Object.hasOwn(headersBlock, header));
 
                 if (!hasValidContentType || (headersKeys.length > 0 && Object.keys(headersBlock).length > 0 && !hasValidHeader)) {
-                    // Prefer YAML-anchored searches to avoid matching path/method text in other places.
-                    const pathAnchor = `  ${pathKey}:`;
-                    const pathStart = content.indexOf(pathAnchor);
-                    if (pathStart < 0) continue;
-
-                    const methodAnchor = `    ${method}:`;
-                    const methodBlockStart = content.indexOf(methodAnchor, pathStart);
-                    if (methodBlockStart < 0) continue;
-
-                    const responsesAnchor = `      ${responsesKey}:`;
-                    const responsesKeyIndex = content.indexOf(responsesAnchor, methodBlockStart);
-                    if (responsesKeyIndex < 0) continue;
-
-                    const range = findStatusCodeRange(content, responsesKeyIndex, String(statusCode));
-                    const from = range?.from ?? responsesKeyIndex;
-                    const to = range?.to ?? (responsesKeyIndex + responsesAnchor.length);
+                    const { from, to } = sourceMap(content).locate(jsonPointer(["paths", pathKey, method, responsesKey, statusCode]));
 
                     diagnostics.push({
                       from,
@@ -124,25 +111,4 @@ export function checkResponseEncapsulation(spec: any, content: string, rule: any
     }
 
     return diagnostics;
-}
-
-function escapeRegExp(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function findStatusCodeRange(content: string, responsesKeyIndex: number, statusCode: string): { from: number; to: number } | null {
-  if (responsesKeyIndex < 0) return null;
-  const slice = content.slice(responsesKeyIndex);
-  // Match both quoted and unquoted YAML keys: "200": or 202:
-  const re = new RegExp(`^([\\t ]*)(["']?)(${escapeRegExp(statusCode)})\\2\\s*:`, "m");
-  const m = re.exec(slice);
-  if (!m) return null;
-
-  const indentLen = m[1].length;
-  const quote = m[2] ?? "";
-  const codeLen = (m[3] ?? "").length;
-
-  const from = responsesKeyIndex + m.index + indentLen;
-  const to = from + quote.length + codeLen + quote.length;
-  return { from, to };
 }

@@ -8,16 +8,18 @@ export type ReferenceErrorCode =
     | "INVALID_REFERENCE_TARGET";
 
 export class NativeReferenceError extends Error {
+    readonly sourceNode?: unknown;
     constructor(
         readonly code: ReferenceErrorCode,
         readonly reference: unknown,
         readonly pointer: string,
         detail: string,
-        options?: ErrorOptions,
+        options?: ErrorOptions & { readonly sourceNode?: unknown },
     ) {
         const label = typeof reference === "string" ? reference : `<${reference === null ? "null" : typeof reference}>`;
         super(`${detail} at ${pointer}: ${label}`, options);
         this.name = "NativeReferenceError";
+        Object.defineProperty(this, "sourceNode", { value: options?.sourceNode, enumerable: false, writable: false });
     }
 }
 
@@ -51,22 +53,22 @@ export function appendPointer(pointer: string, ...tokens: readonly (string | num
     return pointer + jsonPointer(tokens).slice(1);
 }
 
-function referenceTokens(reference: unknown, pointer: string): string[] {
+export function referenceTokens(reference: unknown, pointer: string, sourceNode?: unknown): string[] {
     if (typeof reference !== "string" || reference.length === 0) {
-        throw new NativeReferenceError("INVALID_REFERENCE", reference, pointer, "Expected a non-empty $ref string");
+        throw new NativeReferenceError("INVALID_REFERENCE", reference, pointer, "Expected a non-empty $ref string", { sourceNode });
     }
     if (!reference.startsWith("#")) {
-        throw new NativeReferenceError("EXTERNAL_REFERENCE", reference, pointer, "External references are unsupported");
+        throw new NativeReferenceError("EXTERNAL_REFERENCE", reference, pointer, "External references are unsupported", { sourceNode });
     }
     let fragment: string;
     try {
         fragment = decodeURIComponent(reference.slice(1));
     } catch (cause) {
-        throw new NativeReferenceError("INVALID_REFERENCE", reference, pointer, "Invalid URI fragment", { cause });
+        throw new NativeReferenceError("INVALID_REFERENCE", reference, pointer, "Invalid URI fragment", { cause, sourceNode });
     }
     if (fragment === "") return [];
     if (!fragment.startsWith("/") || /~(?:[^01]|$)/.test(fragment)) {
-        throw new NativeReferenceError("INVALID_REFERENCE", reference, pointer, "Expected an RFC6901 JSON Pointer");
+        throw new NativeReferenceError("INVALID_REFERENCE", reference, pointer, "Expected an RFC6901 JSON Pointer", { sourceNode });
     }
     return fragment.slice(1).split("/").map((token) => token.replace(/~1/g, "/").replace(/~0/g, "~"));
 }
@@ -105,18 +107,19 @@ export function resolveReferenceNode(
     let entries: Map<string, ResolvedReference> | undefined;
 
     while (hasOwn(current, "$ref")) {
+        const sourceNode = current;
         const reference = readOwn(current, "$ref");
         if (siblingPolicy === "reject" && isRecord(current) &&
             Object.keys(current).some((key) => key !== "$ref" && !key.startsWith("x-"))) {
             throw new NativeReferenceError(
-                "INVALID_REFERENCE", reference, currentPointer, "Reference siblings require an explicit merge policy",
+                "INVALID_REFERENCE", reference, currentPointer, "Reference siblings require an explicit merge policy", { sourceNode },
             );
         }
-        const tokens = referenceTokens(reference, appendPointer(currentPointer, "$ref"));
+        const tokens = referenceTokens(reference, appendPointer(currentPointer, "$ref"), sourceNode);
         const targetPointer = jsonPointer(tokens);
         if (seen.has(targetPointer)) {
             throw new NativeReferenceError(
-                "CIRCULAR_REFERENCE", reference, currentPointer, "Circular $ref alias chain",
+                "CIRCULAR_REFERENCE", reference, currentPointer, "Circular $ref alias chain", { sourceNode },
             );
         }
         seen.add(targetPointer);
@@ -135,14 +138,14 @@ export function resolveReferenceNode(
             const validArrayIndex = !Array.isArray(current) || /^(0|[1-9]\d*)$/.test(token);
             if (!validArrayIndex || !hasOwn(current, token)) {
                 throw new NativeReferenceError(
-                    "UNRESOLVED_REFERENCE", reference, currentPointer, "Local reference does not exist",
+                    "UNRESOLVED_REFERENCE", reference, currentPointer, "Local reference does not exist", { sourceNode },
                 );
             }
             current = readOwn(current, token);
         }
         if (current === undefined) {
             throw new NativeReferenceError(
-                "UNRESOLVED_REFERENCE", reference, currentPointer, "Local reference has an undefined target",
+                "UNRESOLVED_REFERENCE", reference, currentPointer, "Local reference has an undefined target", { sourceNode },
             );
         }
         currentPointer = targetPointer;
@@ -167,7 +170,7 @@ export function resolveObjectReference(
     if (isRecord(resolved.value)) return { value: resolved.value, pointer: resolved.pointer };
     if (hasOwn(value, "$ref")) {
         throw new NativeReferenceError(
-            "INVALID_REFERENCE_TARGET", readOwn(value, "$ref"), pointer, "Expected an object reference target",
+            "INVALID_REFERENCE_TARGET", readOwn(value, "$ref"), pointer, "Expected an object reference target", { sourceNode: value },
         );
     }
     return undefined;

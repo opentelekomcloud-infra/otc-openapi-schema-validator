@@ -4,6 +4,8 @@ import { dedupeDiagnostics, pushMethodDiagnostic } from "@/utils/diagnostic";
 import { validateRequestExamples, validateResponseExamples } from "@/utils/validation";
 import { extractRequestExamples, extractResponseExamples, getResponseCodesToCheck } from "@/utils/spec";
 import { collectDocumentOperations } from "@/lib/openapi/operations";
+import { appendPointer } from "@/lib/openapi/references";
+import { sourceMap } from "@/lib/openapi/sourceMap";
 
 /**
  * DOC-040-01-2507-2507-M
@@ -40,32 +42,33 @@ export function checkExamplesFormat(spec: any, content: string, rule: any): Diag
     const requestPayloads = requestExamples.filter((example) => example.scope === "payload");
     const responsePayloads = responseExamples.filter((example) => example.scope === "payload");
     if (requestRequirement === "required" && requestPayloads.length === 0) {
-      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required request example.`);
+      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required request example.`, sourceMap(content).requestBody(path, method));
     }
     if (requestRequirement === "forbidden" && requestPayloads.length > 0) {
-      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Request example is not allowed for ${method.toUpperCase()} operations.`);
+      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Request example is not allowed for ${method.toUpperCase()} operations.`, requestPayloads[0].pointer);
     }
     if (responseRequirement === "required" && responsePayloads.length === 0) {
-      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required response example.`);
+      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required response example.`, sourceMap(content).locate(appendPointer(pointer, "responses")));
     }
     if (responseRequirement === "forbidden" && responsePayloads.length > 0) {
-      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Response example is not allowed for ${method.toUpperCase()} operations.`);
+      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Response example is not allowed for ${method.toUpperCase()} operations.`, responsePayloads[0].pointer);
     }
     const requestToValidate = requestExamples.filter((example) => example.scope === "property" || requestRequirement !== "forbidden");
+    const locations = new Map<string, string>();
     if (requestToValidate.length > 0) {
       const effectiveRequestValidation = mergeRequestValidation(fp.requestValidation, methodCfg.requestValidation);
       const requestProblems = validateRequestExamples(
-        operation, pathItem, requestToValidate, spec, refCache, effectiveRequestValidation, fp,
+        operation, pathItem, requestToValidate, spec, refCache, effectiveRequestValidation, fp, locations,
       );
       for (const problem of requestProblems) {
-        pushMethodDiagnostic(diagnostics, content, path, method, rule, problem);
+        pushMethodDiagnostic(diagnostics, content, path, method, rule, problem, locations.get(problem));
       }
     }
     const responseToValidate = responseExamples.filter((example) => example.scope === "property" || responseRequirement !== "forbidden");
     if (responseToValidate.length > 0) {
-      const responseProblems = validateResponseExamples(operation, responseToValidate, responseCodes, spec, refCache, fp);
+      const responseProblems = validateResponseExamples(operation, responseToValidate, responseCodes, spec, refCache, fp, locations);
       for (const problem of responseProblems) {
-        pushMethodDiagnostic(diagnostics, content, path, method, rule, problem);
+        pushMethodDiagnostic(diagnostics, content, path, method, rule, problem, locations.get(problem));
       }
     }
   }

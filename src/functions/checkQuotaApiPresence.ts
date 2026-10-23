@@ -60,10 +60,7 @@ export function checkQuotaApiPresence(spec: any, content: string, rule: any): Di
     }
 
     if (!found) {
-        // Best-effort highlight: point to `paths` key.
-        const idx = content.indexOf("\npaths:");
-        const from = idx >= 0 ? idx + 1 : 0;
-        const to = idx >= 0 ? from + "paths".length : 0;
+        const { from, to } = sourceMap(content).locate("#/paths");
 
         diagnostics.push({
             from,
@@ -76,3 +73,4 @@ export function checkQuotaApiPresence(spec: any, content: string, rule: any): Di
 
     return diagnostics;
 }
+import { sourceMap } from "@/lib/openapi/sourceMap";

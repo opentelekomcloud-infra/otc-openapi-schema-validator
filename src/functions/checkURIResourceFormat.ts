@@ -1,3 +1,4 @@
+import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
@@ -85,11 +86,11 @@ export function checkURIResourceFormat(spec: any, content: string, rule: any): D
             if (pathParamRegex.test(leaf.segment)) continue;
 
             if (!isPluralResource(leaf.segment)) {
-                const index = content.indexOf(pathKey);
+                const range = pathRange(content, pathKey);
                 const extra = exceptionNote ? ` Exception: ${exceptionNote}` : "";
                 diagnostics.push({
-                    from: index >= 0 ? index : 0,
-                    to: index >= 0 ? index + pathKey.length : 0,
+                    from: range.from,
+                    to: range.to,
                     severity: mapSeverity(rule.severity),
                     message: `Resource segment "${leaf.segment}" in path "${pathKey}" should be plural for CRUD operations.${extra}`,
                     source: getSource(rule),

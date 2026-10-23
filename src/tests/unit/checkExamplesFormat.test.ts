@@ -144,7 +144,7 @@ paths:
     const diags = checkExamplesFormat(spec, content, baseRule);
     expect(diags).toHaveLength(1);
     expect(diags[0].message).toContain("Missing required response example");
-    expect(content.slice(diags[0].from, diags[0].to)).toBe("get");
+    expect(content.slice(diags[0].from, diags[0].to)).toBe("responses");
   });
 
   test("GET flags request example as forbidden", () => {

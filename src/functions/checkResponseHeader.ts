@@ -1,7 +1,8 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
-import { findNextStatusCodeRange } from "@/utils/scan";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import { jsonPointer } from "@/lib/openapi/references";
 
 function isNonEmptyRecordOrMap(v: any): boolean {
   if (!v) return false;
@@ -55,10 +56,7 @@ export function checkResponseHeader(spec: any, content: string, rule: any): Diag
   if (!pathsObject || (typeof pathsObject !== "object" && !(pathsObject instanceof Map))) return diagnostics;
 
   const requiredLower = new Set(requiredAnyHeaders.map((h) => h.toLowerCase()));
-  // Used to locate response status-code keys in the raw spec in a stable way.
-  let statusCursor = 0;
-
-  for (const [, pathItem] of entriesOf(pathsObject)) {
+  for (const [path, pathItem] of entriesOf(pathsObject)) {
     if (!pathItem || typeof pathItem !== "object") continue;
 
     for (const [method, operation] of entriesOf(pathItem)) {
@@ -81,12 +79,7 @@ export function checkResponseHeader(spec: any, content: string, rule: any): Diag
 
         const hasAnyRequired = headerNames.some((hn) => requiredLower.has(String(hn).toLowerCase()));
 
-        // Compute a stable highlight range for this response code (one-by-one).
-        const range = findNextStatusCodeRange(content, String(statusCode), statusCursor);
-        if (range.to > 0) {
-          const nl = content.indexOf("\n", range.to);
-          statusCursor = nl === -1 ? content.length : nl + 1;
-        }
+        const range = sourceMap(content).locate(jsonPointer(["paths", path, method, "responses", statusCode]));
 
         // Only trigger diagnostic if NONE of the allowed headers are present.
         if (!headersBlock || !hasAnyRequired) {

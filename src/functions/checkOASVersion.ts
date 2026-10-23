@@ -2,6 +2,8 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import * as YAML from 'yaml';
 import {getSource} from "@/functions/common";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import { jsonPointer } from "@/lib/openapi/references";
 
 export function checkOASVersion(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -11,8 +13,7 @@ export function checkOASVersion(spec: any, content: string, rule: any): Diagnost
 
     if (hasOpenapi && hasSwagger) {
         return [{
-            from: 0,
-            to: content.length,
+            ...sourceMap(content).locate("#"),
             severity: mapSeverity(rule.severity),
             message: `'${rule.message}' Define either 'swagger' or 'openapi', not both.`,
             source: getSource(rule),
@@ -27,12 +28,11 @@ export function checkOASVersion(spec: any, content: string, rule: any): Diagnost
     if (YAML.isScalar(versionNode)) {
         rawVersion = versionNode.source ?? rawVersion;
     }
-    const versionKeyIndex = content.indexOf(versionKey);
+    const versionPointer = jsonPointer([versionKey]);
 
     if (rawVersion === undefined || rawVersion === null) {
         diagnostics.push({
-            from: versionKeyIndex >= 0 ? versionKeyIndex : 0,
-            to: versionKeyIndex >= 0 ? versionKeyIndex + versionKey.length : content.length,
+            ...sourceMap(content).locate(versionPointer),
             severity: mapSeverity(rule.severity),
             message: `'${rule.message}' Missing 'swagger' or 'openapi' version field.`,
             source: getSource(rule),
@@ -49,10 +49,8 @@ export function checkOASVersion(spec: any, content: string, rule: any): Diagnost
     const allowedVersion = versionKey === "swagger" && formatMatches ? "2.0" : majorMinor;
 
     if (!formatMatches || !allowedVersion || !allowed.includes(allowedVersion)) {
-        const index = content.indexOf(version);
         diagnostics.push({
-            from: index >= 0 ? index : Math.max(0, versionKeyIndex),
-            to: index >= 0 ? index + version.length : content.length,
+            ...sourceMap(content).locate(versionPointer, "value"),
             severity: mapSeverity(rule.severity),
             message: `'${rule.message}' '${versionKey}' version '${version}' is not allowed.`,
             source: getSource(rule),

@@ -1,6 +1,8 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import { jsonPointer } from "@/lib/openapi/references";
 
 export function checkRequestEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -23,11 +25,7 @@ export function checkRequestEncapsulation(spec: any, content: string, rule: any)
             const hasRequiredContentType = contentTypes.some(type => contentKeys.includes(type));
 
             if (!hasRequiredContentType) {
-                const pathStart = content.indexOf(pathKey);
-                const methodStart = content.indexOf(`${requestBodyKey}:`, pathStart);
-                const requestBodyIndex = content.indexOf(`${requestBodyKey}:`, methodStart);
-                const start = requestBodyIndex >= 0 ? requestBodyIndex : methodStart;
-                const end = start + (requestBodyIndex >= 0 ? `${method}:`.length : method.length);
+                const { from: start, to: end } = sourceMap(content).locate(jsonPointer(["paths", pathKey, method, requestBodyKey]));
                 diagnostics.push({
                     from: start,
                     to: end,

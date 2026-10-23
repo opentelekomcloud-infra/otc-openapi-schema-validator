@@ -7,13 +7,21 @@ import {
     resolveRefDeep,
     collectSchemaPaths,
     extractFieldNameFromSchemaPath,
-    shouldIgnoreFieldPath
+    shouldIgnoreFieldPath,
+    type SchemaFieldSource,
 } from "@/utils/schema";
 import {SnakeCaseConfig, validateFieldNameTokens} from "@/utils/naming";
 import {collectOperationMethods} from "@/utils/scan";
+import { objectRange } from "@/lib/openapi/sourceMap";
+import type { SourceRange } from "@/types/openapi";
 
-function checkParameters(operation: any, pathItem: any, spec: any, pathTokens: string[], cfg: SnakeCaseConfig): string[] {
-    const problems: string[] = [];
+interface LocatedProblem {
+    readonly message: string;
+    readonly location?: SourceRange;
+}
+
+function checkParameters(operation: any, pathItem: any, spec: any, pathTokens: string[], cfg: SnakeCaseConfig, content: string): LocatedProblem[] {
+    const problems: LocatedProblem[] = [];
     const allParams = [
         ...(Array.isArray(pathItem?.parameters) ? pathItem.parameters : []),
         ...(Array.isArray(operation?.parameters) ? operation.parameters : []),
@@ -34,21 +42,22 @@ function checkParameters(operation: any, pathItem: any, spec: any, pathTokens: s
         const issues = validateFieldNameTokens(name, cfg, pathTokens);
 
         for (const issue of issues) {
-            problems.push(`Parameter '${name}' in '${paramIn}' is invalid. ${issue}`);
+            problems.push({ message: `Parameter '${name}' in '${paramIn}' is invalid. ${issue}`, location: objectRange(spec, content, param, "name", "value") });
         }
     }
 
     return problems;
 }
 
-function checkRequestBody(operation: any, spec: any, pathTokens: string[], cfg: SnakeCaseConfig): string[] {
-    const problems: string[] = [];
+function checkRequestBody(operation: any, spec: any, pathTokens: string[], cfg: SnakeCaseConfig, content: string): LocatedProblem[] {
+    const problems: LocatedProblem[] = [];
     const schema = resolveRefDeep(operation?.requestBody?.content?.["application/json"]?.schema, new Map<string, any>(), spec)
         ?? resolveRefDeep(operation?.requestBody?.content?.[Object.keys(operation?.requestBody?.content ?? {})[0]]?.schema, new Map<string, any>(), spec);
 
     if (!schema) return problems;
 
-    const schemaPaths = collectSchemaPaths(schema, spec, new Map<string, any>());
+    const sources = new Map<string, SchemaFieldSource>();
+    const schemaPaths = collectSchemaPaths(schema, spec, new Map<string, any>(), "", new Set(), sources);
     for (const path of schemaPaths) {
         if (shouldIgnoreFieldPath(path)) continue;
         const fieldName = extractFieldNameFromSchemaPath(path);
@@ -56,15 +65,19 @@ function checkRequestBody(operation: any, spec: any, pathTokens: string[], cfg: 
 
         const issues = validateFieldNameTokens(fieldName, cfg, pathTokens);
         for (const issue of issues) {
-            problems.push(`Request body field '${fieldName}' is invalid. ${issue}`);
+            const source = sources.get(path);
+            problems.push({
+                message: `Request body field '${fieldName}' is invalid. ${issue}`,
+                location: source ? objectRange(spec, content, source.owner, source.key) : undefined,
+            });
         }
     }
 
     return problems;
 }
 
-function checkResponses(operation: any, spec: any, pathTokens: string[], cfg: SnakeCaseConfig): string[] {
-    const problems: string[] = [];
+function checkResponses(operation: any, spec: any, pathTokens: string[], cfg: SnakeCaseConfig, content: string): LocatedProblem[] {
+    const problems: LocatedProblem[] = [];
     const responses = operation?.responses;
     if (!responses || typeof responses !== "object") return problems;
 
@@ -78,7 +91,8 @@ function checkResponses(operation: any, spec: any, pathTokens: string[], cfg: Sn
             ?? resolveRefDeep(contentObj?.[firstMediaType]?.schema, new Map<string, any>(), spec);
         if (!schema) continue;
 
-        const schemaPaths = collectSchemaPaths(schema, spec, new Map<string, any>());
+        const sources = new Map<string, SchemaFieldSource>();
+        const schemaPaths = collectSchemaPaths(schema, spec, new Map<string, any>(), "", new Set(), sources);
         for (const path of schemaPaths) {
             if (shouldIgnoreFieldPath(path)) continue;
             const fieldName = extractFieldNameFromSchemaPath(path);
@@ -86,7 +100,11 @@ function checkResponses(operation: any, spec: any, pathTokens: string[], cfg: Sn
 
             const issues = validateFieldNameTokens(fieldName, cfg, pathTokens);
             for (const issue of issues) {
-                problems.push(`Response field '${fieldName}' in status '${code}' is invalid. ${issue}`);
+                const source = sources.get(path);
+                problems.push({
+                    message: `Response field '${fieldName}' in status '${code}' is invalid. ${issue}`,
+                    location: source ? objectRange(spec, content, source.owner, source.key) : undefined,
+                });
             }
         }
     }
@@ -113,22 +131,22 @@ export function checkParameterIsSnakeCase(spec: any, content: string, rule: any)
 
     for (const { path, method, operation, pathItem } of operations) {
         const pathTokens = splitPathIntoTokens(path);
-        const problems: string[] = [];
+        const problems: LocatedProblem[] = [];
 
         if (fp.checkRequestParameters !== false) {
-            problems.push(...checkParameters(operation, pathItem, spec, pathTokens, fp));
+            problems.push(...checkParameters(operation, pathItem, spec, pathTokens, fp, content));
         }
 
         if (fp.checkRequestBodyFields) {
-            problems.push(...checkRequestBody(operation, spec, pathTokens, fp));
+            problems.push(...checkRequestBody(operation, spec, pathTokens, fp, content));
         }
 
         if (fp.checkResponseBodyFields) {
-            problems.push(...checkResponses(operation, spec, pathTokens, fp));
+            problems.push(...checkResponses(operation, spec, pathTokens, fp, content));
         }
 
         for (const problem of problems) {
-            pushMethodDiagnostic(diagnostics, content, path, method, rule, problem);
+            pushMethodDiagnostic(diagnostics, content, path, method, rule, problem.message, problem.location);
         }
     }
 

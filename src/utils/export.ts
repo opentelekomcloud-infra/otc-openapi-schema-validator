@@ -4,6 +4,7 @@ import {EditorView} from "@codemirror/view";
 import React from "react";
 import {getSeverityLabel} from "@/utils/mapSeverity";
 import { buildRobotXml } from "@/lib/export/buildRobotXml";
+import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
 
 export const exportPDF = async (
   diagnostics: any[],
@@ -35,9 +36,7 @@ export const exportPDF = async (
   });
 
   diagnostics.forEach((diag) => {
-    const lineNumber = editorViewRef.current
-      ? editorViewRef.current.state.doc.lineAt(diag.from).number
-      : "N/A";
+    const lineNumber = diagnosticLineNumber(editorViewRef.current?.state.doc.toString(), diag);
     tableRows.push([lineNumber, diag.message, getSeverityLabel(diag.severity), diag.source || ""]);
   });
 
@@ -207,10 +206,7 @@ export const exportJUnit = async (
       const caseStart = runningMs;
       const caseEnd = caseStart + CASE_MS;
 
-      const v = editorViewRef.current as any;
-      const docLen = v?.state?.doc?.length ?? 0;
-      const within = typeof diag?.from === "number" && diag.from >= 0 && diag.from < docLen;
-      const lineNumber = within ? v.state.doc.lineAt(diag.from).number : "N/A";
+      const lineNumber = diagnosticLineNumber(editorViewRef.current?.state.doc.toString(), diag);
 
       const tName = `Line: ${lineNumber}`;
       const severity = xmlEscape(getSeverityLabel(diag?.severity));

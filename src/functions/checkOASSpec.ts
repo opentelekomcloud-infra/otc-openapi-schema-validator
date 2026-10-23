@@ -1,6 +1,8 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import { jsonPointer } from "@/lib/openapi/references";
 
 export function checkOASSpec(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -13,8 +15,7 @@ export function checkOASSpec(spec: any, content: string, rule: any): Diagnostic[
     for (const key of required) {
         if (!(key in spec)) {
             diagnostics.push({
-                from: 0,
-                to: content.length,
+                ...sourceMap(content).locate("#"),
                 severity: mapSeverity(rule.severity),
                 message: `'${rule.message}' Missing required top-level field: '${key}'`,
                 source: getSource(rule),
@@ -24,10 +25,10 @@ export function checkOASSpec(spec: any, content: string, rule: any): Diagnostic[
 
     for (const key of topLevelKeys) {
         if (!required.includes(key) && !optional.includes(key)) {
-            const index = content.indexOf(key);
+            const range = sourceMap(content).locate(jsonPointer([key]));
             diagnostics.push({
-                from: index >= 0 ? index : 0,
-                to: index >= 0 ? index + key.length : content.length,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `'${rule.message}' Disallowed top-level field: '${key}'`,
                 source: getSource(rule),
