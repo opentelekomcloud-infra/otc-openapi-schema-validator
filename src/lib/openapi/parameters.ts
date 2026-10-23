@@ -1,6 +1,7 @@
 import type {
     NativeOpenApiDocument, NativeOperation, NativeParameter, NativeParameterSchema,
 } from "@/types/openapi";
+import { isSwagger2Root } from "./media";
 import {
     appendPointer, isRecord, resolveObjectReference, type ReferenceCache,
 } from "./references";
@@ -48,7 +49,7 @@ export function getParameterSchema(
     const resolved = resolveObjectReference(parameter, document, cache, pointer);
     if (!resolved) return undefined;
     const node = resolved.value;
-    const swagger2 = isRecord(document) && (document.swagger === "2.0" || document.swagger === 2);
+    const swagger2 = isSwagger2Root(document);
     if (swagger2 && node.in !== "body") {
         return { node, pointer: resolved.pointer };
     }
@@ -71,23 +72,31 @@ export function getParameterSchema(
     return { node: target.value, pointer: target.pointer };
 }
 
-export function collectNativeParameters(
-    native: NativeOpenApiDocument, operation: NativeOperation, cache: ReferenceCache = new Map(),
+export function collectParameterDescriptors(
+    pathItem: unknown, operation: unknown, document: unknown, cache: ReferenceCache = new Map(),
+    pointers?: { readonly pathItem: string; readonly operation: string },
 ): NativeParameter[] {
-    return collectEffectiveParameterNodes(operation.pathItem, operation.operation, native.document, cache, {
-        pathItem: operation.resolvedPathItemPointer, operation: operation.pointer,
-    })
+    const swagger2 = isSwagger2Root(document);
+    return collectEffectiveParameterNodes(pathItem, operation, document, cache, pointers)
         .map(({ raw, parameter, level, index, pointer, resolvedPointer }) => {
             const location = String(parameter.in);
             return {
                 raw, parameter, level, index, pointer, resolvedPointer,
                 name: String(parameter.name), location, required: parameter.required === true,
-                kind: native.dialect === "swagger2" && location === "body" ? "body"
-                    : native.dialect === "swagger2" && location === "formData" ? "formData" : "parameter",
-                schema: getParameterSchema(parameter, native.document, cache, resolvedPointer),
+                kind: swagger2 && location === "body" ? "body"
+                    : swagger2 && location === "formData" ? "formData" : "parameter",
+                schema: getParameterSchema(parameter, document, cache, resolvedPointer),
                 style: parameter.style,
                 explode: parameter.explode,
                 collectionFormat: parameter.collectionFormat,
             };
         });
+}
+
+export function collectNativeParameters(
+    native: NativeOpenApiDocument, operation: NativeOperation, cache: ReferenceCache = new Map(),
+): NativeParameter[] {
+    return collectParameterDescriptors(operation.pathItem, operation.operation, native.document, cache, {
+        pathItem: operation.resolvedPathItemPointer, operation: operation.pointer,
+    });
 }

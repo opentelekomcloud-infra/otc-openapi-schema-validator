@@ -7,7 +7,7 @@ import {
   arrayItemsHaveStatusField,
   findFieldSchemaByNameDeep,
   getResponseSchema,
-  schemaHasContentForConfiguredTypes,
+  getResponseContentMatch,
   schemaHasPropertyAnyOf,
   schemaIsArrayLike,
 } from "@/utils/schema";
@@ -67,10 +67,11 @@ export function checkSyncBatchResultGranularity(spec: any, content: string, rule
       const operation = (pathItem as any)[method];
       if (!operation || typeof operation !== "object") continue;
 
-      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg);
+      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg, pathItem);
       if (!isBatch) continue;
 
-      if (syncCfg.onlyIfResponseHasContent && !schemaHasContentForConfiguredTypes(operation, syncCfg)) {
+      // Unknown MIME keeps schema-only validation active; it is not a JSON match.
+      if (syncCfg.onlyIfResponseHasContent && getResponseContentMatch(operation, syncCfg, spec, refCache) === "mismatch") {
         continue;
       }
 

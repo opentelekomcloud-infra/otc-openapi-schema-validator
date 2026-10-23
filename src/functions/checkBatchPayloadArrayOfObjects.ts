@@ -52,10 +52,10 @@ export function checkBatchPayloadArrayOfObjects(spec: any, content: string, rule
       const operation = (pathItem as any)[method];
       if (!operation || typeof operation !== "object") continue;
 
-      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg);
+      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg, pathItem);
       if (!isBatch) continue;
 
-      const schema = getRequestBodySchema(operation, spec, refCache, payloadCfg);
+      const schema = getRequestBodySchema(operation, spec, refCache, payloadCfg, pathItem);
 
       const allowTopLevelArray = payloadCfg.allowTopLevelArray !== false;
       const allowWrapper = payloadCfg.allowObjectWrapperWithAnyArrayOfObjects !== false;

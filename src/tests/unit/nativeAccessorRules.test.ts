@@ -139,3 +139,101 @@ test("scope validation includes TRACE on OpenAPI 3", async () => {
     expect(diagnostics[0].source).toBe(getSource(rule));
     expect(diagnostics[0].message).not.toContain("execution failed");
 });
+
+describe.each([
+    { id: "STS-030-01-2507-2507-M-1", scenario: "batchMethod" },
+    { id: "STS-030-01-2507-2507-M-2", scenario: "batchPayload" },
+    { id: "STS-030-01-2507-2507-M-3", scenario: "batchSync" },
+    { id: "ASY-010-01-2507-2507-M", scenario: "batchAsync" },
+] as const)("$id native inherited request payload", ({ id, scenario }) => {
+    test.each(["positive", "negative"] as const)("%s: reusable path-level body is not lost", async (variant) => {
+        const rule = ruleFor(id);
+        const spec = buildScenario(scenario, "swagger2", variant, rule);
+        const paths = object(spec.paths);
+        const [path, value] = Object.entries(paths)[0];
+        const pathItem = object(value);
+        const method = scenario === "batchMethod" && variant === "negative" ? "put" : "post";
+        const operation = object(pathItem[method]);
+        const params = array(operation.parameters).map(object);
+        const body = params.find((param) => param.in === "body");
+        if (!body) throw new Error("Missing fixture body");
+        if (scenario === "batchMethod") {
+            body.schema = { type: "array", items: { type: "object" } };
+            operation.summary = "Modify resources";
+            operation.operationId = "modifyResources";
+            delete paths[path];
+            paths["/v1/resources/action"] = pathItem;
+        }
+        spec.parameters = { InheritedBody: body };
+        pathItem.parameters = [{ $ref: "#/parameters/InheritedBody" }];
+        operation.parameters = params.filter((param) => param.in !== "body");
+        const diagnostics = await check(spec, rule);
+        expect(diagnostics).toHaveLength(variant === "positive" ? 0 : 1);
+        if (variant === "negative") {
+            expect(diagnostics[0].source).toBe(getSource(rule));
+            expect(diagnostics[0].message).not.toContain("execution failed");
+        }
+    });
+});
+
+describe.each<Dialect>(["swagger2", "openapi3"])("%s native response gates", (dialect) => {
+    test.each(["positive", "negative"] as const)("sync batch reusable response: %s", async (variant) => {
+        const rule = ruleFor("STS-030-01-2507-2507-M-3");
+        const spec = buildScenario("batchSync", dialect, variant, rule);
+        const operation = object(object(Object.values(object(spec.paths))[0]).post);
+        const responses = object(operation.responses);
+        if (dialect === "swagger2") {
+            spec.responses = { Batch: responses["200"] };
+            responses["200"] = { $ref: "#/responses/Batch" };
+        } else {
+            object(spec.components).responses = { Batch: responses["200"] };
+            responses["200"] = { $ref: "#/components/responses/Batch" };
+        }
+        const diagnostics = await check(spec, rule);
+        expect(diagnostics).toHaveLength(variant === "positive" ? 0 : 1);
+        if (variant === "negative") expect(diagnostics[0].message).toContain("each item must expose a status field");
+    });
+
+    test("nonconfigured response MIME remains excluded without dereferencing its schema", async () => {
+        const rule = ruleFor("STS-030-01-2507-2507-M-3");
+        const spec = buildScenario("batchSync", dialect, "positive", rule);
+        const operation = object(object(Object.values(object(spec.paths))[0]).post);
+        if (dialect === "swagger2") {
+            operation.produces = ["text/plain"];
+            operation.responses = { "200": { schema: { $ref: "external.yaml" } } };
+        } else {
+            operation.responses = { "200": { content: { "text/plain": { schema: { $ref: "external.yaml" } } } } };
+        }
+        expect(await check(spec, rule)).toEqual([]);
+    });
+});
+
+test.each(["positive", "negative"] as const)(
+    "approved unknown-MIME policy checks Swagger response schema: %s", async (variant) => {
+        const rule = ruleFor("STS-030-01-2507-2507-M-3");
+        const spec = buildScenario("batchSync", "swagger2", variant, rule);
+        delete spec.produces;
+        const diagnostics = await check(spec, rule);
+        expect(diagnostics).toHaveLength(variant === "positive" ? 0 : 1);
+        if (variant === "negative") expect(diagnostics[0].message).toContain("each item must expose a status field");
+    },
+);
+
+describe.each<Dialect>(["swagger2", "openapi3"])("%s filter response reuse", (dialect) => {
+    test.each(["positive", "negative"] as const)("common 200 accessor: %s", async (variant) => {
+        const rule = ruleFor("FIL-010-01-2507-2507-O");
+        const spec = buildScenario("filterField", dialect, variant, rule);
+        const operation = object(object(Object.values(object(spec.paths))[0]).get);
+        const responses = object(operation.responses);
+        if (dialect === "swagger2") {
+            spec.responses = { Resource: responses["200"] };
+            responses["200"] = { $ref: "#/responses/Resource" };
+        } else {
+            object(spec.components).responses = { Resource: responses["200"] };
+            responses["200"] = { $ref: "#/components/responses/Resource" };
+        }
+        const diagnostics = await check(spec, rule);
+        expect(diagnostics).toHaveLength(variant === "positive" ? 0 : 1);
+        if (variant === "negative") expect(diagnostics[0].message).toContain("Missing in response schema: resource_id");
+    });
+});

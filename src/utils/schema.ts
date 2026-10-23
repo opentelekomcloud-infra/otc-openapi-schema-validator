@@ -1,7 +1,9 @@
 import { PayloadConfig, SyncGranularityConfig } from "@/types/batch";
-import { getResponseObjectByStatus, isPlainObject } from "@/utils/spec";
+import { isPlainObject } from "@/utils/spec";
 import { getParameterSchema } from "@/lib/openapi/parameters";
 import { resolveObjectReference, resolveReference, resolveReferenceNode } from "@/lib/openapi/references";
+import { getRequestPayload, getResponseMediaMatch, getResponsePayload, selectPayloadSchema } from "@/lib/openapi/payloads";
+import type { ContentTypeMatch } from "@/types/openapi";
 
 /**
  * Validates that a parameter matches expected schema conditions.
@@ -406,31 +408,7 @@ export function schemaHasAnyArrayOfObjectsDeep(schema: any, spec: any, refCache:
 }
 
 /**
- * Selects the most suitable media type object from an OpenAPI `content` map.
- *
- * The function prefers media types in the provided order and falls back to the
- * first available content entry if none of the preferred types exist.
- *
- * @param contentObj OpenAPI `content` object.
- * @param preferred Ordered list of preferred media types.
- * @returns The selected media type definition or null if none is available.
- */
-function pickPreferredMediaType(contentObj: any, preferred: string[]): any {
-    if (!contentObj || typeof contentObj !== "object") return null;
-
-    const keys = Object.keys(contentObj);
-    if (keys.length === 0) return null;
-
-    for (const p of preferred) {
-        if (contentObj[p]) return contentObj[p];
-    }
-
-    // fallback to first media type
-    return contentObj[keys[0]];
-}
-
-/**
- * Extracts the requestBody schema from an OpenAPI operation.
+ * Extracts a native request schema, including inherited Swagger body parameters.
  *
  * Media type selection prefers configured types
  * (JSON → problem+json → XML → fallback).
@@ -443,27 +421,17 @@ export function getRequestBodySchema(
   operation: any,
   spec: any,
   refCache: Map<string, any>,
-  payloadCfg?: PayloadConfig
+  payloadCfg?: PayloadConfig,
+  pathItem?: unknown,
 ): any | null {
-    const rbRaw = operation?.requestBody;
-    if (!rbRaw) return null;
-
-    const rb = resolveRefDeep(rbRaw, refCache, spec);
-    if (!rb || typeof rb !== "object") return null;
-
-    const contentObj = (rb as any).content;
-    if (!contentObj || typeof contentObj !== "object") return null;
-
     const preferred =
       Array.isArray(payloadCfg?.contentTypesPreferred) && payloadCfg!.contentTypesPreferred!.length > 0
         ? payloadCfg!.contentTypesPreferred!
         : ["application/json", "application/problem+json", "application/xml"];
 
-    const media = pickPreferredMediaType(contentObj, preferred);
-    const schema = media?.schema;
-    if (!schema) return null;
-
-    return resolveRefDeep(schema, refCache, spec);
+    return selectPayloadSchema(
+        getRequestPayload(operation, pathItem, spec, refCache), preferred, spec, refCache,
+    )?.node ?? null;
 }
 
 /**
@@ -479,62 +447,27 @@ export function getResponseSchema(
   refCache: Map<string, any>,
   cfg: SyncGranularityConfig
 ): any | null {
-    const respRaw = getSuccessResponseObject(operation);
-    if (!respRaw) return null;
-
-    const resp = resolveRefDeep(respRaw, refCache, spec);
-    if (!resp || typeof resp !== "object") return null;
-
-    const contentObj = (resp as any).content;
-    if (!contentObj || typeof contentObj !== "object") {
-        return null;
-    }
-
     const preferred = Array.isArray(cfg.contentTypes) && cfg.contentTypes.length > 0
       ? cfg.contentTypes
       : ["application/json", "application/problem+json"];
 
-    const media = pickPreferredMediaType(contentObj, preferred);
-    const schema = media?.schema;
-    if (!schema) return null;
-
-    return resolveRefDeep(schema, refCache, spec);
+    return selectPayloadSchema(
+        getResponsePayload(operation, "200", spec, refCache), preferred, spec, refCache,
+    )?.node ?? null;
 }
 
 /**
- * Returns the primary success response object for an operation.
- *
- * Currently, this helper checks for `200` using both string and numeric keys,
- * because parsers may normalize response codes differently.
- *
- * @param operation OpenAPI operation object.
- * @returns The success response object or null if no 200 response exists.
+ * Matches declared response media without resolving unselected payload schemas.
+ * Missing Swagger produces remains unknown, never an implicit JSON match.
  */
-function getSuccessResponseObject(operation: any): any | null {
-    const responses = operation?.responses;
-    if (!responses || typeof responses !== "object") return null;
-    return (responses as any)["200"] ?? (responses as any)[200] ?? null;
-}
-
-/**
- * Checks whether a response contains `content` entries
- * for configured media types.
- *
- * Helps skip validation when operations return no body
- * (e.g. 204 responses).
- */
-export function schemaHasContentForConfiguredTypes(operation: any, cfg: SyncGranularityConfig): boolean {
-    const resp = getSuccessResponseObject(operation);
-    if (!resp || typeof resp !== "object") return false;
-
-    const contentObj = (resp as any).content;
-    if (!contentObj || typeof contentObj !== "object") return false;
-
+export function getResponseContentMatch(
+    operation: any, cfg: SyncGranularityConfig, spec: any, refCache: Map<string, unknown>,
+): ContentTypeMatch {
     const preferred = Array.isArray(cfg.contentTypes) && cfg.contentTypes.length > 0
       ? cfg.contentTypes
       : ["application/json", "application/problem+json"];
 
-    return preferred.some((t) => Boolean((contentObj as any)[t]));
+    return getResponseMediaMatch(operation, "200", spec, preferred, refCache);
 }
 
 /**
@@ -658,30 +591,10 @@ export function getResponseSchemaByStatus(
   spec: any,
   refCache: Map<string, any>
 ): any | null {
-    const respRaw = getResponseObjectByStatus(operation, statusCode);
-    if (!respRaw) return null;
-
-    const resp = resolveRefDeep(respRaw, refCache, spec);
-    if (!resp || typeof resp !== "object") return null;
-
-    const contentObj = (resp as any).content;
-    if (!contentObj || typeof contentObj !== "object") return null;
-
     const preferred = ["application/json", "application/problem+json", "application/xml"];
-    for (const mediaType of preferred) {
-        const media = (contentObj as any)[mediaType];
-        if (media?.schema) {
-            return resolveRefDeep(media.schema, refCache, spec);
-        }
-    }
-
-    const firstKey = Object.keys(contentObj)[0];
-    const firstMedia = firstKey ? (contentObj as any)[firstKey] : null;
-    if (firstMedia?.schema) {
-        return resolveRefDeep(firstMedia.schema, refCache, spec);
-    }
-
-    return null;
+    return selectPayloadSchema(
+        getResponsePayload(operation, statusCode, spec, refCache), preferred, spec, refCache, "firstSchema",
+    )?.node ?? null;
 }
 
 /**

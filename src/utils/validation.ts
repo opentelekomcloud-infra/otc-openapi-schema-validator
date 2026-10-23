@@ -45,7 +45,8 @@ export function validateRequestExamples(
   const allowedParamNames = new Set(allowedParamDefs.map((p) => p.name));
   const requiredParamNames = new Set(allowedParamDefs.filter((p) => p.required).map((p) => p.name));
 
-  const requestBodySchema = cfg?.includeRequestBodySchema ? getRequestBodySchema(operation, spec, refCache) : null;
+  const requestBodySchema = cfg?.includeRequestBodySchema
+    ? getRequestBodySchema(operation, spec, refCache, undefined, pathItem) : null;
   const allowedBodyPaths = requestBodySchema ? collectSchemaPaths(requestBodySchema, spec, refCache) : new Set<string>();
   const requiredBodyPaths = cfg?.requireRequiredBodyFields && requestBodySchema
     ? collectRequiredSchemaPaths(requestBodySchema, spec, refCache)

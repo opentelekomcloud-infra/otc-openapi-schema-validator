@@ -2,51 +2,7 @@ import { Diagnostic } from "@codemirror/lint";
 import { getSource } from "@/functions/common";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodParametersPositionInYaml } from "@/utils/pos";
-import { resolveRefDeep, schemaHasPropertyDeep } from "@/utils/schema";
-
-/**
- * Extracts a response schema for code 200 from an operation.
- * Supports both numeric and string status keys (200 / "200") and `$ref` responses.
- */
-function getResponseSchema(operation: any, spec: any, refCache: Map<string, any>): any | null {
-  const responses = operation?.responses;
-  if (!responses || typeof responses !== "object") return null;
-
-  const respRaw = (responses as any)["200"] ?? (responses as any)[200];
-  if (!respRaw) return null;
-
-  const resp = resolveRefDeep(respRaw, refCache, spec);
-  return extractResponseSchemaFromResponseObject(resp, spec, refCache);
-}
-
-/**
- * Extracts the schema object from an OpenAPI Response object.
- * Prefers `content[*].schema`, falling back to `schema` (OAS2-style).
- */
-function extractResponseSchemaFromResponseObject(responseObj: any, spec: any, refCache: Map<string, any>): any | null {
-  if (!responseObj || typeof responseObj !== "object") return null;
-
-  const contentObj = (responseObj as any).content;
-  if (contentObj && typeof contentObj === "object") {
-    const mediaTypes = Object.keys(contentObj);
-    if (mediaTypes.length === 0) return null;
-
-    const preferred =
-      (contentObj as any)["application/json"] ??
-      (contentObj as any)["application/problem+json"] ??
-      (contentObj as any)[mediaTypes[0]];
-
-    const schema = preferred?.schema;
-    if (!schema) return null;
-    return resolveRefDeep(schema, refCache, spec);
-  }
-
-  // Some specs still place schema directly under the response.
-  const schemaDirect = (responseObj as any).schema;
-  if (schemaDirect) return resolveRefDeep(schemaDirect, refCache, spec);
-
-  return null;
-}
+import { getResponseSchema, resolveRefDeep, schemaHasPropertyDeep } from "@/utils/schema";
 
 /**
  * Collects `in: path` parameter names (case-sensitive as authored, compared case-sensitively).
@@ -117,7 +73,7 @@ export function checkURIFilterParams(spec: any, content: string, rule: any): Dia
       const pathParamNames = collectPathParamNames(allParams, spec, refCache);
       if (pathParamNames.length === 0) continue;
 
-      const schemaResp = getResponseSchema(operation, spec, refCache);
+      const schemaResp = getResponseSchema(operation, spec, refCache, {});
       if (!schemaResp) {
         // No schema to check against; do not emit a diagnostic.
         continue;

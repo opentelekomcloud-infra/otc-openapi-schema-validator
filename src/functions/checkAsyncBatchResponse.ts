@@ -68,7 +68,7 @@ export function checkAsyncBatchResponse(spec: any, content: string, rule: any): 
       const operation = (pathItem as any)[method];
       if (!operation || typeof operation !== "object") continue;
 
-      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg);
+      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg, pathItem);
       if (!isBatch) continue;
 
       const isAsync = isAsyncOperation(operation, asyncCfg);

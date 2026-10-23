@@ -32,7 +32,8 @@ export function isBatchOperation(
   operation: any,
   spec: any,
   refCache: Map<string, any>,
-  cfg: BatchMatchConfig
+  cfg: BatchMatchConfig,
+  pathItem?: unknown,
 ): boolean {
   const keywords = Array.isArray(cfg.keywords) ? cfg.keywords : [];
   const pathContainsAny = Array.isArray(cfg.pathContainsAny) ? cfg.pathContainsAny : [];
@@ -63,7 +64,7 @@ export function isBatchOperation(
   let actionPayloadPattern = false;
 
   if (needsPayload) {
-    const rbSchema = getRequestBodySchema(operation, spec, refCache);
+    const rbSchema = getRequestBodySchema(operation, spec, refCache, undefined, pathItem);
     if (rbSchema) {
       payloadLooksBatch =
         schemaIsArrayOfObjects(rbSchema, spec, refCache) ||

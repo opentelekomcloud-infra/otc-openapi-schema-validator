@@ -51,7 +51,7 @@ export function checkBatchUsesPost(spec: any, content: string, rule: any): Diagn
       const operation = (pathItem as any)[method];
       if (!operation || typeof operation !== "object") continue;
 
-      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg);
+      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg, pathItem);
       if (!isBatch) continue;
 
       if (allowedMethods.includes(method)) continue;

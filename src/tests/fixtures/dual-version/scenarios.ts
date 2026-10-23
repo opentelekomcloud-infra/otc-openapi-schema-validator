@@ -166,7 +166,7 @@ export const scenarios = {
     },
     batchPayload: {
         positive: "batch body contains an array of objects", negative: "batch body is a string",
-        message: "Request body schema must be array<object>", method: "post", nativeV2: bodyGap("T14"),
+        message: "Request body schema must be array<object>", method: "post",
         prepare: ({ dialect, operation, variant, renamePath }) => {
             renamePath("/v1/resources/batch");
             operation.summary = "Batch resource creation";
@@ -178,7 +178,7 @@ export const scenarios = {
     batchSync: {
         positive: "synchronous batch list items expose status",
         negative: "synchronous batch list items have no status",
-        message: "each item must expose a status field", method: "post", nativeV2: bodyGap("T14"),
+        message: "each item must expose a status field", method: "post",
         prepare: ({ operation, response, dialect, variant, renamePath }) => {
             renamePath("/v1/resources/batch");
             operation.summary = "Batch resource creation";
@@ -193,7 +193,7 @@ export const scenarios = {
     },
     batchAsync: {
         positive: "202 batch response includes job_id", negative: "202 batch response has no job identifier",
-        message: "Expected one of job identifier fields", method: "post", nativeV2: bodyGap("T14"),
+        message: "Expected one of job identifier fields", method: "post",
         prepare: ({ operation, response, dialect, variant, renamePath }) => {
             renamePath("/v1/resources/batch");
             operation.summary = "Batch resource creation";
