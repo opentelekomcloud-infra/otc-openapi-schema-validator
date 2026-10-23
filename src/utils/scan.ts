@@ -1,4 +1,6 @@
-import {resolveLocalRef, resolveRefDeep} from "@/utils/schema";
+import { resolveLocalRef } from "@/utils/schema";
+import { collectEffectiveParameterNodes } from "@/lib/openapi/parameters";
+import { collectDocumentOperations } from "@/lib/openapi/operations";
 
 /**
  * Collects header names and their logical locations from an OpenAPI spec.
@@ -155,7 +157,7 @@ export function findPathKeyRangeInPathsBlock(content: string, pathKey: string): 
 
 /**
  * Collects query parameters for an operation, preserving list order.
- * Includes both `pathItem.parameters` and `operation.parameters` and resolves `$ref`.
+ * Operation parameters override matching path parameters; resolves local `$ref` chains.
  */
 export function collectQueryParams(
   pathItem: any,
@@ -163,26 +165,11 @@ export function collectQueryParams(
   spec: any,
   refCache: Map<string, any>
 ): { name: string; index: number; raw: any }[] {
-  const opParams = Array.isArray(operation?.parameters) ? operation.parameters : [];
-  const pathParams = Array.isArray(pathItem?.parameters) ? pathItem.parameters : [];
-  const allParams = [...pathParams, ...opParams];
-
-  const out: { name: string; index: number; raw: any }[] = [];
-
-  for (let i = 0; i < allParams.length; i++) {
-    const resolved = resolveRefDeep(allParams[i], refCache, spec);
-    if (!resolved || typeof resolved !== "object") continue;
-
-    const inVal = String((resolved as any).in ?? "").toLowerCase();
-    if (inVal !== "query") continue;
-
-    const name = String((resolved as any).name ?? "");
-    if (!name) continue;
-
-    out.push({ name: name.toLowerCase(), index: i, raw: resolved });
-  }
-
-  return out;
+  return collectEffectiveParameterNodes(pathItem, operation, spec, refCache)
+    .map(({ parameter }, index) => ({
+      name: String(parameter.name).toLowerCase(), index, raw: parameter,
+    }))
+    .filter(({ raw }) => String(raw.in).toLowerCase() === "query");
 }
 
 /**
@@ -204,25 +191,9 @@ export function collectQueryParams(
  * @returns Array of collected operations with their path and parent path item.
  */
 export function collectOperationMethods(spec: any, configuredMethods?: string[]): Array<{ path: string; method: string; operation: any; pathItem: any }> {
-  const result: Array<{ path: string; method: string; operation: any; pathItem: any }> = [];
   const allowedMethods = Array.isArray(configuredMethods)
     ? configuredMethods.map((m) => String(m).toLowerCase())
     : ["get", "post", "put", "patch", "delete"];
 
-  for (const path of Object.keys(spec?.paths ?? {})) {
-    const pathItem = spec.paths[path];
-    if (!pathItem || typeof pathItem !== "object") continue;
-
-    for (const method of Object.keys(pathItem)) {
-      const lowered = String(method).toLowerCase();
-      if (!allowedMethods.includes(lowered)) continue;
-      if (!["get", "post", "put", "patch", "delete", "options", "head"].includes(lowered)) continue;
-
-      const operation = pathItem[method];
-      if (!operation || typeof operation !== "object") continue;
-      result.push({ path, method: lowered, operation, pathItem });
-    }
-  }
-
-  return result;
+  return collectDocumentOperations(spec, allowedMethods);
 }

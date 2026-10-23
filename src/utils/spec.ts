@@ -1,6 +1,7 @@
 import { AsyncResponseConfig } from "@/types/async";
 import { ParamDef } from "@/types/parameter";
-import { resolveRefDeep } from "@/utils/schema";
+import { collectEffectiveParameterNodes } from "@/lib/openapi/parameters";
+import { collectDocumentOperations } from "@/lib/openapi/operations";
 import { FoundExample, RuleConfig } from "@/types/example";
 
 /**
@@ -85,47 +86,13 @@ export function collectOperationParameters(
   refCache: Map<string, any>,
   includeCfg: any
 ): ParamDef[] {
-  const result: ParamDef[] = [];
-  const allParams = [
-    ...(Array.isArray(pathItem?.parameters) ? pathItem.parameters : []),
-    ...(Array.isArray(operation?.parameters) ? operation.parameters : []),
-  ];
-
-  for (const rawParam of allParams) {
-    const param = resolveRefDeep(rawParam, refCache, spec);
-    if (!param || typeof param !== "object") continue;
-
-    const paramIn = String((param as any).in ?? "").toLowerCase();
-    if (!includeCfg?.[paramIn]) continue;
-
-    const name = String((param as any).name ?? "");
-    if (!name) continue;
-
-    result.push({
-      name,
-      required: Boolean((param as any).required),
-      in: paramIn,
-    });
-  }
-
-  return dedupeParamDefs(result);
-}
-
-/**
- * Removes duplicate parameter definitions.
- *
- * Parameters are deduplicated by the combination of their `in` location
- * and parameter name.
- *
- * @param params Collected parameter definitions.
- * @returns Deduplicated parameter list.
- */
-function dedupeParamDefs(params: ParamDef[]): ParamDef[] {
-  const seen = new Map<string, ParamDef>();
-  for (const p of params) {
-    seen.set(`${p.in}:${p.name}`, p);
-  }
-  return Array.from(seen.values());
+  return collectEffectiveParameterNodes(pathItem, operation, spec, refCache)
+    .map(({ parameter }) => ({
+      name: String(parameter.name),
+      required: Boolean(parameter.required),
+      in: String(parameter.in).toLowerCase(),
+    }))
+    .filter((parameter) => includeCfg?.[parameter.in]);
 }
 
 /**
@@ -294,21 +261,5 @@ export function findInfoVersionPosition(content: string): { start: number; end: 
  * Collects HTTP operations from the OpenAPI spec.
  */
 export function collectOperations(spec: any): Array<{ path: string; method: string; operation: any; pathItem: any }> {
-  const result: Array<{ path: string; method: string; operation: any; pathItem: any }> = [];
-
-  for (const path of Object.keys(spec?.paths ?? {})) {
-    const pathItem = spec.paths[path];
-    if (!pathItem || typeof pathItem !== "object") continue;
-
-    for (const method of Object.keys(pathItem)) {
-      const lowered = String(method).toLowerCase();
-      if (!["get", "post", "put", "patch", "delete", "options", "head"].includes(lowered)) continue;
-
-      const operation = pathItem[method];
-      if (!operation || typeof operation !== "object") continue;
-      result.push({ path, method: lowered, operation, pathItem });
-    }
-  }
-
-  return result;
+  return collectDocumentOperations(spec);
 }

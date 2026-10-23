@@ -1,11 +1,13 @@
 import { PayloadConfig, SyncGranularityConfig } from "@/types/batch";
 import { getResponseObjectByStatus, isPlainObject } from "@/utils/spec";
+import { getParameterSchema } from "@/lib/openapi/parameters";
+import { resolveObjectReference, resolveReference, resolveReferenceNode } from "@/lib/openapi/references";
 
 /**
  * Validates that a parameter matches expected schema conditions.
  *
- * Supports resolving `$ref` parameters from `#/components/...`.
- * Handles both `schema` and OpenAPI `content` parameter styles.
+ * Supports chained local refs, native Swagger 2 types and OpenAPI 3 schema/content.
+ * Unresolvable references throw an explicit rule execution error.
  *
  * Validation includes:
  * - parameter name
@@ -34,41 +36,18 @@ export function matchParameterSchema(
     }
 ): boolean {
     if (!param || typeof param !== "object") return false;
-    if (typeof param["$ref"] === "string" && param["$ref"].startsWith("#/")) {
-        const refPath = param["$ref"].slice(2).split("/");
-        let resolved = spec;
-        for (const part of refPath) {
-            if (resolved instanceof Map) {
-                resolved = resolved.get(part);
-            } else if (typeof resolved === "object") {
-                resolved = resolved[part];
-            } else {
-                return false;
-            }
-        }
-        if (!resolved) return false;
-        param = resolved;
-    }
+    const cache = new Map<string, unknown>();
+    const resolved = resolveObjectReference(param, spec, cache);
+    if (!resolved) return false;
+    param = resolved.value;
 
     const nameMatches =
         paramIn === "header"
             ? String(param.name ?? "").toLowerCase() === String(name).toLowerCase()
             : param.name === name;
 
-    const schemaType = param.schema?.type;
-
-    // OpenAPI 3 allows parameters to use `content` with media types instead of `schema`.
-    let contentType: any = undefined;
-    const contentObj = param.content;
-    if (contentObj && typeof contentObj === "object") {
-        const media =
-            contentObj["application/json"] ??
-            contentObj["application/xml"] ??
-            contentObj[Object.keys(contentObj)[0]];
-        contentType = media?.schema?.type;
-    }
-
-    const matchesBase = nameMatches && param.in === paramIn && (schemaType === type || contentType === type);
+    const schemaType = getParameterSchema(param, spec, cache)?.node.type;
+    const matchesBase = nameMatches && param.in === paramIn && schemaType === type;
 
     if (!matchesBase) return false;
 
@@ -80,28 +59,16 @@ export function matchParameterSchema(
 }
 
 /**
- * Resolves a local OpenAPI JSON pointer reference (`#/...`).
+ * Resolves a local OpenAPI JSON Pointer and any chained references.
  *
  * Works with both plain objects and Map-based structures used in some parsers.
  *
  * @param ref JSON pointer reference
  * @param spec OpenAPI specification
- * @returns resolved object or undefined if resolution fails
+ * @returns original target; throws for invalid, external, missing or circular refs
  */
 export const resolveRef = (ref: string, spec: any): any => {
-    if (!ref || !ref.startsWith('#/')) return undefined;
-    const refPath = ref.slice(2).split('/');
-    let resolved = spec;
-    for (const part of refPath) {
-        if (resolved instanceof Map) {
-            resolved = resolved.get(part);
-        } else if (typeof resolved === 'object') {
-            resolved = resolved[part];
-        } else {
-            return undefined;
-        }
-    }
-    return resolved;
+    return resolveReference(ref, spec).value;
 };
 
 /**
@@ -261,22 +228,6 @@ export function extractEnumIfExist(schema: any, spec: any, basePath = ''): Map<s
 }
 
 /**
- * Decodes a single JSON Pointer token according to RFC 6901.
- *
- * Replaces escaped sequences:
- * - `~1` -> `/`
- * - `~0` -> `~`
- *
- * Used when resolving local `$ref` paths that may contain escaped characters.
- *
- * @param token Raw JSON Pointer token.
- * @returns Decoded token value.
- */
-function decodeJsonPointerToken(token: string): string {
-    return token.replace(/~1/g, "/").replace(/~0/g, "~");
-}
-
-/**
  * Resolves chained `$ref` references until a concrete schema object is reached.
  *
  * Includes caching and circular reference protection.
@@ -286,74 +237,21 @@ function decodeJsonPointerToken(token: string): string {
  * @param spec OpenAPI specification
  * @returns resolved schema node
  */
-export function resolveRefDeep(obj: any, refCache: any, spec: any): any {
-    let curObj: any = obj;
-    const seen = new Set<string>();
-
-    while (curObj && typeof curObj === "object" && typeof curObj.$ref === "string") {
-        const ref: string = curObj.$ref;
-        const cached = refCache.get(ref);
-        if (cached) {
-            curObj = cached;
-            continue;
-        }
-        if (!ref.startsWith("#/")) return curObj;
-        if (seen.has(ref)) return curObj;
-        seen.add(ref);
-
-        const parts = ref
-          .slice(2)
-          .split("/")
-          .filter(Boolean)
-          .map(decodeJsonPointerToken);
-
-        let resolved: any = spec;
-        for (const p of parts) {
-            if (!resolved || typeof resolved !== "object") {
-                resolved = null;
-                break;
-            }
-            resolved = resolved[p];
-        }
-
-        if (!resolved) return curObj;
-        refCache.set(ref, resolved);
-        curObj = resolved;
-    }
-
-    return curObj;
+export function resolveRefDeep(obj: any, refCache: Map<string, unknown>, spec: any): any {
+    return resolveReferenceNode(obj, spec, refCache).value;
 }
 
 /**
- * Resolves a single local `$ref` object if present.
+ * Resolves local `$ref` chains using the shared resolver.
  *
- * If resolution fails the original object is returned.
+ * Non-reference values retain their identity; broken references throw.
  *
  * @param spec OpenAPI specification
  * @param maybeRefObj Object that may contain `$ref`
  * @returns resolved object or original input
  */
 export function resolveLocalRef(spec: any, maybeRefObj: any): any {
-    if (!maybeRefObj || typeof maybeRefObj !== "object") return maybeRefObj;
-
-    const ref = maybeRefObj["$ref"];
-    if (typeof ref !== "string" || !ref.startsWith("#/")) return maybeRefObj;
-
-    const refPath = ref.slice(2).split("/");
-    let resolved: any = spec;
-
-    for (const part of refPath) {
-        if (resolved instanceof Map) {
-            resolved = resolved.get(part);
-        } else if (resolved && typeof resolved === "object") {
-            resolved = (resolved as any)[part];
-        } else {
-            return maybeRefObj;
-        }
-    }
-
-    // If resolution fails, fall back to original object.
-    return resolved ?? maybeRefObj;
+    return resolveReferenceNode(maybeRefObj, spec).value;
 }
 
 /**

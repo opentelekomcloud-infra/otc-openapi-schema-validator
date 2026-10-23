@@ -30,3 +30,36 @@ export type NativeOpenApiContext = NativeOpenApiDocument & {
     readonly sourceFormat: SourceFormat;
     readonly sourceDocument: Document.Parsed;
 };
+
+export interface NativeOperation {
+    readonly path: string;
+    readonly method: string;
+    readonly rawPathItem: unknown;
+    readonly pathItem: Readonly<Record<string, unknown>>;
+    readonly operation: Readonly<Record<string, unknown>>;
+    readonly pathItemPointer: string;
+    readonly resolvedPathItemPointer: string;
+    readonly pointer: string;
+}
+
+export interface NativeParameterSchema {
+    readonly node: Readonly<Record<string, unknown>>;
+    readonly pointer: string;
+}
+
+export interface NativeParameter {
+    readonly raw: unknown;
+    readonly parameter: Readonly<Record<string, unknown>>;
+    readonly name: string;
+    readonly location: string;
+    readonly required: boolean;
+    readonly kind: "parameter" | "body" | "formData";
+    readonly level: "path" | "operation";
+    readonly index: number;
+    readonly pointer: string;
+    readonly resolvedPointer: string;
+    readonly schema: NativeParameterSchema | undefined;
+    readonly style: unknown;
+    readonly explode: unknown;
+    readonly collectionFormat: unknown;
+}
