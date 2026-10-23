@@ -6,7 +6,7 @@ import { functionsMap, runLinter } from "@/lib/linter/runLinter";
 import { getSource } from "@/functions/common";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import {
-    array, buildScenario, object, schemas, type Dialect, type JsonObject,
+    array, buildScenario, object, readFixture, schemas, type Dialect, type JsonObject,
 } from "../fixtures/dual-version/scenarios";
 
 jest.mock("@/utils/utils", () => ({
@@ -236,4 +236,134 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s filter response reuse", (di
         expect(diagnostics).toHaveLength(variant === "positive" ? 0 : 1);
         if (variant === "negative") expect(diagnostics[0].message).toContain("Missing in response schema: resource_id");
     });
+});
+
+describe.each<Dialect>(["swagger2", "openapi3"])("%s native DOC-040", (dialect) => {
+    function postFixture() {
+        const spec = readFixture(dialect);
+        const operation = object(object(object(spec.paths)["/v1/resources"]).post);
+        const pathItem: JsonObject = { post: operation };
+        spec.paths = { "/v1/resources": pathItem };
+        const definitions = schemas(spec, dialect);
+        const requestSchema = object(definitions.ResourceRequest);
+        const requestExample = object(requestSchema.example);
+        if (dialect === "swagger2") {
+            const body = array(operation.parameters).find((param) => object(param).in === "body");
+            if (!body) throw new Error("Missing body");
+            spec.parameters = { Body: body };
+            pathItem.parameters = [{ $ref: "#/parameters/Body" }];
+            operation.parameters = [];
+        }
+        const media = dialect === "openapi3" ? object(object(object(operation.requestBody).content)["application/json"]) : requestSchema;
+        return { spec, operation, requestSchema, media, requestExample };
+    }
+
+    test("POST required examples accept inherited schema.example or native media example", async () => {
+        expect(await check(postFixture().spec, ruleFor("DOC-040-01-2507-2507-M"))).toEqual([]);
+    });
+
+    test("serialized structured JSON is decoded without rewriting the example", async () => {
+        const { spec, media } = postFixture();
+        const value = '{"resource":{"resource_id":"resource-1","name":"sample","status":"active"}}';
+        media.example = value;
+        expect(await check(spec, ruleFor("DOC-040-01-2507-2507-M"))).toEqual([]);
+        expect(media.example).toBe(value);
+    });
+
+    test("malformed serialized JSON produces a rule diagnostic, not success or YAML fallback", async () => {
+        const { spec, media } = postFixture();
+        media.example = '{"resource":}';
+        const diagnostics = await check(spec, ruleFor("DOC-040-01-2507-2507-M"));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0]).toMatchObject({ source: getSource(ruleFor("DOC-040-01-2507-2507-M")), message: expect.stringContaining("malformed JSON") });
+    });
+
+    test("request required and response enum checks use native nested schemas", async () => {
+        const { spec, media, operation } = postFixture();
+        media.example = { resource: { resource_id: "resource-1", status: "active" } };
+        const response = object(object(operation.responses)["201"]);
+        if (dialect === "swagger2") object(response.examples)["application/json"] = { resource: { resource_id: "resource-1", name: "sample", status: "invalid" } };
+        else object(object(response.content)["application/json"]).example = { resource: { resource_id: "resource-1", name: "sample", status: "invalid" } };
+        const diagnostics = await check(spec, ruleFor("DOC-040-01-2507-2507-M"));
+        expect(diagnostics).toHaveLength(2);
+        expect(diagnostics.some((entry) => entry.message.includes("missing required body field 'resource.name'"))).toBe(true);
+        expect(diagnostics.some((entry) => entry.message.includes("enum values"))).toBe(true);
+    });
+
+    test("undefined request fields are not hidden by a valid native payload", async () => {
+        const { spec, media, requestExample } = postFixture();
+        media.example = { ...requestExample, extra: true };
+        const diagnostics = await check(spec, ruleFor("DOC-040-01-2507-2507-M"));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("field 'extra' that is not defined");
+    });
+
+    test("response root schema.example satisfies required presence when media examples are absent", async () => {
+        const rule = ruleFor("DOC-040-01-2507-2507-M");
+        const spec = buildScenario("examples", dialect, "negative", rule);
+        object(schemas(spec, dialect).ResourceList).example = { resources: [], count: 0 };
+        expect(await check(spec, rule)).toEqual([]);
+    });
+
+    test("property examples are checked independently, even when the body example has an empty array", async () => {
+        const rule = ruleFor("DOC-040-01-2507-2507-M");
+        const spec = buildScenario("examples", dialect, "positive", rule);
+        object(object(object(schemas(spec, dialect).Resource).properties).created_at).example = 123;
+        const diagnostics = await check(spec, rule);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Property example");
+        expect(diagnostics[0].message).not.toContain("Missing required");
+    });
+
+    test.each(["property-only", "payload"])("DELETE presence policy distinguishes %s examples", async (kind) => {
+        const schema: JsonObject = { type: "object", properties: { id: { type: "string", example: "sample" } } };
+        const response: JsonObject = dialect === "swagger2" ? { schema } : { content: { "application/json": { schema } } };
+        if (kind === "payload") {
+            if (dialect === "swagger2") response.examples = { "application/json": { id: "sample" } };
+            else object(object(response.content)["application/json"]).example = { id: "sample" };
+        }
+        const spec: JsonObject = {
+            ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+            paths: { "/resources": { delete: { responses: { "200": response } } } },
+        };
+        const diagnostics = await check(spec, ruleFor("DOC-040-01-2507-2507-M"));
+        expect(diagnostics).toHaveLength(kind === "payload" ? 1 : 0);
+        if (kind === "payload") expect(diagnostics[0].message).toContain("Response example is not allowed");
+    });
+
+    test.each(["absent", "broken-ref"])("a native response example with %s schema cannot silently pass", async (kind) => {
+        const rule = ruleFor("DOC-040-01-2507-2507-M");
+        const spec = buildScenario("examples", dialect, "positive", rule);
+        const operation = object(object(Object.values(object(spec.paths))[0]).get);
+        const response = object(object(operation.responses)["200"]);
+        const container = dialect === "swagger2" ? response : object(object(response.content)["application/json"]);
+        if (kind === "absent") delete container.schema;
+        else container.schema = { $ref: "#/missing" };
+        const diagnostics = await check(spec, rule);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0]).toMatchObject({
+            source: getSource(rule), severity: "error",
+            message: expect.stringContaining(kind === "absent" ? "no response schema" : "Local reference does not exist"),
+        });
+    });
+});
+
+test("DOC-040 resolves named Example and response refs; externalValue fails explicitly without a fetch", async () => {
+    const rule = ruleFor("DOC-040-01-2507-2507-M");
+    const spec = buildScenario("examples", "openapi3", "positive", rule);
+    const operation = object(object(Object.values(object(spec.paths))[0]).get);
+    const response = object(object(operation.responses)["200"]);
+    const media = object(object(response.content)["application/json"]);
+    const payload = media.example;
+    delete media.example;
+    media.examples = { Named: { $ref: "#/components/examples/Value" } };
+    const components = object(spec.components);
+    components.examples = { Value: { value: payload } };
+    components.responses = { Value: response };
+    operation.responses = { "200": { $ref: "#/components/responses/Value" } };
+    expect(await check(spec, rule)).toEqual([]);
+    components.examples = { Value: { externalValue: "https://fixtures.example.invalid/example.json" } };
+    const diagnostics = await check(spec, rule);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({ source: getSource(rule), severity: "error", message: expect.stringContaining("External example payloads are unsupported") });
 });

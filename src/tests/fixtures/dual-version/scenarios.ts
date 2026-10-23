@@ -115,7 +115,6 @@ export const scenarios = {
         positive: "GET response has a contract-compatible payload example",
         negative: "GET response payload example is absent",
         message: "Missing required response example",
-        nativeV2: { task: "T07/T15", reason: "response.examples is not read as a payload example." },
         prepare: ({ response, dialect, variant }) => {
             if (variant === "negative") {
                 if (dialect === "swagger2") delete response.examples;

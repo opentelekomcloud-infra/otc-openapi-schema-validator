@@ -6,7 +6,9 @@ export function isSwagger2Root(document: unknown): boolean {
     return isRecord(document) && (document.swagger === "2.0" || document.swagger === 2);
 }
 
-export function hasOwnField(value: unknown, key: string): value is Record<string, unknown> {
+export function hasOwnField<Key extends string>(
+    value: unknown, key: Key,
+): value is Record<string, unknown> & Record<Key, unknown> {
     return isRecord(value) && Object.prototype.hasOwnProperty.call(value, key);
 }
 

@@ -1,3 +1,5 @@
+import type { NativeParameterSchema } from "./openapi";
+
 export type ExampleRequirement = "required" | "forbidden" | "optional";
 
 export type MethodValidationConfig = {
@@ -15,6 +17,8 @@ export type MethodValidationConfig = {
 };
 
 export type RuleConfig = {
+  jsonStringMode?: "value" | "serializedWhenStructured";
+  formatValidation?: Record<string, "json">;
   methods?: Record<string, MethodValidationConfig>;
   exampleSources?: {
     request?: string[];
@@ -43,5 +47,16 @@ export type RuleConfig = {
 
 export type FoundExample = {
   source: string;
-  value: any;
+  value: unknown;
 };
+
+export interface NativeExample extends FoundExample {
+  readonly scope: "payload" | "property";
+  readonly direction: "request" | "response";
+  readonly pointer: string;
+  readonly declarationPointer: string;
+  readonly resolvedPointer: string;
+  readonly mediaType: string | undefined;
+  readonly statusCode: string | undefined;
+  readonly schema: NativeParameterSchema | undefined;
+}
