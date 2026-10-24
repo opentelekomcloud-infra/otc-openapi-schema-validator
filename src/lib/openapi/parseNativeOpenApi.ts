@@ -9,7 +9,7 @@ export interface NativeParseOptions {
     readonly format?: SourceFormat | "auto";
 }
 
-function isDocumentObject(value: unknown): value is Record<string, unknown> {
+export function isDocumentObject(value: unknown): value is Record<string, unknown> {
     if (value === null || typeof value !== "object" || Array.isArray(value)) return false;
     const prototype: unknown = Object.getPrototypeOf(value);
     return prototype === Object.prototype || prototype === null;

@@ -5,6 +5,6 @@ rules:
       The API design deliverables are transferred to the backend through YAML files for subsequent activities such as development, test, and documentation delivery.
       The deliverables must meet the specifications and must be checked in the tool.
       Complying with the YAML interface definition design specifications for cloud services
-    task: The specification must be delivered and must comply with Swagger 2.0 or OpenAPI 3.0.x.
+    task: The specification must be delivered and must comply with Swagger 2.0 or OpenAPI 3.0.x. The swagger marker must be "2.0" or numeric 2; the openapi marker must be a full 3.0.<patch> string, not a shortened or numeric version. Check the format version independently of info.version.
     option: Mandatory
     severity: critical

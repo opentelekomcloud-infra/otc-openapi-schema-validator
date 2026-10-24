@@ -11,7 +11,7 @@ rules:
         allowedVersions:
           - "2.0"
           - "3.0"
-    description: This rule checks the swagger or openapi format version independently of info.version.
+    description: This rule checks the format version independently of info.version. Swagger accepts "2.0" or numeric 2; OpenAPI requires a full 3.0.<patch> string. Shortened or numeric OpenAPI versions are not supported.
     status: implemented
     severity: critical
 
@@ -24,6 +24,7 @@ rules:
     call:
       function: checkOASSpec
       functionParams:
+        allowExtensions: true
         formats:
           swagger:
             requiredValues:
@@ -54,6 +55,6 @@ rules:
               - tags
               - externalDocs
               - components
-    description: This rule checks the top-level fields against the template for the declared specification format.
+    description: This rule checks the root object and its own top-level fields against the template for the supported specification format. Root x- extensions are allowed when allowExtensions is true; other unknown or cross-format fields are rejected. This is not a full validation of nested OpenAPI objects.
     status: implemented
     severity: critical
