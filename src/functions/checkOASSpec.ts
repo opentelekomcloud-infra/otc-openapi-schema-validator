@@ -1,6 +1,7 @@
 import type { Diagnostic } from "@codemirror/lint";
 import { isDocumentObject } from "@/lib/openapi/parseNativeOpenApi";
 import { jsonPointer } from "@/lib/openapi/references";
+import { sourceMap } from "@/lib/openapi/sourceMap";
 import {
     classifyForCompliance, complianceDiagnostic, complianceStringList, type ComplianceRule,
 } from "@/utils/compliance";
@@ -12,6 +13,9 @@ export function checkOASSpec(spec: unknown, content: string, rule: ComplianceRul
     const params = rule.call.functionParams ?? {};
     if (params.allowExtensions !== undefined && typeof params.allowExtensions !== "boolean") {
         throw new Error("Compliance functionParams.allowExtensions must be a boolean.");
+    }
+    if (params.checkDuplicateMethods !== undefined && typeof params.checkDuplicateMethods !== "boolean") {
+        throw new Error("Compliance functionParams.checkDuplicateMethods must be a boolean.");
     }
     let formatParams = params;
     if (params.formats !== undefined) {
@@ -45,5 +49,16 @@ export function checkOASSpec(spec: unknown, content: string, rule: ComplianceRul
         }
     }
 
+    if (params.checkDuplicateMethods === true) {
+        for (const duplicate of sourceMap(content).duplicateMethods()) {
+            const methods = duplicate.methods.map(({ method, lines }) =>
+                `${method.toUpperCase()} (${lines.length} declarations; lines ${lines.join(", ")})`).join("; ");
+            diagnostics.push(complianceDiagnostic(
+                content, rule, `Duplicate HTTP methods for path "${duplicate.path}": ${methods}. ` +
+                    "Repeated method keys overwrite earlier declarations; only the last value is used for validation.",
+                duplicate.location,
+            ));
+        }
+    }
     return diagnostics;
 }

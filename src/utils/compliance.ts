@@ -5,17 +5,17 @@ import { getSource } from "@/functions/common";
 import { NativeOpenApiError } from "@/lib/openapi/documentError";
 import { classifyNativeOpenApiDocument } from "@/lib/openapi/parseNativeOpenApi";
 import { jsonPointer } from "@/lib/openapi/references";
-import { sourceMap } from "@/lib/openapi/sourceMap";
+import { sourceMap, type SourceLocation } from "@/lib/openapi/sourceMap";
 import { mapSeverity } from "@/utils/mapSeverity";
 
 export type ComplianceRule = Pick<AutoRule, "id" | "title" | "message" | "severity" | "call">;
 
 export function complianceDiagnostic(
     content: string, rule: ComplianceRule, details: string,
-    pointer = "#", kind: "key" | "value" = "key",
+    location: string | SourceLocation = "#", kind: "key" | "value" = "key",
 ): Diagnostic {
     return {
-        ...sourceMap(content).locate(pointer, kind),
+        ...(typeof location === "string" ? sourceMap(content).locate(location, kind) : location),
         severity: mapSeverity(rule.severity),
         message: `'${rule.message}' ${details}`,
         source: getSource(rule),

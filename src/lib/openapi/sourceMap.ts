@@ -8,6 +8,12 @@ export interface SourceLocation extends SourceRange {
     readonly fallback?: "missing" | "ambiguous" | "invalid-source" | "unresolved-reference";
 }
 
+export interface DuplicateMethodPath {
+    readonly path: string;
+    readonly location: SourceLocation;
+    readonly methods: readonly { readonly method: string; readonly lines: readonly number[] }[];
+}
+
 interface SourceEntry {
     readonly node: unknown;
     readonly key?: unknown;
@@ -217,6 +223,77 @@ export class OpenApiSourceMap {
             isScalar(pair.key) && ["string", "number"].includes(typeof pair.key.value)
                 ? [{ key: String(pair.key.value), pointer: appendPointer(result.entry.pointer, String(pair.key.value)) }] : []);
         return [];
+    }
+
+    duplicateMethods(): readonly DuplicateMethodPath[] {
+        if (this.source.errors.length) throw new Error("Cannot inspect duplicate HTTP methods: the source AST is invalid.");
+        if (!isMap(this.source.contents)) return [];
+        const result: DuplicateMethodPath[] = [];
+        for (const rootPair of this.source.contents.items) {
+            if (!isScalar(rootPair.key) || rootPair.key.value !== "paths") continue;
+            const paths = this.aliases({ node: rootPair.value, key: rootPair.key, pointer: "#/paths" });
+            if (paths.fallback) throw new Error("Cannot inspect duplicate HTTP methods: unresolved paths alias.");
+            if (!isMap(paths.entry.node)) continue;
+            for (const pathPair of paths.entry.node.items) {
+                if (!isScalar(pathPair.key) || typeof pathPair.key.value !== "string" || !pathPair.key.value.startsWith("/")) continue;
+                const path = pathPair.key.value;
+                const pointer = appendPointer("#/paths", path);
+                const pending: SourceEntry[] = [{ node: pathPair.value, key: pathPair.key, pointer }];
+                const visited = new Set<object>();
+                const duplicates = new Map<string, number[]>();
+                while (pending.length) {
+                    const current = this.aliases(pending.pop()!);
+                    if (current.fallback) throw new Error(`Cannot inspect duplicate HTTP methods for "${path}": unresolved Path Item alias.`);
+                    const { entry } = current;
+                    if (!isMap(entry.node) || visited.has(entry.node)) continue;
+                    visited.add(entry.node);
+                    // Overrides across merge sources are not repeated keys within one mapping.
+                    const declarations = new Map<string, number[]>();
+                    const reference = entry.node.items.findLast((pair) => isScalar(pair.key) && pair.key.value === "$ref");
+                    for (const pair of entry.node.items) {
+                        if (!isScalar(pair.key)) continue;
+                        if (typeof pair.key.value === "symbol" && pair.key.source === "<<") {
+                            const sources = isSeq(pair.value) ? pair.value.items : [pair.value];
+                            for (const source of sources) pending.push(this.origin(source, entry));
+                        } else if (pair === reference) {
+                            const ref = isScalar(pair.value) ? pair.value.value : undefined;
+                            if (typeof ref !== "string") {
+                                throw new NativeReferenceError("INVALID_REFERENCE", ref, entry.pointer, "Expected a Path Item reference string");
+                            }
+                            referenceTokens(ref, entry.pointer);
+                            const target = this.lookup(ref, true);
+                            if (target.fallback) {
+                                throw new NativeReferenceError(
+                                    "UNRESOLVED_REFERENCE", ref,
+                                    entry.pointer, "Cannot inspect duplicate HTTP methods through this Path Item reference",
+                                );
+                            }
+                            pending.push(target.entry);
+                        } else if (typeof pair.key.value === "string" && /^(get|put|post|delete|options|head|patch|trace)$/.test(pair.key.value)) {
+                            if (!pair.key.range) throw new Error("HTTP method declaration has no source range.");
+                            const lines = declarations.get(pair.key.value) ?? [];
+                            lines.push(sourceLineNumber(this.content, pair.key.range[0]));
+                            declarations.set(pair.key.value, lines);
+                        }
+                    }
+                    for (const [method, lines] of declarations) {
+                        if (lines.length > 1) duplicates.set(method, [...(duplicates.get(method) ?? []), ...lines]);
+                    }
+                }
+                if (!duplicates.size) continue;
+                if (!pathPair.key.range) throw new Error("Path declaration has no source range.");
+                result.push({
+                    path,
+                    location: {
+                        from: pathPair.key.range[0], to: pathPair.key.range[1], pointer,
+                        lineNumber: sourceLineNumber(this.content, pathPair.key.range[0]),
+                    },
+                    methods: [...duplicates].map(([method, lines]) => ({ method, lines: lines.sort((a, b) => a - b) }))
+                        .sort((a, b) => a.lines[0] - b.lines[0]),
+                });
+            }
+        }
+        return result;
     }
 
     parameter(path: string, method: string, name: string, location?: string): SourceLocation {
