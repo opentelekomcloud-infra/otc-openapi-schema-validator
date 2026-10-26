@@ -30,6 +30,6 @@ rules:
       functionParams:
         methods: ["get"]
         defaultValue: "1000"
-    description: This rule checks if 'limit' is not specified, a default of 1000 records must be assumed
+    description: Check the configured default only when an effective query limit is declared, including inherited parameters and local refs. Read native Swagger parameter.default or OpenAPI parameter schema/content, preserving string-equivalent comparison and same-level duplicate declarations. An absent limit does not trigger the check.
     status: implemented
     severity: medium

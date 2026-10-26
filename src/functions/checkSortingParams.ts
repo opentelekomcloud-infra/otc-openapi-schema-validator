@@ -2,7 +2,10 @@ import { Diagnostic } from "@codemirror/lint";
 import { getSource } from "@/functions/common";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodParametersPositionInYaml } from "@/utils/pos";
-import { collectQueryParams } from "@/utils/scan";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
+import { appendPointer } from "@/lib/openapi/references";
+import { queryParameters, queryParameterSchema } from "@/utils/nativeQuery";
+import { ruleOperations } from "@/utils/nativeRule";
 
 type SortingMode = {
   trigger: string;
@@ -14,6 +17,7 @@ type SortingMode = {
   enforceOrder: boolean;
   disallowOtherSortParams: boolean;
   checkEnums: boolean;
+  defaultDirNotAllowed: boolean;
 };
 
 function normalizeMode(fp: any): SortingMode {
@@ -58,6 +62,7 @@ function normalizeMode(fp: any): SortingMode {
     enforceOrder,
     disallowOtherSortParams,
     checkEnums,
+    defaultDirNotAllowed: Boolean(fp?.defaultDirNotAllowed),
   };
 }
 
@@ -69,7 +74,7 @@ function normalizeMode(fp: any): SortingMode {
  * - If either sorting parameter is used, the other must also be present (requireTogether).
  * - If both are present, they should appear in the order `sort_key`, then `sort_dir` (enforceOrder).
  * - `sort_dir` must allow only configured values (default: asc/desc) when enums are provided (checkEnums).
- * - `sort_dir` must specify a default direction (defaultDir) via `schema.default`.
+ * - `sort_dir` uses native enum/default or forbids defaults when configured.
  * - Optionally disallow other sorting-like parameters when sorting is used.
  */
 export function checkSortingParams(spec: any, content: string, rule: any): Diagnostic[] {
@@ -85,96 +90,71 @@ export function checkSortingParams(spec: any, content: string, rule: any): Diagn
     ? fp.methods.map((m: any) => String(m).toLowerCase())
     : ["get"];
 
-  for (const path in spec.paths) {
-    const pathItem = spec.paths[path];
-    if (!pathItem || typeof pathItem !== "object") continue;
-
-    const methodKeys = methodsToCheck.length > 0
-      ? methodsToCheck
-      : Object.keys(pathItem).map((m) => String(m).toLowerCase());
-
-    for (const method of methodKeys) {
-      const operation = (pathItem as any)[method];
-      if (!operation || typeof operation !== "object") continue;
-
-      const qParams = collectQueryParams(pathItem, operation, spec, refCache);
-      if (qParams.length === 0) continue;
-
-      const namesSet = new Set(qParams.map((p) => p.name));
-      const hasKey = namesSet.has(mode.key);
-      const hasDir = namesSet.has(mode.dir);
-
-      // If sorting isn't used at all, do nothing.
-      if (!hasKey && !hasDir) continue;
-
-      const missing: string[] = [];
-      const issues: string[] = [];
-
-      // Must be together
-      if (mode.requireTogether) {
-        if (hasKey && !hasDir) missing.push(mode.dir);
-        if (hasDir && !hasKey) missing.push(mode.key);
-      }
-
-      // Order check
-      if (mode.enforceOrder && hasKey && hasDir) {
-        const keyIdx = qParams.find((p) => p.name === mode.key)?.index ?? -1;
-        const dirIdx = qParams.find((p) => p.name === mode.dir)?.index ?? -1;
-        if (keyIdx >= 0 && dirIdx >= 0 && keyIdx > dirIdx) {
-          issues.push(`Sorting parameter order must be '${mode.key}' then '${mode.dir}'.`);
-        }
-      }
-
-      // Disallow other sorting-like params
-      if (mode.disallowOtherSortParams) {
-        const allowed = new Set([mode.key, mode.dir]);
-        const otherSortLike = qParams
-          .map((p) => p.name)
-          .filter((n) => !allowed.has(n))
-          .filter((n) => n.startsWith("sort") || n.includes("order"));
-        if (otherSortLike.length > 0) {
-          issues.push(`Sorting must use only '${mode.key}' and '${mode.dir}'. Found: ${Array.from(new Set(otherSortLike)).join(", ")}.`);
-        }
-      }
-
-      // sort_dir allowed values and default
-      if (hasDir) {
-        const dirParam = qParams.find((p) => p.name === mode.dir)?.raw;
-        const schema = (dirParam as any)?.schema;
-
-        if (mode.checkEnums && schema && Array.isArray(schema.enum)) {
-          const bad = (schema.enum as any[])
-            .map((v) => String(v).toLowerCase())
-            .filter((v) => !mode.allowedDirValues.includes(v));
-          if (bad.length > 0) {
-            issues.push(`'${mode.dir}' enum contains invalid value(s): ${Array.from(new Set(bad)).join(", ")}. Allowed: ${mode.allowedDirValues.join(", ")}.`);
-          }
-        }
-
-        if (mode.defaultDir) {
-          const def = schema?.default;
-          if (def === undefined || String(def).toLowerCase() !== mode.defaultDir) {
-            issues.push(`'${mode.dir}' must have default '${mode.defaultDir}'.`);
-          }
-        }
-      }
-
-      if (missing.length === 0 && issues.length === 0) continue;
-
-      const { start, end } = findMethodParametersPositionInYaml(content, path, method);
-      const details = [
-        missing.length > 0 ? `Missing required query parameter(s): ${missing.join(", ")}.` : "",
-        ...issues,
-      ].filter(Boolean);
-
-      diagnostics.push({
-        from: start,
-        to: end,
-        severity: mapSeverity(rule.severity),
-        message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message}. ${details.join(" ")}`,
-        source: getSource(rule),
-      });
+  for (const op of ruleOperations(spec, methodsToCheck.length ? { methods: methodsToCheck } : {})) {
+    const { path, method } = op;
+    const qParams = queryParameters(op, spec, refCache);
+    if (qParams.length === 0) continue;
+    const namesSet = new Set(qParams.map((parameter) => parameter.name));
+    const hasKey = namesSet.has(mode.key);
+    const hasDir = namesSet.has(mode.dir);
+    if (!hasKey && !hasDir) continue;
+    const missing: string[] = [];
+    const issues: string[] = [];
+    if (mode.requireTogether) {
+      if (hasKey && !hasDir) missing.push(mode.dir);
+      if (hasDir && !hasKey) missing.push(mode.key);
     }
+    if (mode.enforceOrder && hasKey && hasDir) {
+      const keyIdx = qParams.find((parameter) => parameter.name === mode.key)?.index ?? -1;
+      const dirIdx = qParams.find((parameter) => parameter.name === mode.dir)?.index ?? -1;
+      if (keyIdx >= 0 && dirIdx >= 0 && keyIdx > dirIdx) {
+        issues.push(`Sorting parameter order must be '${mode.key}' then '${mode.dir}'.`);
+      }
+    }
+    if (mode.disallowOtherSortParams) {
+      const allowed = new Set([mode.key, mode.dir]);
+      const otherSortLike = qParams.map((parameter) => parameter.name)
+        .filter((name) => !allowed.has(name) && (name.startsWith("sort") || name.includes("order")));
+      if (otherSortLike.length > 0) {
+        issues.push(`Sorting must use only '${mode.key}' and '${mode.dir}'. Found: ${Array.from(new Set(otherSortLike)).join(", ")}.`);
+      }
+    }
+    if (hasDir && (mode.checkEnums || mode.defaultDirNotAllowed || mode.defaultDir)) {
+      const parameter = qParams.find((query) => query.name === mode.dir);
+      const declaration = parameter ? queryParameterSchema(parameter, spec, refCache) : undefined;
+      const schema = declaration?.node;
+      if (mode.checkEnums && declaration && schema?.enum !== undefined && !Array.isArray(schema.enum)) {
+        throw new NativeAccessorError("INVALID_SCHEMA", appendPointer(declaration.pointer, "enum"), "Expected an enum array");
+      }
+      if (mode.checkEnums && schema && Array.isArray(schema.enum)) {
+        const bad = schema.enum.map((value) => String(value).toLowerCase())
+          .filter((value) => !mode.allowedDirValues.includes(value));
+        if (bad.length > 0) {
+          issues.push(`'${mode.dir}' enum contains invalid value(s): ${Array.from(new Set(bad)).join(", ")}. Allowed: ${mode.allowedDirValues.join(", ")}.`);
+        }
+      }
+      if (mode.defaultDirNotAllowed) {
+        if (schema && Object.hasOwn(schema, "default")) issues.push(`'${mode.dir}' must not declare a default value.`);
+      } else if (mode.defaultDir) {
+        const value = schema?.default;
+        if (value === undefined || String(value).toLowerCase() !== mode.defaultDir) {
+          issues.push(`'${mode.dir}' must have default '${mode.defaultDir}'.`);
+        }
+      }
+    }
+    if (missing.length === 0 && issues.length === 0) continue;
+    const { start, end } = findMethodParametersPositionInYaml(content, path, method);
+    const details = [
+      missing.length > 0 ? `Missing required query parameter(s): ${missing.join(", ")}.` : "",
+      ...issues,
+    ].filter(Boolean);
+    diagnostics.push({
+      from: start,
+      to: end,
+      severity: mapSeverity(rule.severity),
+      message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message}. ${details.join(" ")}`,
+      source: getSource(rule),
+    });
   }
 
   return diagnostics;

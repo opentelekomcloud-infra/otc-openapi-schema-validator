@@ -637,7 +637,7 @@ export const scenarios = {
     sorting: {
         positive: "sort_key precedes sort_dir; asc/desc enum and asc default",
         negative: "sort_dir enum contains sideways",
-        message: "enum contains invalid value", nativeV2: { task: "T13", reason: "v2 enum/default are read from param.schema." },
+        message: "enum contains invalid value",
         prepare: ({ operation, dialect, variant }) => {
             operation.parameters = [
                 parameter(dialect, "sort_key", "query"),

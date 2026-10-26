@@ -8,7 +8,7 @@ rules:
       function: checkURIFilterParams
       functionParams:
         methods: ["get"]
-    description: This rule checks if the fields to be filtered in URI Path are displayed in Response, the fields must be the same.
+    description: Check effective native path parameters against response 200 only, including Path Item, parameter, response and schema refs. Preserve JSON/problem+json then first-media selection, nested objects/items/maps/compositions, case-insensitive fallback and no-schema skip. Query parameters and other success statuses are not added to this rule.
     status: implemented
     severity: medium
 

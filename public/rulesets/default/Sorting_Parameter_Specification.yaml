@@ -2,6 +2,7 @@ rules:
   - id: "FIL-030-01-2507-2507-M"
     title: "Sorting Parameters Consistency Check"
     message: "Sorting must use sort_key and sort_dir with valid values and defaults."
+    description: Check effective native query parameters and Swagger enum/default or OpenAPI schema/content refs. Preserve inherited insertion slots after overrides, legacy configuration aliases and optional enum checks. defaultDirNotAllowed forbids an explicitly declared native default and takes precedence over defaultDir.
     option: Mandatory
     location: path
     call:
