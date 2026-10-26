@@ -15,7 +15,7 @@ rules:
           - "get"
           - "put"
           - "delete"
-    description: This rule checks whether each resource creation operation (POST) has all related CRUD operations (GET, PUT, DELETE).
+    description: Check real native operations and local Path Item references for same-path CRUD coverage, preserving configured creation, required, optional and exception policies.
     status: implemented
     severity: high
   
@@ -31,7 +31,7 @@ rules:
       functionParams:
         method: "get"
         requiredStatusCode: "200"
-    description: Check status code for successfully GET operation. It should be 200.
+    description: Check configured success-code presence for selected native operations, including local Path Item references, without resolving response payload schemas.
     status: implemented
     severity: critical
 

@@ -3,6 +3,9 @@ import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
 import { resolveRefDeep } from "@/utils/schema";
 import { objectRange } from "@/lib/openapi/sourceMap";
+import { classifyNativeOpenApiDocument } from "@/lib/openapi/parseNativeOpenApi";
+import { getNativeSchemas } from "@/lib/openapi/schemas";
+import { isRecord } from "@/lib/openapi/references";
 
 export function checkTimeZoneFormat(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -18,12 +21,7 @@ export function checkTimeZoneFormat(spec: any, content: string, rule: any): Diag
     if (!namesArr.length || !preferredFormatStr) return diagnostics;
 
     const parameterNames = new Set(namesArr.map((s) => String(s).trim().toLowerCase()));
-    let preferredRe: RegExp;
-    try {
-        preferredRe = new RegExp(preferredFormatStr);
-    } catch {
-        return diagnostics;
-    }
+    const preferredRe = new RegExp(preferredFormatStr);
 
     const reported = new Set<string>();
     const refCache = new Map<string, any>();
@@ -46,15 +44,9 @@ export function checkTimeZoneFormat(spec: any, content: string, rule: any): Diag
         });
     }
 
-    // Simple scan: components.schemas -> schema.properties -> time fields
-    const schemasObj = spec.components.schemas;
-    for (const [schemaNameRaw, schemaDef] of Object.entries<any>(schemasObj)) {
-        const schemaName = String(schemaNameRaw);
-        const schema = resolveRefDeep(schemaDef, refCache, spec);
-        if (!schema || typeof schema !== "object") continue;
-
+    for (const { name: schemaName, node: schema } of getNativeSchemas(classifyNativeOpenApiDocument(spec), refCache)) {
         const props = schema.properties;
-        if (!props || typeof props !== "object") continue;
+        if (!isRecord(props)) continue;
 
         const propKeyByLower = new Map<string, string>();
         for (const k of Object.keys(props)) {

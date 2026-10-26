@@ -2,6 +2,7 @@ import {Diagnostic} from "@codemirror/lint";
 import {mapSeverity} from "@/utils/mapSeverity";
 import {findInvalidPercentEscape} from "@/utils/strings";
 import { pathRange } from "@/lib/openapi/sourceMap";
+import { rulePathKeys } from "@/utils/nativeRule";
 
 export function checkURIContentSpecial(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -20,7 +21,7 @@ export function checkURIContentSpecial(spec: any, content: string, rule: any): D
         return diagnostics;
     }
 
-    const paths: string[] = Object.keys(spec.paths || {});
+    const paths = rulePathKeys(spec);
 
     const mkMessage = (path: string, detail?: string) => {
         const base = rule?.message || rule?.title || 'URI contains forbidden special characters.';

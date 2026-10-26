@@ -2,6 +2,7 @@ import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { rulePathKeys } from "@/utils/nativeRule";
 
 function getByteLength(str: string): number {
     if (typeof TextEncoder !== "undefined") {
@@ -26,7 +27,7 @@ export function checkURILength(spec: any, content: string, rule: any): Diagnosti
 
     const maxLength: number = rule?.call.functionParams?.maxLength ?? 2048;
 
-    for (const pathKey of Object.keys(spec.paths)) {
+    for (const pathKey of rulePathKeys(spec)) {
         // Encode the path as a URI and measure its byte length (UTF-8)
         const encoded = encodeURI(pathKey);
         const lengthBytes = getByteLength(encoded);

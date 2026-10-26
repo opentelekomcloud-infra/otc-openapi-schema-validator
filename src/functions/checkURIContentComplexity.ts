@@ -2,6 +2,7 @@ import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { rulePathKeys } from "@/utils/nativeRule";
 
 export function checkURIContentComplexity(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -44,7 +45,7 @@ export function checkURIContentComplexity(spec: any, content: string, rule: any)
         return null;
     }
 
-    for (const pathKey of Object.keys(spec.paths)) {
+    for (const pathKey of rulePathKeys(spec)) {
         const depth = computeDepth(pathKey);
         const dynamicSeverity = severityForDepth(depth);
         if (!dynamicSeverity) continue;

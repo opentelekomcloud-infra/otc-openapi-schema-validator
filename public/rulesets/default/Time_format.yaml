@@ -21,7 +21,7 @@ rules:
           - "end_time"
           - "read_time"
         preferredFormat: "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,6})?(Z|[\\+\\-]\\d{2}:\\d{2})$"
-    description: This rule checks time format of date-time elements.
+    description: This rule checks configured direct time-property examples in native Swagger 2.0 definitions and OpenAPI 3.0 schemas, accepting the preferred format or parseable date strings.
     status: implemented
     severity: high
 
@@ -53,6 +53,6 @@ rules:
           - "delete_time"
           - "expire_time"
           - "begin_time"
-    description: This rule checks whether fields include the '_time' suffix and follow naming convention recommendations.
+    description: This rule checks time-related parameter and payload property names in native Swagger 2.0 and OpenAPI 3.0 schemas against the configured naming recommendations.
     status: implemented
     severity: medium

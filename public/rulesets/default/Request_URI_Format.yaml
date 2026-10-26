@@ -34,7 +34,7 @@ rules:
       function: checkURILength
       functionParams:
         maxLength: 2048
-    description: Check Length of the URI path whether it exceeds 2048 chars.
+    description: Check encoded native path-key byte length against the configured limit, excluding Paths Object extensions and without joining basePath or servers.
     status: implemented
     severity: critical
 
@@ -50,7 +50,7 @@ rules:
       functionParams:
         checkAbreviations: True
         checkDictionary: True
-    description: Check whether URI contains common abbreviations and/or correct words
+    description: Check native path keys using the shared ready abbreviation dictionary in UI and API. Exclude Paths Object extensions; custom allowed abbreviations apply only to this rule, without changing lexical heuristics.
     status: implemented
     severity: critical
 
@@ -67,7 +67,7 @@ rules:
         requiredPathRegexp:
           - '^/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\})(?:/(?:[a-z0-9]+(?:-[a-z0-9]+)*|\{[a-z0-9_]+\}))*$'
         checkInvalidPercentEscape: true
-    description: Check whether URI contains only lowercase characters separated by hyphens
+    description: Check native path keys against the configured syntax and percent-escape policy, excluding Paths Object extensions.
     status: implemented
     severity: critical
 
@@ -93,7 +93,7 @@ rules:
         forbiddenChars:
           - '.#?;:$+@&='
         checkInvalidPercentEscape: true
-    description: Check whether URI contains some forbidden special characters.
+    description: Check native path keys for configured forbidden characters and invalid percent escapes, excluding Paths Object extensions and preserving individual findings.
     status: implemented
     severity: critical
 
@@ -110,7 +110,7 @@ rules:
       function: checkURIContentUnicode
       functionParams:
         checkInvalidPercentEscape: true
-    description: Check whether URI contains unicode characters
+    description: Check native path keys for Unicode characters and configured invalid percent escapes, excluding Paths Object extensions.
     status: implemented
     severity: critical
 
@@ -166,7 +166,7 @@ rules:
           - "kms"
           - "oss"
         exception: "Non-CRUD operations which use verb at the end of URI. Mostly POST or PUT HTTP methods"
-    description: Check whether resource name in URI is in plural for CRUD operation APIs
+    description: Check resource plurals for real native CRUD operations, including local Path Item references. Preserve verb-tail and singular exceptions and the existing five-method scope.
     status: implemented
     severity: critical
 
@@ -188,6 +188,6 @@ rules:
           - medium: 4
           - high: 5
           - critical: 6
-    description: Check whether URI path doesn't contain too many nested delimitations with "/"
+    description: Check native path-key resource depth against the configured severity thresholds, excluding Paths Object extensions and preserving version and parameter exclusions.
     status: implemented
     severity: high

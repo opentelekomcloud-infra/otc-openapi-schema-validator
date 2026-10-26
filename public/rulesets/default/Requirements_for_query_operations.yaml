@@ -28,7 +28,7 @@ rules:
     title: "Cloud services must provide APIs for querying their own service quotas."
     message: Service must expose a quota query endpoint like GET /v1/quotas.
     option: Mandatory
-    description: Checks that a service exposes a quota query endpoint, e.g. GET /v1/quotas.
+    description: Check that a real native quota operation exists, including local Path Item references. Preserve configured path and method matching, excluding unrelated paths before reference resolution.
     location: paths
     element: path
     call:

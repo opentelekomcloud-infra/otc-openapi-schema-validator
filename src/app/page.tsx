@@ -13,7 +13,6 @@ import { exportJUnit, exportPDF, exportReportPortal } from "@/utils/export";
 import { getSeverityLabel, severityToDiagnosticMap } from "@/utils/mapSeverity";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
-import { loadAllowedAbbreviationsFromApi } from "@/utils/englishWords";
 import AuthButtons from "@/components/AuthButtons";
 
 declare module 'react' {
@@ -86,10 +85,6 @@ const HomePage = () => {
       }, 0);
       return { selectedManualRulesCount: selected, totalManualRulesCount: total };
     }, [manualRules]);
-
-  useEffect(() => {
-      loadAllowedAbbreviationsFromApi();
-    }, []);
 
     useEffect(() => {
       const calc = () => {

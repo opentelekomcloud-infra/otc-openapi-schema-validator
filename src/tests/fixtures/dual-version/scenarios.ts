@@ -106,7 +106,6 @@ interface Scenario {
     prepare: (input: ScenarioInput) => void;
 }
 
-const bodyGap = (task: string) => ({ task: `T06/${task}`, reason: "Native body/response schema access is not implemented." });
 const baselineGap = { task: "T18", reason: "Both baseline and current schemas must be read in their native dialects." };
 
 export const scenarios = {
@@ -650,14 +649,13 @@ export const scenarios = {
     timestamp: {
         positive: "created_at has an ISO 8601 example", negative: "created_at example is not a date",
         message: 'Found example for "created_at"',
-        nativeV2: { task: "T15", reason: "Function dereferences components.schemas instead of native definitions." },
         prepare: ({ definitions, variant }) => {
             if (variant === "negative") object(object(object(definitions.Resource).properties).created_at).example = "not-a-date";
         },
     },
     timeName: {
         positive: "schema uses created_at", negative: "schema uses deprecated create_time",
-        message: 'Found "create_time"', nativeV2: bodyGap("T15"),
+        message: 'Found "create_time"',
         prepare: ({ definitions, variant }) => {
             if (variant === "negative") {
                 const props = object(object(definitions.Resource).properties);

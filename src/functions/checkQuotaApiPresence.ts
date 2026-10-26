@@ -1,6 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { ruleOperations, rulePathKeys } from "@/utils/nativeRule";
 
 /**
  * QUE-050-01-2507-2507-M
@@ -47,13 +48,10 @@ export function checkQuotaApiPresence(spec: any, content: string, rule: any): Di
     }
 
     let found = false;
-    for (const pathKey of Object.keys(spec.paths)) {
+    for (const pathKey of rulePathKeys(spec)) {
         if (!matchesQuotaPath(pathKey)) continue;
 
-        const pathItem = spec.paths[pathKey];
-        if (!pathItem || typeof pathItem !== "object") continue;
-
-        if (pathItem[method]) {
+        if (ruleOperations(spec, { methods: [method] }, (path) => path === pathKey).length) {
             found = true;
             break;
         }

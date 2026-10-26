@@ -3,6 +3,7 @@ import {mapSeverity} from "@/utils/mapSeverity";
 import {findInvalidPercentEscape} from "@/utils/strings";
 import {getSource} from "@/functions/common";
 import { pathRange } from "@/lib/openapi/sourceMap";
+import { rulePathKeys } from "@/utils/nativeRule";
 
 export function checkURIContentUnicode(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -19,7 +20,7 @@ export function checkURIContentUnicode(spec: any, content: string, rule: any): D
             : `${idPrefix}${base}\nPath: ${path}`;
     };
 
-    for (const pathKey of Object.keys(spec.paths || {})) {
+    for (const pathKey of rulePathKeys(spec)) {
         if (checkInvalidPercentEscape) {
             const invalid = findInvalidPercentEscape(pathKey);
             if (invalid) {

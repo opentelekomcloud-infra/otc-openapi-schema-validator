@@ -3,6 +3,7 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { splitPathIntoTokens, looksLikeAbbreviation, looksLikeUnknownWord, getAllowedAbbreviations } from "@/utils/englishWords";
 import {getSource} from "@/functions/common";
+import { rulePathKeys } from "@/utils/nativeRule";
 
 export function checkURIContentDictionary(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -20,7 +21,7 @@ export function checkURIContentDictionary(spec: any, content: string, rule: any)
         }
     }
     // console.debug("allowedAbbrevs size:", allowedAbbrevs.size, "values:", Array.from(allowedAbbrevs));
-    for (const pathKey of Object.keys(spec.paths)) {
+    for (const pathKey of rulePathKeys(spec)) {
 
         const tokens = splitPathIntoTokens(pathKey);
 
@@ -36,7 +37,7 @@ export function checkURIContentDictionary(spec: any, content: string, rule: any)
                 }
             }
 
-            if (checkDictionary && looksLikeUnknownWord(token)) {
+            if (checkDictionary && looksLikeUnknownWord(token, allowedAbbrevs)) {
                 if (!suspiciousWords.includes(token)) {
                     suspiciousWords.push(token);
                 }

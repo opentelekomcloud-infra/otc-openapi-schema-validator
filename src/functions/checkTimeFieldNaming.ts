@@ -2,8 +2,12 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
 import { objectRange } from "@/lib/openapi/sourceMap";
-import type { SourceRange } from "@/types/openapi";
-import { resolveRefDeep } from "@/utils/schema";
+import type { NativeParameterSchema, SourceRange } from "@/types/openapi";
+import { classifyNativeOpenApiDocument } from "@/lib/openapi/parseNativeOpenApi";
+import { getNativeSchemas } from "@/lib/openapi/schemas";
+import { namingSchemas, schemaNameFields } from "@/utils/nativeNaming";
+import { ruleOperations, ruleParameterNodes, ruleRequest } from "@/utils/nativeRule";
+import { responseFor, responseStatuses } from "@/utils/nativeResponse";
 
 export function checkTimeFieldNaming(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -99,87 +103,31 @@ export function checkTimeFieldNaming(spec: any, content: string, rule: any): Dia
         }
     }
 
-    // Walk schemas and validate property keys
-    function schemaWalk(schema: any, seen = visitedSchemas) {
-        const s = resolveRefDeep(schema, refCache, spec);
-        if (!s || typeof s !== "object") return;
-        if (seen.has(s as object)) return;
-        seen.add(s as object);
-
-        if (s.allOf && Array.isArray(s.allOf)) for (const sub of s.allOf) schemaWalk(sub, seen);
-        if (s.oneOf && Array.isArray(s.oneOf)) for (const sub of s.oneOf) schemaWalk(sub, seen);
-        if (s.anyOf && Array.isArray(s.anyOf)) for (const sub of s.anyOf) schemaWalk(sub, seen);
-
-        if (s.properties && typeof s.properties === "object") {
-            for (const [k, v] of Object.entries<any>(s.properties)) {
-                evaluateName(k, objectRange(spec, content, s.properties, k));
-                schemaWalk(v, seen);
-            }
-        }
-
-        if (s.items) schemaWalk(s.items, seen);
-        if (s.additionalProperties && typeof s.additionalProperties === "object") schemaWalk(s.additionalProperties, seen);
-    }
-
-    // Scan operations: parameters + request/response schemas.
-    if (spec.paths && typeof spec.paths === "object") {
-        for (const pathKey of Object.keys(spec.paths)) {
-            const pathItem = spec.paths[pathKey];
-            if (!pathItem || typeof pathItem !== "object") continue;
-
-            for (const method of Object.keys(pathItem)) {
-                const m = String(method).trim().toLowerCase();
-                // Only HTTP methods
-                if (!pathItem[m] || typeof pathItem[m] !== "object") continue;
-                if (!/[a-z]+/.test(m)) continue;
-
-                const operation = pathItem[m];
-
-                // parameters (path-level + op-level)
-                const allParams: any[] = [];
-                if (Array.isArray(pathItem.parameters)) allParams.push(...pathItem.parameters);
-                if (Array.isArray(operation.parameters)) allParams.push(...operation.parameters);
-
-                for (const p of allParams) {
-                    const resolved = resolveRefDeep(p, refCache, spec);
-                    const name = resolved?.name;
-                    if (typeof name !== "string") continue;
-
-                    evaluateName(name, objectRange(spec, content, resolved, "name", "value"));
-                }
-
-                // requestBody schemas
-                if (operation.requestBody) {
-                    const rb = resolveRefDeep(operation.requestBody, refCache, spec);
-                    const contentObj = rb?.content;
-                    if (contentObj && typeof contentObj === "object") {
-                        for (const media of Object.values<any>(contentObj)) {
-                            if (media?.schema) schemaWalk(media.schema);
-                        }
-                    }
-                }
-
-                // response schemas
-                if (operation.responses && typeof operation.responses === "object") {
-                    for (const resp of Object.values<any>(operation.responses)) {
-                        const r = resolveRefDeep(resp, refCache, spec);
-                        const contentObj = r?.content;
-                        if (contentObj && typeof contentObj === "object") {
-                            for (const media of Object.values<any>(contentObj)) {
-                                if (media?.schema) schemaWalk(media.schema);
-                            }
-                        }
-                    }
-                }
-            }
+    function schemaWalk(schema: NativeParameterSchema) {
+        for (const field of schemaNameFields(schema, spec, refCache, {
+            maps: true, compositionsFirst: true, visited: visitedSchemas,
+        })) {
+            evaluateName(field.name, objectRange(spec, content, field.owner, field.name));
         }
     }
 
-    // Global scan of components.schemas (location: all)
-    if (spec.components?.schemas && typeof spec.components.schemas === "object") {
-        for (const schemaDef of Object.values<any>(spec.components.schemas)) {
-            schemaWalk(schemaDef);
+    const native = classifyNativeOpenApiDocument(spec);
+    for (const op of ruleOperations(spec, {})) {
+        for (const { parameter } of ruleParameterNodes(op, spec, refCache)) {
+            if (native.dialect === "swagger2" && parameter.in === "body") continue;
+            evaluateName(String(parameter.name), objectRange(spec, content, parameter, "name", "value"));
         }
+        for (const schema of namingSchemas(ruleRequest(op, spec, refCache), spec, refCache, true)) {
+            schemaWalk(schema);
+        }
+        for (const status of responseStatuses(op)) {
+            for (const schema of namingSchemas(responseFor(op, status, spec, refCache), spec, refCache, true)) {
+                schemaWalk(schema);
+            }
+        }
+    }
+    for (const { node, resolvedPointer } of getNativeSchemas(native, refCache)) {
+        schemaWalk({ node, pointer: resolvedPointer });
     }
 
     return diagnostics;

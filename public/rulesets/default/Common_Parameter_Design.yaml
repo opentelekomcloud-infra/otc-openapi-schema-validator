@@ -68,6 +68,6 @@ rules:
           - "host_group_tag"
           - "access_config_tag_list"
           - "access_config_tag_list"
-    description: Check effective native parameters, body/formData fields, response schemas and inline examples with local references in Swagger 2 and OpenAPI 3. A Swagger body parameter name is a container, not a payload field. Existing allow/deny lists, dictionary heuristics, all-media scope and per-operation name deduplication are preserved.
+    description: Check effective native parameters, body/formData fields, response schemas and inline examples with local references in Swagger 2 and OpenAPI 3. A Swagger body parameter name is a container, not a payload field. Preserve allow/deny lists, lexical heuristics, all-media scope and per-operation name deduplication; UI and API initialize the same shared abbreviation dictionary before validation.
     status: implemented
     severity: critical

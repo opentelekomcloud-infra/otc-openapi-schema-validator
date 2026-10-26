@@ -38,6 +38,11 @@ export function ruleOperations(
         params.methods === undefined ? undefined : ruleStrings(params.methods, "methods"), pathFilter);
 }
 
+export function rulePathKeys(spec: unknown): string[] {
+    const document = ruleDocument(spec);
+    return isRecord(document.paths) ? Object.keys(document.paths).filter((path) => path.startsWith("/")) : [];
+}
+
 function validateParameterLists(op: NativeOperation, spec: unknown, cache: ReferenceCache): void {
     for (const [parent, pointer] of [[op.pathItem, op.resolvedPathItemPointer], [op.operation, op.pointer]] as const) {
         if (parent.parameters === undefined) continue;

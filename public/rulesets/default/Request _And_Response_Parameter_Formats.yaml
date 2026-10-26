@@ -2,7 +2,7 @@ rules:
   - id: "ARG-010-01-2507-2509-M"
     title: "Request and Response Parameter Naming Convention"
     message: "Request and response parameters must use snake_case with lowercase letters, and tokens should be valid English words or approved abbreviations."
-    description: "Check effective native parameters and actual request/response schema property names, including Swagger body/formData and local reusable requestBody/schema references. Body container names and HTTP headers are excluded. Preserve naming/token policies and exact JSON then first-media schema selection; dictionary initialization is unchanged."
+    description: "Check effective native parameters and actual request/response schema property names, including Swagger body/formData and local reusable requestBody/schema references. Body container names and HTTP headers are excluded. Preserve naming/token policies and exact JSON then first-media selection; UI and API initialize the same shared abbreviation dictionary before validation."
     option: Mandatory
     location: paths
     element:
@@ -71,7 +71,7 @@ rules:
   - id: "ARG-060-01-2507-2507-O"
     title: "Root Body Parameter Should Match Resource Type"
     message: "The root body parameter name should match the resource type, using singular form for single resources and plural form for collections."
-    description: "Check native Swagger body/formData and response.schema or OpenAPI content schemas, including local references. Preserve top-level singular/plural heuristics, method/2xx scopes, wrapper exceptions, English-word safety and exact JSON then first-media selection; no new allOf inference is applied."
+    description: "Check native Swagger body/formData and response.schema or OpenAPI content schemas, including local references. Preserve top-level singular/plural heuristics, method/2xx scopes, wrappers, English-word safety and exact JSON then first-media selection; initialize the same abbreviation dictionary in UI and API without adding allOf inference."
     option: Optional
     location: paths
     element:

@@ -42,13 +42,13 @@ export function rootSchemaFields(schema: NativeParameterSchema, spec: unknown, c
 export function schemaNameFields(
     schema: NativeParameterSchema, spec: unknown, cache: ReferenceCache,
     options: {
-        readonly maps?: boolean; readonly compositionsFirst?: boolean;
+        readonly maps?: boolean; readonly compositionsFirst?: boolean; readonly visited?: WeakSet<object>;
         readonly visitSchema?: (schema: NativeParameterSchema) => void;
     } = {},
 ): NamedSchemaField[] {
     type Frame = { kind: "schema"; node: unknown; pointer: string } | { kind: "field"; field: NamedSchemaField };
     const pending: Frame[] = [{ kind: "schema", ...schema }];
-    const visited = new WeakSet<object>();
+    const visited = options.visited ?? new WeakSet<object>();
     const fields: NamedSchemaField[] = [];
     while (pending.length) {
         const frame = pending.pop()!;

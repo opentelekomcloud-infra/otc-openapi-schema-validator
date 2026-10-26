@@ -1,7 +1,9 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { functionsMap, runLinter } from '@/lib/linter/runLinter';
+import { functionsMap } from '@/lib/linter/runLinter';
+import { runPreparedLinter } from '@/lib/linter/runPreparedLinter';
+import { loadAllowedAbbreviationsOnServer } from '@/lib/server/abbreviations';
 import { getImplementedRules, loadRuleCatalog } from '@/lib/linter/ruleCatalog';
 import { buildRobotXml } from '@/lib/export/buildRobotXml';
 import { reportPortalClient } from '@/clients/reportportal';
@@ -275,7 +277,7 @@ export default async function handler(
     log.debug('rules selected: ', { manual_selected: manual.length, auto_selected: auto.length });
 
     // Run linter
-    const { diagnostics, specTitle } = await runLinter(specText, auto);
+    const { diagnostics, specTitle } = await runPreparedLinter(specText, auto, loadAllowedAbbreviationsOnServer);
     log.debug('lint done: ', { diagnostics_count: Array.isArray(diagnostics) ? diagnostics.length : 0, specTitle });
     const diagnosticsWithLines = (diagnostics || []).map((d: any) => ({
       ...d,
