@@ -57,7 +57,7 @@ rules:
           - "reset"
           - "change"
         disallowRequestBody: true
-    description: Check whether GET operation has request body or action keywords in path.
+    description: Check native GET body/formData parameters or requestBody references and the configured path keyword substrings. No conversion or MIME assumption is required.
     status: implemented
     severity: critical
 
@@ -76,7 +76,7 @@ rules:
         requiredResponseType: object
         requiredPathRegexp:
           - "^.*id}$"
-    description: Check structure of response body for query of single resource. It should be object.
+    description: Check native response schemas for all 2xx bodies and media types, including reusable responses and local schema references. No-body responses are skipped; an announced body without a schema fails the check.
     status: implemented
     severity: critical
 
@@ -97,7 +97,7 @@ rules:
           - ".*/[^/]*s$"
         exceptionPathRegexp:
           - "^.*status$"
-    description: Check structure of response body for query list of resources. It should be array.
+    description: Check native response schemas for all 2xx bodies, retaining the existing array-like wrapper and plural-required fallback heuristics. This is not strict top-level-array-only validation or new allOf type inference.
     status: implemented
     severity: critical
     

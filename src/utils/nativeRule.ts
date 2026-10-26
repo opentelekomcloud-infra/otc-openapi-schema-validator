@@ -31,9 +31,11 @@ export function ruleDocument(spec: unknown): Record<string, unknown> {
     return spec;
 }
 
-export function ruleOperations(spec: unknown, params: Record<string, unknown>): NativeOperation[] {
+export function ruleOperations(
+    spec: unknown, params: Record<string, unknown>, pathFilter?: (path: string) => boolean,
+): NativeOperation[] {
     return collectDocumentOperations(ruleDocument(spec),
-        params.methods === undefined ? undefined : ruleStrings(params.methods, "methods"));
+        params.methods === undefined ? undefined : ruleStrings(params.methods, "methods"), pathFilter);
 }
 
 function validateParameterLists(op: NativeOperation, spec: unknown, cache: ReferenceCache): void {

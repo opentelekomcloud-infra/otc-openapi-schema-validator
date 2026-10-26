@@ -5,9 +5,11 @@ const quoted = String.raw`"(?:[\t\x20-\x21\x23-\x5b\x5d-\x7e\x80-\xff]|\\[\t\x20
 const parameter = `[ \\t]*;[ \\t]*(${token})[ \\t]*=[ \\t]*(${token}|${quoted})`;
 const mediaType = new RegExp(`^(${token}/${token})((?:${parameter})*)[ \\t]*$`);
 
-export function parseDeclaredMediaType(value: string, pointer: string): {
+export interface DeclaredMediaType {
     readonly base: string; readonly parameters: ReadonlyMap<string, string>;
-} {
+}
+
+export function parseDeclaredMediaType(value: string, pointer: string): DeclaredMediaType {
     const match = mediaType.exec(value);
     if (!match || match[0] !== value) {
         throw new NativeAccessorError("INVALID_DECLARATION", pointer, `Invalid media type: ${value}`);
@@ -22,4 +24,10 @@ export function parseDeclaredMediaType(value: string, pointer: string): {
         parameters.set(name, raw.startsWith('"') ? raw.slice(1, -1).replace(/\\(.)/g, "$1") : raw);
     }
     return { base: match[1].toLowerCase(), parameters };
+}
+
+export function matchesMediaType(actual: DeclaredMediaType, expected: DeclaredMediaType): boolean {
+    return actual.base === expected.base && [...expected.parameters].every(([name, value]) =>
+        name === "charset" ? actual.parameters.get(name)?.toLowerCase() === value.toLowerCase()
+            : actual.parameters.get(name) === value);
 }

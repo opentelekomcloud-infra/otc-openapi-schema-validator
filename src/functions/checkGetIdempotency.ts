@@ -1,38 +1,18 @@
-import { Diagnostic } from "@codemirror/lint";
-import { mapSeverity } from "@/utils/mapSeverity";
-import { findMethodPositionInYaml } from "@/utils/pos";
-import {getSource} from "@/functions/common";
+import type { Diagnostic } from "@codemirror/lint";
+import { configuredBoolean } from "@/utils/nativeResponse";
+import { ruleDiagnostic, ruleOperations, ruleRequest, ruleStrings, type NativeRule } from "@/utils/nativeRule";
 
-export function checkGetIdempotency(spec: any, content: string, rule: any): Diagnostic[] {
+export function checkGetIdempotency(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
+    const params = rule.call.functionParams ?? {};
+    const keywords = ruleStrings(params.disallowedPathKeywords, "disallowedPathKeywords").map((key) => key.toLowerCase());
+    const disallowBody = configuredBoolean(params.disallowRequestBody, "disallowRequestBody", false);
     const diagnostics: Diagnostic[] = [];
-
-    const disallowedPathKeywords: string[] = rule.call.functionParams.disallowedPathKeywords || [];
-    const disallowRequestBody: boolean = rule.call.functionParams.disallowRequestBody === true;
-
-    if (!spec?.paths) return diagnostics;
-
-    for (const path in spec.paths) {
-        const pathItem = spec.paths[path];
-        const operation = pathItem.get;
-        if (!operation || typeof operation !== "object") continue;
-
-        const keywords = disallowedPathKeywords.map(k => k.toLowerCase());
-        const pathLower = path.toLowerCase();
-
-        const hasDisallowedKeyword = keywords.some(keyword => pathLower.includes(keyword));
-        const hasRequestBody = disallowRequestBody && "requestBody" in operation;
-
-        if (hasDisallowedKeyword || hasRequestBody) {
-            const { start, end } = findMethodPositionInYaml(content, path, "get");
-            diagnostics.push({
-                from: start,
-                to: end,
-                severity: mapSeverity(rule.severity),
-                message: rule.message,
-                source: getSource(rule),
-            });
+    const cache = new Map<string, unknown>();
+    for (const op of ruleOperations(spec, { methods: ["get"] })) {
+        if (keywords.some((key) => op.path.toLowerCase().includes(key)) ||
+            (disallowBody && ruleRequest(op, spec, cache).hasBody)) {
+            diagnostics.push(ruleDiagnostic(content, rule, op.pointer));
         }
     }
-
     return diagnostics;
 }

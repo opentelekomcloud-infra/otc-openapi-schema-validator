@@ -454,7 +454,7 @@ export const scenarios = {
     },
     getBody: {
         positive: "GET has no payload", negative: "GET declares a payload",
-        message: "$rule", nativeV2: bodyGap("T11"),
+        message: "$rule",
         prepare: ({ dialect, operation, variant }) => {
             if (variant === "negative") {
                 if (dialect === "swagger2") array(operation.parameters).push({
@@ -468,21 +468,21 @@ export const scenarios = {
     },
     detailObject: {
         positive: "detail GET returns an object", negative: "detail GET returns a string",
-        message: "$rule", detail: true, nativeV2: bodyGap("T11"),
+        message: "$rule", detail: true,
         prepare: ({ response, dialect, variant }) => {
             if (variant === "negative") setResponseSchema(response, dialect, { type: "string" });
         },
     },
     collectionArray: {
         positive: "collection GET returns an object wrapping an array", negative: "collection GET returns a string",
-        message: "$rule", nativeV2: bodyGap("T11"),
+        message: "$rule",
         prepare: ({ response, dialect, variant }) => {
             if (variant === "negative") setResponseSchema(response, dialect, { type: "string" });
         },
     },
     requestMedia: {
         positive: "POST consumes application/json", negative: "POST consumes text/plain",
-        message: "$rule", method: "post", nativeV2: bodyGap("T11"),
+        message: "$rule", method: "post",
         prepare: ({ dialect, operation, variant }) => {
             if (variant === "negative") {
                 if (dialect === "swagger2") operation.consumes = ["text/plain"];
@@ -537,7 +537,7 @@ export const scenarios = {
     },
     responseCount: {
         positive: "collection contains integer count", negative: "collection omits count",
-        message: "$rule", nativeV2: bodyGap("T11"),
+        message: "$rule",
         prepare: ({ definitions, variant }) => {
             if (variant === "negative") {
                 delete object(object(definitions.ResourceList).properties).count;
@@ -553,7 +553,7 @@ export const scenarios = {
     detailTimes: {
         positive: "detail schema exposes both created_at and updated_at",
         negative: "detail schema omits updated_at",
-        message: "$rule", detail: true, nativeV2: bodyGap("T11"),
+        message: "$rule", detail: true,
         prepare: ({ definitions, variant }) => {
             if (variant === "negative") delete object(object(definitions.Resource).properties).updated_at;
         },
@@ -578,7 +578,7 @@ export const scenarios = {
     },
     responseMedia: {
         positive: "POST produces application/json", negative: "POST produces text/plain",
-        message: "$rule", method: "post", nativeV2: bodyGap("T11"),
+        message: "$rule", method: "post",
         prepare: ({ dialect, operation, response, variant }) => {
             if (variant === "negative") {
                 if (dialect === "swagger2") operation.produces = ["text/plain"];

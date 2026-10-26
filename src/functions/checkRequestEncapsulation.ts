@@ -3,8 +3,35 @@ import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
 import { sourceMap } from "@/lib/openapi/sourceMap";
 import { jsonPointer } from "@/lib/openapi/references";
+import { matchesMediaType, parseDeclaredMediaType } from "@/utils/mediaType";
+import { ruleDiagnostic, ruleOperations, ruleRequest, ruleStrings, type NativeRule } from "@/utils/nativeRule";
 
-export function checkRequestEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
+export function checkRequestEncapsulation(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
+    if (rule.element !== undefined && typeof rule.element !== "string") {
+        throw new Error("Request body rule.element must be a string.");
+    }
+    if (typeof rule.element === "string" && rule.element !== "requestBody") {
+        return checkLegacyRequestEncapsulation(spec, content, rule);
+    }
+    const params = rule.call.functionParams ?? {};
+    const allowed = ruleStrings(params.content, "content").map((type) => parseDeclaredMediaType(type, "#"));
+    if (!allowed.length) throw new Error("functionParams.content must not be empty.");
+    const diagnostics: Diagnostic[] = [];
+    const cache = new Map<string, unknown>();
+    for (const op of ruleOperations(spec, {})) {
+        const request = ruleRequest(op, spec, cache);
+        if (!request.hasBody) continue;
+        const declared = request.media.map((entry) => parseDeclaredMediaType(entry.mediaType, entry.pointer));
+        if (!declared.some((type) => allowed.some((expected) => matchesMediaType(type, expected)))) {
+            const pointer = request.mediaTypes.state === "declared" ? request.mediaTypes.pointer
+                : request.kind === "body" ? request.body.resolvedPointer : op.pointer;
+            diagnostics.push(ruleDiagnostic(content, rule, pointer));
+        }
+    }
+    return diagnostics;
+}
+
+function checkLegacyRequestEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
     const requestBodyKey: string = rule.element;
     const contentTypes: string[] = rule.call.functionParams.content || [];

@@ -1,15 +1,14 @@
 rules:
   - id: "COD-040-01-2507-2507-M"
     title: "Response Body JSON, BSON, XML or Octet-Stream Encapsulation"
-    message: "The response body must support JSON, BSON, XML or Octet-Stream encapsulation. If a body is present, the Content-Type header must be application/json, application/bson, application/xml or application/octet-stream."
+    message: "The response body must support JSON, BSON, XML or Octet-Stream encapsulation."
+    description: Check native produces or response.content, not an explicit Content-Type header parameter. Excluded request media skip the operation; excluded response media skip that response. A body without declared media cannot satisfy the rule; no-body responses are skipped.
     option: Mandatory
     location: paths
     element: responses
     call:
       function: checkResponseEncapsulation
       functionParams:
-        headers:
-          - Content-Type
         content:
           - application/json
           - application/bson

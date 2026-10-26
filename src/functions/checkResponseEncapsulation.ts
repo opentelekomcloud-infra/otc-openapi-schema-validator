@@ -2,7 +2,55 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
 import { sourceMap } from "@/lib/openapi/sourceMap";
-import { jsonPointer } from "@/lib/openapi/references";
+import { appendPointer, isRecord, jsonPointer } from "@/lib/openapi/references";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
+import { matchesMediaType, parseDeclaredMediaType, type DeclaredMediaType } from "@/utils/mediaType";
+import { ruleDiagnostic, ruleOperations, ruleRequest, ruleStrings, type NativeRule } from "@/utils/nativeRule";
+import { responseFor, responseStatuses } from "@/utils/nativeResponse";
+
+export function checkResponseEncapsulation(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
+    if (rule.element !== undefined && typeof rule.element !== "string") {
+        throw new Error("Response body rule.element must be a string.");
+    }
+    if (typeof rule.element === "string" && rule.element !== "responses") {
+        return checkLegacyResponseEncapsulation(spec, content, rule);
+    }
+    const params = rule.call.functionParams ?? {};
+    const allowed = ruleStrings(params.content, "content").map((type) => parseDeclaredMediaType(type, "#"));
+    if (!allowed.length) throw new Error("functionParams.content must not be empty.");
+    const excluded = ruleStrings(params.excludeContent, "excludeContent").map((type) => parseDeclaredMediaType(type, "#"));
+    const headers = ruleStrings(params.headers, "headers");
+    const matches = (types: readonly DeclaredMediaType[], patterns: readonly DeclaredMediaType[]) =>
+        types.some((type) => patterns.some((pattern) => matchesMediaType(type, pattern)));
+    const diagnostics: Diagnostic[] = [];
+    const cache = new Map<string, unknown>();
+    for (const op of ruleOperations(spec, params.methods === undefined ? { ...params, methods: [] } : params)) {
+        if (excluded.length) {
+            const request = ruleRequest(op, spec, cache);
+            if (request.hasBody && matches(request.media.map((entry) =>
+                parseDeclaredMediaType(entry.mediaType, entry.pointer)), excluded)) continue;
+        }
+        for (const status of responseStatuses(op)) {
+            const response = responseFor(op, status, spec, cache);
+            if (!response?.hasBody) continue;
+            const media = response.media.map((entry) => parseDeclaredMediaType(entry.mediaType, entry.pointer));
+            if (matches(media, excluded)) continue;
+            let hasHeaders = true;
+            if (headers.length && response.response.node.headers !== undefined) {
+                const block = response.response.node.headers;
+                if (!isRecord(block)) {
+                    throw new NativeAccessorError("INVALID_DECLARATION",
+                        appendPointer(response.response.resolvedPointer, "headers"), "Expected a headers object");
+                }
+                hasHeaders = !Object.keys(block).length || headers.every((name) => Object.hasOwn(block, name));
+            }
+            if (!matches(media, allowed) || !hasHeaders) {
+                diagnostics.push(ruleDiagnostic(content, rule, response.response.resolvedPointer));
+            }
+        }
+    }
+    return diagnostics;
+}
 
 /**
  * COD-040-01-2507-2507-M
@@ -15,9 +63,8 @@ import { jsonPointer } from "@/lib/openapi/references";
  * then at least one of the configured media types must be present
  * (e.g. application/json or application/bson).
  *
- * Additionally, when headers are configured (e.g. Content-Type),
- * the rule ensures that required headers are present in the response
- * and correspond to the supported encapsulation formats.
+ * Explicit legacy header constraints apply only when a non-empty
+ * response headers block is present. Native defaults validate media declarations.
  *
  * Behavior is controlled via `rule.call.functionParams`:
  * - methods: string[]
@@ -32,7 +79,7 @@ import { jsonPointer } from "@/lib/openapi/references";
  * The rule traverses:
  * - spec.paths -> path -> method -> responses -> statusCode
  */
-export function checkResponseEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
+function checkLegacyResponseEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     const responsesKey: string = rule.element;

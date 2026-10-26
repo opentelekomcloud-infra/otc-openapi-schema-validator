@@ -1,7 +1,8 @@
 rules:
   - id: "COD-030-01-2507-2507-M"
     title: "Support JSON/BSON/XML/Octet Encapsulation in Request Body"
-    message: "The request body must support both JSON/BSON/XML/Octet encapsulation."
+    message: "The request body must support at least one configured JSON/BSON/XML/Octet encapsulation format."
+    description: Check native Swagger body/formData consumes and OpenAPI requestBody.content, including inheritance and local references. Requests without a body are skipped; a declared body without a media type cannot satisfy the rule.
     option: Mandatory
     location: paths
     element: requestBody

@@ -4,7 +4,7 @@ import { appendPointer, isRecord, jsonPointer, resolveObjectReference } from "./
 const HTTP_METHODS = new Set(["get", "put", "post", "delete", "options", "head", "patch", "trace"]);
 
 export function collectDocumentOperations(
-    document: unknown, configuredMethods?: readonly string[],
+    document: unknown, configuredMethods?: readonly string[], pathFilter?: (path: string) => boolean,
 ): NativeOperation[] {
     if (!isRecord(document) || !isRecord(document.paths)) return [];
     const allowed = configuredMethods && new Set(configuredMethods.map((method) => method.toLowerCase()));
@@ -14,7 +14,7 @@ export function collectDocumentOperations(
     const result: NativeOperation[] = [];
 
     for (const [path, rawPathItem] of Object.entries(document.paths)) {
-        if (!path.startsWith("/")) continue;
+        if (!path.startsWith("/") || (pathFilter && !pathFilter(path))) continue;
         const pathItemPointer = jsonPointer(["paths", path]);
         const resolved = resolveObjectReference(rawPathItem, document, cache, pathItemPointer, "reject");
         if (!resolved) continue;
@@ -35,7 +35,7 @@ export function collectDocumentOperations(
 }
 
 export function collectNativeOperations(
-    native: NativeOpenApiDocument, configuredMethods?: readonly string[],
+    native: NativeOpenApiDocument, configuredMethods?: readonly string[], pathFilter?: (path: string) => boolean,
 ): NativeOperation[] {
-    return collectDocumentOperations(native.document, configuredMethods);
+    return collectDocumentOperations(native.document, configuredMethods, pathFilter);
 }
