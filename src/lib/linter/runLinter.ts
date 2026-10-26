@@ -3,6 +3,7 @@ import { Diagnostic } from '@codemirror/lint';
 
 import { checkHttpsServers } from '@/functions/checkHttpsServers';
 import { checkParamElementPresence } from '@/functions/checkParamElementPresence';
+import { checkContentType } from '@/functions/checkContentType';
 import { checkElementSensitiveData } from '@/functions/checkElementSensitiveData';
 import { checkAllowedMethods } from '@/functions/checkAllowedMethods';
 import { checkOASSpec } from '@/functions/checkOASSpec';
@@ -74,6 +75,7 @@ export const functionsMap: {
 } = {
   checkHttpsServers,
   checkParamElementPresence,
+  checkContentType,
   checkElementSensitiveData,
   checkAllowedMethods,
   checkOASSpec,

@@ -1,7 +1,7 @@
-import { resolveLocalRef } from "@/utils/schema";
 import { collectEffectiveParameterNodes } from "@/lib/openapi/parameters";
 import { collectDocumentOperations } from "@/lib/openapi/operations";
-import { jsonPointer } from "@/lib/openapi/references";
+import { appendPointer, isRecord, jsonPointer, resolveObjectReference } from "@/lib/openapi/references";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
 import { pathRange, sourceMap } from "@/lib/openapi/sourceMap";
 
 /**
@@ -10,66 +10,56 @@ import { pathRange, sourceMap } from "@/lib/openapi/sourceMap";
  * - Request headers: parameters with `in: header` (path-level and operation-level).
  * - Response headers: keys under `responses[*].headers` for each operation.
  *
- * `$ref` parameters are resolved via `resolveLocalRef`.
+ * Local parameter, Path Item and response references retain declaration pointers.
  */
-export function collectHeaderLocations(spec: any): HeaderLocation[] {
+export function collectHeaderLocations(spec: unknown): HeaderLocation[] {
   const out: HeaderLocation[] = [];
-  if (!spec?.paths || typeof spec.paths !== "object") return out;
-
-  for (const [pathKey, pathItem] of Object.entries<any>(spec.paths)) {
-    if (!pathItem || typeof pathItem !== "object") continue;
-
-    // Path-level parameters
-    if (Array.isArray(pathItem.parameters)) {
-      pathItem.parameters.forEach((p: any, idx: number) => {
-        const param = resolveLocalRef(spec, p);
-        if (param?.in === "header" && typeof param?.name === "string") {
-          out.push({
-            headerName: param.name,
-            jsonPointer: `paths.${pathKey}.parameters[${idx}].name`,
-            sourcePointer: jsonPointer(["paths", pathKey, "parameters", idx, "name"]),
-            direction: "request",
-          });
-        }
+  if (!isRecord(spec) || !isRecord(spec.paths)) return out;
+  const cache = new Map<string, unknown>();
+  const requestHeaders = (parent: unknown, pointer: string, logical: string) => {
+    if (!isRecord(parent) || parent.parameters === undefined) return;
+    if (!Array.isArray(parent.parameters)) {
+      throw new NativeAccessorError("INVALID_DECLARATION", appendPointer(pointer, "parameters"), "Expected a parameters array");
+    }
+    parent.parameters.forEach((raw: unknown, index: number) => {
+      const source = appendPointer(pointer, "parameters", index);
+      const param = resolveObjectReference(raw, spec, cache, source);
+      if (!param) throw new NativeAccessorError("INVALID_DECLARATION", source, "Expected a parameter object");
+      if (param.value.in !== "header" || typeof param.value.name !== "string") return;
+      out.push({
+        headerName: param.value.name,
+        jsonPointer: `${logical}.parameters[${index}].name`,
+        sourcePointer: appendPointer(param.pointer, "name"), direction: "request",
+      });
+    });
+  };
+  for (const [path, raw] of Object.entries(spec.paths)) {
+    if (!path.startsWith("/")) continue;
+    const item = resolveObjectReference(raw, spec, cache, jsonPointer(["paths", path]), "reject");
+    if (item) requestHeaders(item.value, item.pointer, `paths.${path}`);
+  }
+  for (const op of collectDocumentOperations(spec)) {
+    requestHeaders(op.operation, op.pointer, `paths.${op.path}.${op.method}`);
+    if (op.operation.responses === undefined) continue;
+    if (!isRecord(op.operation.responses)) {
+      throw new NativeAccessorError("INVALID_DECLARATION", op.pointer, "Expected a responses object");
+    }
+    for (const [status, raw] of Object.entries(op.operation.responses)) {
+      if (status.startsWith("x-")) continue;
+      const pointer = appendPointer(op.pointer, "responses", status);
+      const response = resolveObjectReference(raw, spec, cache, pointer);
+      if (!response) throw new NativeAccessorError("INVALID_DECLARATION", pointer, "Expected a response object");
+      const headers = response.value.headers;
+      if (headers === undefined) continue;
+      if (!isRecord(headers)) {
+        throw new NativeAccessorError("INVALID_DECLARATION", appendPointer(response.pointer, "headers"), "Expected a headers object");
+      }
+      for (const name of Object.keys(headers)) out.push({
+        headerName: name, jsonPointer: `paths.${op.path}.${op.method}.responses.${status}.headers.${name}`,
+        sourcePointer: appendPointer(response.pointer, "headers", name), direction: "response",
       });
     }
-
-    for (const [maybeMethod, op] of Object.entries<any>(pathItem)) {
-      if (!HTTP_METHODS.has(maybeMethod)) continue;
-      if (!op || typeof op !== "object") continue;
-
-      if (Array.isArray(op.parameters)) {
-        op.parameters.forEach((p: any, idx: number) => {
-          const param = resolveLocalRef(spec, p);
-          if (param?.in === "header" && typeof param?.name === "string") {
-            out.push({
-              headerName: param.name,
-              jsonPointer: `paths.${pathKey}.${maybeMethod}.parameters[${idx}].name`,
-              sourcePointer: jsonPointer(["paths", pathKey, maybeMethod, "parameters", idx, "name"]),
-              direction: "request",
-            });
-          }
-        });
-      }
-
-      const responses = op.responses;
-      if (responses && typeof responses === "object") {
-        for (const [statusCode, resp] of Object.entries<any>(responses)) {
-          const headers = resp?.headers;
-          if (!headers || typeof headers !== "object") continue;
-          for (const headerName of Object.keys(headers)) {
-            out.push({
-              headerName,
-              jsonPointer: `paths.${pathKey}.${maybeMethod}.responses.${statusCode}.headers.${headerName}`,
-              sourcePointer: jsonPointer(["paths", pathKey, maybeMethod, "responses", statusCode, "headers", headerName]),
-              direction: "response",
-            });
-          }
-        }
-      }
-    }
   }
-
   return out;
 }
 
@@ -79,18 +69,6 @@ type HeaderLocation = {
   sourcePointer: string;
   direction: "request" | "response";
 };
-
-const HTTP_METHODS = new Set([
-  "get",
-  "put",
-  "post",
-  "delete",
-  "options",
-  "head",
-  "patch",
-  "trace",
-]);
-
 
 /**
  * Legacy cursor API: only a unique source key can be located without a pointer.

@@ -1,65 +1,33 @@
-import { Diagnostic } from "@codemirror/lint";
-import { mapSeverity } from "@/utils/mapSeverity";
-import { findMethodPositionInYaml } from "@/utils/pos";
-import { matchParameterSchema } from "@/utils/schema";
-import {getSource} from "@/functions/common";
+import type { Diagnostic } from "@codemirror/lint";
+import {
+    parameterExpectations, parameterMatches, ruleDiagnostic, ruleOperations, ruleParameters, ruleRequest, ruleStrings, type NativeRule,
+} from "@/utils/nativeRule";
 
-export function checkParamElementAbsence(spec: any, content: string, rule: any): Diagnostic[] {
+export function checkParamElementAbsence(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
+    const params = rule.call.functionParams ?? {};
+    const headers = parameterExpectations(params.headers, "headers");
+    if (!headers.length) throw new Error("functionParams.headers must not be empty.");
+    const excluded = ruleStrings(params.exceptionPaths, "exceptionPaths");
+    const section = params.checkMethodIfSectionExist;
+    if (section !== undefined && typeof section !== "string") {
+        throw new Error("functionParams.checkMethodIfSectionExist must be a string.");
+    }
+    if (params.whenRequestBodyAbsent !== undefined && typeof params.whenRequestBodyAbsent !== "boolean") {
+        throw new Error("functionParams.whenRequestBodyAbsent must be a boolean.");
+    }
     const diagnostics: Diagnostic[] = [];
-    if (!spec?.paths) return diagnostics;
-
-    const seen = new Set<string>();
-    const checkOnlyIf = rule.call.functionParams.checkMethodIfSectionExist || "";
-    const excludedPaths = rule.call.functionParams.exceptionPaths || [];
-
-    for (const path in spec.paths) {
-        if (excludedPaths.includes(path)) continue;
-        const pathItem = spec.paths[path];
-
-        const methodsToCheck = rule.call.functionParams.methods || Object.keys(pathItem);
-        for (const method of methodsToCheck) {
-            const operation = pathItem[method];
-            if (!operation || typeof operation !== "object") continue;
-
-            if (checkOnlyIf && !operation[checkOnlyIf]) continue;
-
-            const key = `${path}|${method}`;
-            if (seen.has(key)) continue;
-
-            const parameters = operation.parameters || [];
-
-            const headers = rule.call.functionParams.headers || [];
-
-            const allHeadersPresent = headers.every((header: any) =>
-                parameters.some((param: any) =>
-                    matchParameterSchema(
-                        param,
-                        header.name,
-                        header.in,
-                        header.valueType,
-                        spec,
-                        {
-                            required: header.required,
-                            description: header.description,
-                            style: header.style,
-                        }
-                    )
-                )
-            );
-
-            if (allHeadersPresent) {
-                seen.add(key);
-                const { start, end } = findMethodPositionInYaml(content, path, method);
-                diagnostics.push({
-                    from: start,
-                    to: end,
-                    severity: mapSeverity(rule.severity),
-                    message: rule.message,
-                    source: getSource(rule),
-                });
-            }
+    const cache = new Map<string, unknown>();
+    for (const op of ruleOperations(spec, params)) {
+        if (excluded.includes(op.path)) continue;
+        if (section && section !== "requestBody" && !op.operation[section]) continue;
+        if (section === "requestBody" || params.whenRequestBodyAbsent === true) {
+            const hasBody = ruleRequest(op, spec, cache).hasBody;
+            if ((section === "requestBody" && !hasBody) || (params.whenRequestBodyAbsent === true && hasBody)) continue;
+        }
+        const parameters = ruleParameters(op, spec, cache);
+        if (headers.every((expected) => parameters.some((param) => parameterMatches(param, expected, spec)))) {
+            diagnostics.push(ruleDiagnostic(content, rule, op.pointer));
         }
     }
-
     return diagnostics;
 }

@@ -4,17 +4,21 @@ rules:
     message: Do not transfer sensitive data parameters in URLs.
     option: Mandatory
     location: paths
-    element: path
+    element: parameters
     call:
       function: checkElementSensitiveData
       functionParams:
+        parameterLocations:
+          - path
+          - query
+        matchByNameOnly: true
         queryNotAllowed:
           - "password"
           - "credential"
           - "secret"
           - "apikey"
           - "token"
-    description: This rule checks whether API path contains sensitive information in query parameters
+    description: Check native effective path and query parameter names, regardless of type, including inherited and referenced parameters. Headers and request bodies are not URL parameters.
     status: implemented
     severity: critical
 

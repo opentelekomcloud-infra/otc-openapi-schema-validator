@@ -107,7 +107,6 @@ interface Scenario {
 }
 
 const bodyGap = (task: string) => ({ task: `T06/${task}`, reason: "Native body/response schema access is not implemented." });
-const headerGap = { task: "T05/T10", reason: "Native v2 parameter types and body predicates are not implemented." };
 const baselineGap = { task: "T18", reason: "Both baseline and current schemas must be read in their native dialects." };
 
 export const scenarios = {
@@ -265,7 +264,7 @@ export const scenarios = {
     requiredHeader: {
         positive: "body and conditional header triggers are present; required headers exist",
         negative: "same triggers remain, required header and all configured alternatives are absent",
-        message: "$rule", method: "post", nativeV2: headerGap,
+        message: "$rule", method: "post",
         prepare: ({ operation, dialect, variant, rule }) => {
             const names = ["Content-Type", "Authorization", "X-Auth-Token", "X-SDK-Date", "Host", "X-Project-Id",
                 "x-projectScenario", "X-Domain-Id", "X-Security-Token", "x-apigateway-ratelimit"];
@@ -288,7 +287,7 @@ export const scenarios = {
     },
     forbiddenHeader: {
         positive: "GET has no Content-Type parameter", negative: "GET declares Content-Type parameter",
-        message: "$rule", nativeV2: headerGap,
+        message: "$rule",
         prepare: ({ operation, dialect, variant }) => {
             if (variant === "negative") operation.parameters = [parameter(dialect, "Content-Type", "header")];
         },
@@ -306,7 +305,7 @@ export const scenarios = {
     },
     https: {
         positive: "explicit HTTPS transport", negative: "explicit HTTP transport",
-        message: "$rule", nativeV2: { task: "T10", reason: "schemes is not checked." },
+        message: "$rule",
         prepare: ({ spec, dialect, variant }) => {
             if (variant === "negative") {
                 if (dialect === "swagger2") spec.schemes = ["http"];
@@ -495,6 +494,47 @@ export const scenarios = {
             }
         },
     },
+    requestMimeDeclaration: {
+        positive: "request body declares a native media type",
+        negative: "request body has no media type declaration",
+        message: "$rule", method: "post",
+        prepare: ({ spec, operation, dialect, variant }) => {
+            if (variant === "positive") return;
+            if (dialect === "swagger2") {
+                delete spec.consumes;
+                delete operation.consumes;
+            } else object(operation.requestBody).content = {};
+        },
+    },
+    bodyMediaSupport: {
+        positive: "request and response bodies support JSON",
+        negative: "response body supports only text/plain",
+        message: "$rule", method: "post",
+        prepare: ({ operation, response, dialect, variant }) => {
+            if (variant === "positive") return;
+            if (dialect === "swagger2") operation.produces = ["text/plain"];
+            else {
+                const content = object(response.content);
+                content["text/plain"] = content["application/json"];
+                delete content["application/json"];
+            }
+        },
+    },
+    responseJsonEncoding: {
+        positive: "response declares bare application/json",
+        negative: "response JSON explicitly declares a non-UTF-8 charset",
+        message: "$rule", method: "post",
+        prepare: ({ operation, response, dialect, variant }) => {
+            if (variant === "positive") return;
+            const media = "application/json;charset=ISO-8859-1";
+            if (dialect === "swagger2") operation.produces = [media];
+            else {
+                const content = object(response.content);
+                content[media] = content["application/json"];
+                delete content["application/json"];
+            }
+        },
+    },
     responseCount: {
         positive: "collection contains integer count", negative: "collection omits count",
         message: "$rule", nativeV2: bodyGap("T11"),
@@ -520,7 +560,7 @@ export const scenarios = {
     },
     responseHeader: {
         positive: "response payload has X-Request-Id header", negative: "response payload lacks request ID headers",
-        message: "Expected at least one of", nativeV2: bodyGap("T10"),
+        message: "Expected at least one of",
         prepare: ({ response, variant }) => {
             if (variant === "negative") delete object(response.headers)["X-Request-Id"];
         },
@@ -552,7 +592,7 @@ export const scenarios = {
     },
     sensitiveQuery: {
         positive: "path parameter contains no sensitive name", negative: "path parameter is named password",
-        message: "$rule", nativeV2: headerGap,
+        message: "$rule",
         prepare: ({ operation, dialect, variant, renamePath }) => {
             const name = variant === "positive" ? "name" : "password";
             renamePath(`/v1/resources/{${name}}`);
@@ -561,7 +601,7 @@ export const scenarios = {
     },
     sensitiveQueryString: {
         positive: "query parameter is named name", negative: "query parameter is named password",
-        message: "$rule", nativeV2: headerGap,
+        message: "$rule",
         prepare: ({ operation, dialect, variant }) => {
             operation.parameters = [parameter(dialect, variant === "positive" ? "name" : "password", "query")];
         },

@@ -25,7 +25,7 @@ export const coverageLedger = [
     { ruleId: "BAS-080-01-2507-2507-M-4", functionName: "checkCompatibility", scenario: "narrowedEnum" },
     { ruleId: "BAS-080-01-2507-2507-M-5", functionName: "checkCompatibility", scenario: "deletedResponse" },
     { ruleId: "BAS-080-01-2507-2507-M-6", functionName: "checkCompatibility", scenario: "deletedResponseHeader" },
-    { ruleId: "COD-020-01-2507-2507-M", functionName: "checkParamElementPresence", scenario: "requiredHeader" },
+    { ruleId: "COD-020-01-2507-2507-M", functionName: "checkContentType", scenario: "bodyMediaSupport" },
     { ruleId: "COD-020-01-2507-2507-M-1", functionName: "checkParamElementAbsence", scenario: "forbiddenHeader" },
     { ruleId: "FIL-010-01-2507-2507-O", functionName: "checkURIFilterParams", scenario: "filterField" },
     { ruleId: "BAS-090-01-2507-2507-M", functionName: "checkParamElementPresence", scenario: "requiredHeader" },
@@ -39,7 +39,7 @@ export const coverageLedger = [
     { ruleId: "ARG-040-01-2507-2507-O", functionName: "checkProjectIdByTagScope", scenario: "projectScope" },
     { ruleId: "ARG-050-01-2507-2507-O", functionName: "checkNoRedundantParameters", scenario: "reservedParameter" },
     { ruleId: "ARG-060-01-2507-2507-O", functionName: "checkRootNodeMatchesResource", scenario: "rootName" },
-    { ruleId: "HDR-010-01-2507-2507-M-1", functionName: "checkParamElementPresence", scenario: "requiredHeader" },
+    { ruleId: "HDR-010-01-2507-2507-M-1", functionName: "checkContentType", scenario: "requestMimeDeclaration" },
     { ruleId: "HDR-010-01-2507-2507-M-2", functionName: "checkParamElementPresence", scenario: "requiredHeader" },
     { ruleId: "HDR-010-01-2507-2507-M-3", functionName: "checkParamElementPresence", scenario: "requiredHeader" },
     { ruleId: "HDR-010-01-2507-2507-M-4", functionName: "checkParamElementPresence", scenario: "requiredHeader" },
@@ -64,7 +64,7 @@ export const coverageLedger = [
     { ruleId: "QUE-040-01-2507-2507-M", functionName: "checkResponseIncludesCount", scenario: "responseCount" },
     { ruleId: "QUE-050-01-2507-2507-M", functionName: "checkQuotaApiPresence", scenario: "quota" },
     { ruleId: "QUE-060-01-2507-2507-M", functionName: "checkTimeFieldsInDetailQuery", scenario: "detailTimes" },
-    { ruleId: "HDR-020-01-2507-2507-M-1", functionName: "checkParamElementPresence", scenario: "requiredHeader" },
+    { ruleId: "HDR-020-01-2507-2507-M-1", functionName: "checkContentType", scenario: "responseJsonEncoding" },
     { ruleId: "HDR-020-01-2507-2507-M-2", functionName: "checkResponseHeader", scenario: "responseHeader" },
     { ruleId: "HDR-020-01-2507-2507-M-3", functionName: "checkCustomHeaders", scenario: "customHeader" },
     { ruleId: "COD-040-01-2507-2507-M", functionName: "checkResponseEncapsulation", scenario: "responseMedia" },
@@ -76,12 +76,10 @@ export const coverageLedger = [
     { ruleId: "TIM-010-01-2507-2507-M-2", functionName: "checkTimeFieldNaming", scenario: "timeName" },
 ] satisfies CoverageEntry[];
 
-export const additionalCoverageGaps = [
+export const additionalCoverage = [
     {
         ruleId: "BAS-100-01-2507-2507-M",
         functionName: "checkElementSensitiveData",
         scenario: "sensitiveQueryString",
-        task: "T10",
-        reason: "The real Security.yaml sets element=path, so queryNotAllowed does not detect query parameters even in OAS3.",
     },
-] satisfies (CoverageEntry & { task: string; reason: string })[];
+] satisfies CoverageEntry[];

@@ -29,7 +29,7 @@ export function matchParameterSchema(
     param: any,
     name: string,
     paramIn: string,
-    type: string,
+    type: string | undefined,
     spec: any,
     options?: {
         required?: boolean;

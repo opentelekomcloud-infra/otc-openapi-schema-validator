@@ -2,7 +2,53 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
 import { sourceMap } from "@/lib/openapi/sourceMap";
-import { jsonPointer } from "@/lib/openapi/references";
+import { appendPointer, isRecord, jsonPointer, resolveObjectReference } from "@/lib/openapi/references";
+import { getResponsePayload } from "@/lib/openapi/payloads";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
+import { ruleDiagnostic, ruleOperations, ruleStrings, type NativeRule } from "@/utils/nativeRule";
+
+export function checkResponseHeader(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
+  // Retain the explicit legacy paths/Map API; runtime documents use native body descriptors below.
+  const legacyPaths = spec instanceof Map || (isRecord(spec) && (spec.paths instanceof Map ||
+    (!Object.hasOwn(spec, "paths") && Object.keys(spec).some((key) => key.startsWith("/")))));
+  if (legacyPaths) return checkLegacyResponseHeader(spec, content, rule);
+  const params = rule.call.functionParams ?? {};
+  if (params.ifPropertyExists !== undefined && typeof params.ifPropertyExists !== "string") {
+    throw new Error("functionParams.ifPropertyExists must be a string.");
+  }
+  const trigger = typeof params.ifPropertyExists === "string" && params.ifPropertyExists.trim()
+    ? params.ifPropertyExists.trim() : "content";
+  const required = ruleStrings(params.headers, "headers");
+  if (!required.length) throw new Error("functionParams.headers must not be empty.");
+  const allowed = new Set(required.map((name) => name.toLowerCase()));
+  const diagnostics: Diagnostic[] = [];
+  const cache = new Map<string, unknown>();
+  for (const op of ruleOperations(spec, params)) {
+    if (op.operation.responses === undefined) continue;
+    if (!isRecord(op.operation.responses)) {
+      throw new NativeAccessorError("INVALID_DECLARATION", op.pointer, "Expected a responses object");
+    }
+    for (const [status, raw] of Object.entries(op.operation.responses)) {
+      if (status.startsWith("x-")) continue;
+      const pointer = appendPointer(op.pointer, "responses", status);
+      const response = resolveObjectReference(raw, spec, cache, pointer);
+      if (!response) throw new NativeAccessorError("INVALID_DECLARATION", pointer, "Expected a response object");
+      const applies = trigger === "content"
+        ? getResponsePayload(op.operation, status, spec, cache, op.pointer)?.hasBody
+        : isNonEmptyRecordOrMap(response.value[trigger]);
+      if (!applies) continue;
+      const headers = response.value.headers;
+      if (headers !== undefined && !isRecord(headers)) {
+        throw new NativeAccessorError("INVALID_DECLARATION", appendPointer(response.pointer, "headers"), "Expected a headers object");
+      }
+      if (!Object.keys(headers ?? {}).some((name) => allowed.has(name.toLowerCase()))) {
+        diagnostics.push(ruleDiagnostic(content, rule, response.pointer,
+          `Expected at least one of [${required.join(", ")}] in response headers when '${trigger}' exists.`));
+      }
+    }
+  }
+  return diagnostics;
+}
 
 function isNonEmptyRecordOrMap(v: any): boolean {
   if (!v) return false;
@@ -36,7 +82,7 @@ function keysOf(obj: any): string[] {
  * Notes:
  * - If the property does not exist (or is empty), the rule does not apply to that response.
  */
-export function checkResponseHeader(spec: any, content: string, rule: any): Diagnostic[] {
+function checkLegacyResponseHeader(spec: any, content: string, rule: any): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
 
   const params = rule?.call?.functionParams ?? {};

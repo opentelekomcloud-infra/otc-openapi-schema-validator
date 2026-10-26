@@ -35,8 +35,8 @@ describe("repository rule catalog integrity", () => {
         expect(rules).toHaveLength(68);
         expect(new Set(rules.map((rule) => rule.id)).size).toBe(68);
         expect(implemented).toHaveLength(67);
-        expect(new Set(implemented.map((rule) => rule.call.function)).size).toBe(46);
-        expect(Object.keys(functionsMap)).toHaveLength(46);
+        expect(new Set(implemented.map((rule) => rule.call.function)).size).toBe(47);
+        expect(Object.keys(functionsMap)).toHaveLength(47);
         expect(rules.filter((rule) => rule.status === "unsupported").map((rule) => rule.id))
             .toEqual(["SLA-020-01-2507-2507-O"]);
         expect(implemented.map((rule) => rule.id)).not.toContain("SLA-020-01-2507-2507-O");

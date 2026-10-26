@@ -7,7 +7,7 @@ import { getSource } from "@/functions/common";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import { sourceLineNumber } from "@/lib/openapi/sourceMap";
-import { coverageLedger, additionalCoverageGaps, type CoverageEntry } from "../fixtures/dual-version/coverageLedger";
+import { coverageLedger, additionalCoverage, type CoverageEntry } from "../fixtures/dual-version/coverageLedger";
 import {
     buildScenario, object, scenarioDefinition, type Dialect, type Variant,
 } from "../fixtures/dual-version/scenarios";
@@ -106,7 +106,7 @@ test("coverage ledger matches every implemented ID and its real function binding
     expect(coverageLedger).toHaveLength(67);
     expect(new Set(coverageLedger.map((entry) => entry.ruleId)).size).toBe(67);
     expect(coverageLedger.map((entry) => entry.ruleId).sort()).toEqual([...rules.keys()].sort());
-    expect(new Set(coverageLedger.map((entry) => entry.functionName)).size).toBe(46);
+    expect(new Set(coverageLedger.map((entry) => entry.functionName)).size).toBe(47);
     for (const entry of coverageLedger) {
         expect(ruleFor(entry).call.function).toBe(entry.functionName);
         const scenario = scenarioDefinition(entry.scenario);
@@ -122,14 +122,12 @@ test("coverage ledger matches every implemented ID and its real function binding
             expect(scenario.mixedBaselineGap.reason).not.toBe("");
         }
     }
-    for (const gap of additionalCoverageGaps) {
-        expect(ruleFor(gap).call.function).toBe(gap.functionName);
-        expect(gap.reason).not.toBe("");
-        expect(gap.task).toMatch(/T\d+/);
+    for (const entry of additionalCoverage) {
+        expect(ruleFor(entry).call.function).toBe(entry.functionName);
     }
 });
 
-describe.each(additionalCoverageGaps)("$ruleId additional gap [$scenario]", (entry) => {
+describe.each(additionalCoverage)("$ruleId additional coverage [$scenario]", (entry) => {
     const scenario = scenarioDefinition(entry.scenario);
     for (const dialect of ["swagger2", "openapi3"] satisfies Dialect[]) {
         test(`${dialect}: ${scenario.positive}`, () => checkCase(entry, dialect, "positive"));
@@ -137,7 +135,12 @@ describe.each(additionalCoverageGaps)("$ruleId additional gap [$scenario]", (ent
             expect(buildScenario(entry.scenario, dialect, "negative", ruleFor(entry)))
                 .not.toEqual(buildScenario(entry.scenario, dialect, "positive", ruleFor(entry)));
         });
-        test.todo(`${dialect} negative -> ${entry.task}: ${scenario.negative}; ${entry.reason}`);
+        test(`${dialect}: ${scenario.negative}`, () => checkCase(entry, dialect, "negative"));
+        test.each(["json", "flow-yaml"] as const)(`${dialect} %s covers both parameter predicates`, async (format) => {
+            await checkCase(entry, dialect, "positive", dialect, format);
+            jest.clearAllMocks();
+            await checkCase(entry, dialect, "negative", dialect, format);
+        });
     }
 });
 

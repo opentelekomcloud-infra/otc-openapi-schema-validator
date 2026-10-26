@@ -1,10 +1,10 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
-import { safeRegex } from "@/utils/regex";
 import { collectHeaderLocations } from "@/utils/scan";
 import { isCustomHeader } from "@/utils/headers";
 import { sourceMap } from "@/lib/openapi/sourceMap";
+import { ruleDocument, ruleStrings, type NativeRule } from "@/utils/nativeRule";
 
 /**
  * HDR-020-01-2507-2507-M-3
@@ -28,28 +28,24 @@ import { sourceMap } from "@/lib/openapi/sourceMap";
  * - Path-level and operation-level parameters with `in: header`
  * - Response header names under `responses[*].headers`
  */
-export function checkCustomHeaders(spec: any, content: string, rule: any): Diagnostic[] {
+export function checkCustomHeaders(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  if (!spec?.paths) return diagnostics;
+  ruleDocument(spec);
 
   const params = rule?.call?.functionParams ?? {};
-  const headerFormatPattern: string | undefined = params.header_format;
-  const headerRegex = safeRegex(headerFormatPattern);
+  const headerFormatPattern = params.header_format;
+  if (typeof headerFormatPattern !== "string" || !headerFormatPattern) {
+    throw new Error("functionParams.header_format must be a non-empty regular expression.");
+  }
+  const headerRegex = new RegExp(headerFormatPattern);
 
   const standardHeaders = new Set<string>(DEFAULT_STANDARD_HEADERS);
-  if (Array.isArray(params.standard_headers)) {
-    params.standard_headers
-      .filter((h: any) => typeof h === "string")
-      .forEach((h: string) => standardHeaders.add(h.toLowerCase()));
-  }
+  ruleStrings(params.standard_headers, "standard_headers").forEach((name) => standardHeaders.add(name.toLowerCase()));
 
   const headers = collectHeaderLocations(spec);
 
   for (const h of headers) {
     if (!isCustomHeader(h.headerName, standardHeaders)) continue;
-
-    // If regex is not valid/missing, do nothing (avoid false positives / crashes)
-    if (!headerRegex) continue;
 
     if (!headerRegex.test(h.headerName)) {
       const isResponseHeader = h.direction === "response";
