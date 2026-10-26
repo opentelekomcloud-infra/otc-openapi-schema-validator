@@ -366,6 +366,29 @@ export const scenarios = {
             operation.parameters = variant === "positive" ? [parameter(dialect, "project_id", "path")] : [];
         },
     },
+    bodySnakeCase: {
+        positive: "response body property uses display_name", negative: "response body property uses displayName",
+        message: "displayName",
+        prepare: ({ response, dialect, variant }) => setResponseSchema(response, dialect, {
+            type: "object", properties: { [variant === "positive" ? "display_name" : "displayName"]: { type: "string" } },
+        }),
+    },
+    commonBodyName: {
+        positive: "response body property uses count", negative: "response body property uses forbidden total_count",
+        message: "total_count",
+        prepare: ({ response, dialect, variant }) => setResponseSchema(response, dialect, {
+            type: "object", properties: { [variant === "positive" ? "count" : "total_count"]: { type: "integer" } },
+        }),
+    },
+    reservedBodyField: {
+        positive: "reserved response field is marked", negative: "reserved response field is unmarked",
+        message: "future_filter",
+        prepare: ({ response, dialect, variant }) => setResponseSchema(response, dialect, {
+            type: "object", properties: { future_filter: {
+                type: "string", description: "Reserved for future use.", ...(variant === "positive" ? { "x-reserved": true } : {}),
+            } },
+        }),
+    },
     reservedParameter: {
         positive: "reserved query field is explicitly marked and documented",
         negative: "reserved query field is documented but not marked",
@@ -380,7 +403,7 @@ export const scenarios = {
     rootName: {
         positive: "collection response root is resources",
         negative: "collection response root is unrelated data",
-        message: "$rule", nativeV2: bodyGap("T12"),
+        message: "$rule",
         prepare: ({ definitions, variant }) => {
             if (variant === "negative") {
                 const list = object(definitions.ResourceList);

@@ -4,7 +4,12 @@ import { looksLikeAbbreviation, looksLikeUnknownWord, getAllowedAbbreviations } 
 import { objectRange } from "@/lib/openapi/sourceMap";
 import type { SourceRange } from "@/types/openapi";
 import { getSource } from "@/functions/common";
-import { resolveRefDeep } from "@/utils/schema";
+import type { NativeOperation, NativeParameterSchema } from "@/types/openapi";
+import { isSwagger2Root } from "@/lib/openapi/media";
+import { collectRequestExamples, collectResponseExamples } from "@/lib/openapi/examples";
+import { namingSchemas, schemaNameFields } from "@/utils/nativeNaming";
+import { responseFor, responseStatuses } from "@/utils/nativeResponse";
+import { ruleOperations, ruleParameterNodes, ruleRequest } from "@/utils/nativeRule";
 
 export function checkCommonParameters(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -14,8 +19,6 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
 
     const reported = new Set<string>();
     const refCache = new Map<string, any>();
-
-    const HTTP_METHODS = new Set(["get", "put", "post", "patch", "delete", "head", "options", "trace"]);
 
     const params = rule?.call?.functionParams ?? {};
     const methodsToCheck: string[] = Array.isArray(params.methods)
@@ -118,146 +121,77 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         }
     }
 
-    function collectParameterNamesForOperation(pathKey: string, method: string, operation: any) {
-        const opParams: any[] = [];
-        if (Array.isArray(spec.paths?.[pathKey]?.parameters)) opParams.push(...spec.paths[pathKey].parameters);
-        if (Array.isArray(operation?.parameters)) opParams.push(...operation.parameters);
-
-        const ctx = `${pathKey}#${method}`;
-        for (const p of opParams) {
-            const resolved = resolveRefDeep(p, refCache, spec);
-            const name = resolved?.name;
-            if (typeof name !== "string") continue;
-
-            evaluateName(name, objectRange(spec, content, resolved, "name", "value"), ctx);
+    function collectParameterNamesForOperation(op: NativeOperation) {
+        const ctx = `${op.path}#${op.method}`;
+        for (const { parameter } of ruleParameterNodes(op, spec, refCache)) {
+            if (isSwagger2Root(spec) && parameter.in === "body") continue;
+            if (typeof parameter.name !== "string") continue;
+            evaluateName(parameter.name, objectRange(spec, content, parameter, "name", "value"), ctx);
         }
     }
 
     function schemaWalk(
-        schema: any,
+        schema: NativeParameterSchema,
         visitor: (propName: string, owner: object) => void,
-        seen = new WeakSet<object>()
     ) {
-        const s = resolveRefDeep(schema, refCache, spec);
-        if (!s || typeof s !== "object") return;
-        if (seen.has(s as object)) return;
-        seen.add(s as object);
-
-        if (s.allOf && Array.isArray(s.allOf)) {
-            for (const sub of s.allOf) schemaWalk(sub, visitor, seen);
+        const examples: unknown[] = [];
+        for (const field of schemaNameFields(schema, spec, refCache, {
+            maps: true, compositionsFirst: true,
+            visitSchema: ({ node }) => { if (Object.hasOwn(node, "example")) examples.push(node.example); },
+        })) {
+            visitor(field.name, field.owner);
         }
-        if (s.oneOf && Array.isArray(s.oneOf)) {
-            for (const sub of s.oneOf) schemaWalk(sub, visitor, seen);
-        }
-        if (s.anyOf && Array.isArray(s.anyOf)) {
-            for (const sub of s.anyOf) schemaWalk(sub, visitor, seen);
-        }
-
-        if (s.properties && typeof s.properties === "object") {
-            for (const [k, v] of Object.entries(s.properties)) {
-                visitor(k, s.properties);
-                schemaWalk(v, visitor, seen);
-            }
-        }
-
-        if (s.items) {
-            schemaWalk(s.items, visitor, seen);
-        }
-
-        // AdditionalProperties can also contain schema
-        if (s.additionalProperties && typeof s.additionalProperties === "object") {
-            schemaWalk(s.additionalProperties, visitor, seen);
-        }
+        return examples;
     }
 
-    function exampleWalk(example: any, visitor: (propName: string, owner: object) => void, seen = new WeakSet<object>()) {
-        if (example === null || example === undefined) return;
-        if (typeof example !== "object") return;
-        if (seen.has(example as object)) return;
-        seen.add(example as object);
-
-        if (Array.isArray(example)) {
-            for (const item of example) {
-                exampleWalk(item, visitor, seen);
-            }
-            return;
-        }
-
-        for (const [k, v] of Object.entries(example)) {
-            visitor(k, example);
-            exampleWalk(v, visitor, seen);
-        }
-    }
-
-    function collectBodyAndResponseNames(pathKey: string, method: string, operation: any) {
-        const ctx = `${pathKey}#${method}`;
-
-        // requestBody
-        if (operation?.requestBody) {
-            const rb = resolveRefDeep(operation.requestBody, refCache, spec);
-            const contentObj = rb?.content;
-            if (contentObj && typeof contentObj === "object") {
-                for (const media of Object.values<any>(contentObj)) {
-                    const schema = media?.schema;
-                    if (schema) {
-                        schemaWalk(schema, (prop, owner) => evaluateName(prop, objectRange(spec, content, owner, prop), ctx));
-                    }
-                    // Also validate keys used in examples (if provided)
-                    if (media?.example) {
-                        exampleWalk(media.example, (k, owner) => evaluateName(k, objectRange(spec, content, owner, k), ctx));
-                    }
-                    if (media?.examples && typeof media.examples === "object") {
-                        for (const ex of Object.values<any>(media.examples)) {
-                            const val = ex?.value ?? ex;
-                            exampleWalk(val, (k, owner) => evaluateName(k, objectRange(spec, content, owner, k), ctx));
-                        }
-                    }
-                }
-            }
-        }
-
-        // responses
-        if (operation?.responses && typeof operation.responses === "object") {
-            for (const [, resp] of Object.entries<any>(operation.responses)) {
-                const r = resolveRefDeep(resp, refCache, spec);
-                const contentObj = r?.content;
-                if (contentObj && typeof contentObj === "object") {
-                    for (const media of Object.values<any>(contentObj)) {
-                        const schema = media?.schema;
-                        if (schema) {
-                            schemaWalk(schema, (prop, owner) => evaluateName(prop, objectRange(spec, content, owner, prop), ctx));
-                        }
-                        // Also validate keys used in examples (if provided)
-                        if (media?.example) {
-                            exampleWalk(media.example, (k, owner) => evaluateName(k, objectRange(spec, content, owner, k), ctx));
-                        }
-                        if (media?.examples && typeof media.examples === "object") {
-                            for (const ex of Object.values<any>(media.examples)) {
-                                const val = ex?.value ?? ex;
-                                exampleWalk(val, (k, owner) => evaluateName(k, objectRange(spec, content, owner, k), ctx));
-                            }
-                        }
-                    }
+    function exampleWalk(example: unknown, visitor: (propName: string, owner: object) => void) {
+        type Frame = { value: unknown } | { name: string; owner: object; value: unknown };
+        const pending: Frame[] = [{ value: example }];
+        const seen = new WeakSet<object>();
+        while (pending.length) {
+            const frame = pending.pop()!;
+            if ("name" in frame) visitor(frame.name, frame.owner);
+            const value = frame.value;
+            if (!value || typeof value !== "object" || seen.has(value)) continue;
+            seen.add(value);
+            if (Array.isArray(value)) {
+                for (let index = value.length - 1; index >= 0; index--) pending.push({ value: value[index] });
+            } else {
+                const entries = Object.entries(value);
+                for (let index = entries.length - 1; index >= 0; index--) {
+                    const [name, child] = entries[index];
+                    pending.push({ name, owner: value, value: child });
                 }
             }
         }
     }
 
-    for (const pathKey of Object.keys(spec.paths)) {
-        const pathItem = spec.paths[pathKey];
-        if (!pathItem || typeof pathItem !== "object") continue;
-
-        const opMethodsRaw = methodsToCheck.length ? methodsToCheck : Object.keys(pathItem);
-        for (const method of opMethodsRaw) {
-            const m = String(method).trim().toLowerCase();
-            if (!HTTP_METHODS.has(m)) continue;
-
-            const operation = pathItem[m];
-            if (!operation || typeof operation !== "object") continue;
-
-            collectParameterNamesForOperation(pathKey, m, operation);
-            collectBodyAndResponseNames(pathKey, m, operation);
+    function collectBodyAndResponseNames(op: NativeOperation) {
+        const ctx = `${op.path}#${op.method}`;
+        const visit = (name: string, owner: object) => evaluateName(name, objectRange(spec, content, owner, name), ctx);
+        const request = ruleRequest(op, spec, refCache);
+        const requestSchemaExamples = namingSchemas(request, spec, refCache, true).flatMap((schema) => schemaWalk(schema, visit));
+        const exampleConfig = { exampleSources: {
+            request: ["content.example", "content.examples"],
+            response: ["content.example", "content.examples", "response.examples"],
+        } };
+        for (const entry of collectRequestExamples(op.operation, op.pathItem, spec, exampleConfig, refCache, {
+            pathItem: op.resolvedPathItemPointer, operation: op.pointer,
+        })) exampleWalk(entry.value, visit);
+        for (const example of requestSchemaExamples) exampleWalk(example, visit);
+        for (const status of responseStatuses(op)) {
+            const response = responseFor(op, status, spec, refCache);
+            const schemaExamples = namingSchemas(response, spec, refCache, true).flatMap((schema) => schemaWalk(schema, visit));
+            for (const entry of collectResponseExamples(op.operation, [status], spec, exampleConfig, refCache, op.pointer)) {
+                exampleWalk(entry.value, visit);
+            }
+            for (const example of schemaExamples) exampleWalk(example, visit);
         }
+    }
+
+    for (const op of ruleOperations(spec, methodsToCheck.length ? { methods: methodsToCheck } : {})) {
+        collectParameterNamesForOperation(op);
+        collectBodyAndResponseNames(op);
     }
 
     return diagnostics;

@@ -77,6 +77,9 @@ export const coverageLedger = [
 ] satisfies CoverageEntry[];
 
 export const additionalCoverage = [
+    { ruleId: "COM-010-01-2507-2509-M", functionName: "checkCommonParameters", scenario: "commonBodyName" },
+    { ruleId: "ARG-010-01-2507-2509-M", functionName: "checkParameterIsSnakeCase", scenario: "bodySnakeCase" },
+    { ruleId: "ARG-050-01-2507-2507-O", functionName: "checkNoRedundantParameters", scenario: "reservedBodyField" },
     {
         ruleId: "BAS-100-01-2507-2507-M",
         functionName: "checkElementSensitiveData",
