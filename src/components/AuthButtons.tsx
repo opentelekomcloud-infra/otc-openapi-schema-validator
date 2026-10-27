@@ -15,7 +15,7 @@ function AuthButtonsInner() {
 
   if (status === "loading") {
     return (
-      <scale-button variant="primary" size="m" disabled>
+      <scale-button variant="secondary" disabled>
         Loading…
       </scale-button>
     );
@@ -25,8 +25,7 @@ function AuthButtonsInner() {
     return (
       <scale-button
         onClick={() => signIn("zitadel", { redirectTo: "/" })}
-        variant="primary"
-        size="m"
+        variant="secondary"
       >
         Sign in
       </scale-button>
@@ -36,8 +35,7 @@ function AuthButtonsInner() {
   return (
     <scale-button
       onClick={() => signOut({ redirectTo: "/" })}
-      variant="primary"
-      size="m"
+      variant="secondary"
     >
       Logout
     </scale-button>

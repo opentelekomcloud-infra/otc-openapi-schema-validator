@@ -112,6 +112,25 @@ The app will be available at
 
 ---
 
+## Validation Workspace
+
+The Scale-based workspace keeps the YAML editor beside three independent panels:
+**Issues**, **Rules**, and **Manual**. On narrow screens, use **Editor** and
+**Results** to switch views. Switching panels preserves the current document,
+selected rules, and manual review state.
+
+Issues support search, severity filters, grouping by rule or line, and pages of
+100 results. Use **Details** for the full message, click a line to navigate to
+the source, or click a lint gutter marker to reveal its issue. Display filters
+and pagination do not remove diagnostics from the editor or exported reports.
+
+In **Rules**, search and severity filters only change visibility.
+**Select filtered** adds visible rules to the current selection;
+**Clear filtered** removes only visible rules. Manual review remains separate
+from automatic validation and is saved locally in the browser.
+
+---
+
 ## API
 
 Base URL (local): `http://localhost:3000`

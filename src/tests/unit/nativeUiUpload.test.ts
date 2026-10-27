@@ -400,6 +400,77 @@ test("unexpected lint failure is not displayed as a successful empty result", as
     expect(container.textContent).not.toContain("Export to ReportPortal");
 });
 
+test("switching workspace tabs preserves the editor, diagnostics and rule selection without revalidation", async () => {
+    await select([rules[0]]);
+    await upload("swagger: '2.0'\ninfo: {}\npaths: {}\n");
+    await loaded("swagger: '2.0'\ninfo: {}\npaths: {}\n");
+    const view = editor();
+    const calls = lint.mock.calls.length;
+    for (const tab of ["rules", "manual", "issues"]) {
+        const element = container.querySelector<HTMLElement>(`scale-tab-header[data-tab=${tab}]`);
+        if (!element) throw new Error(`Missing tab ${tab}`);
+        await act(async () => element.click());
+        expect(element.nextElementSibling?.hasAttribute("hidden")).toBe(false);
+    }
+    expect(editor()).toBe(view);
+    expect(lint).toHaveBeenCalledTimes(calls);
+});
+
+test("issue display filters and pagination never truncate exports or editor diagnostics", async () => {
+    const all = Array.from({ length: 105 }, (_, index) => ({
+        ...finding(`Issue ${index}`), severity: index % 2 ? "warning" as const : "error" as const,
+    }));
+    lint.mockImplementation(() => async () => ({ diagnostics: all }));
+    await upload("swagger: '2.0'\ninfo: {}\npaths: {}\n");
+    await loaded("swagger: '2.0'\ninfo: {}\npaths: {}\n");
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(100);
+    const severity = container.querySelector<HTMLScaleDropdownSelectElement>('scale-dropdown-select[label="Severity"]');
+    if (!severity) throw new Error("Missing severity filter");
+    await act(async () => {
+        severity.value = "critical";
+        severity.dispatchEvent(new CustomEvent("scale-change"));
+    });
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(53);
+    const editorDiagnostics: Diagnostic[] = [];
+    forEachDiagnostic(editor().state, (diagnostic) => editorDiagnostics.push(diagnostic));
+    expect(editorDiagnostics).toHaveLength(105);
+    await act(async () => button("Export").click());
+    await act(async () => button("Export to jUnit").click());
+    expect(jest.mocked(exportJUnit).mock.calls.at(-1)?.[0]).toEqual(all);
+});
+
+test("issue navigation retains exact EOF positions", async () => {
+    const content = "swagger: [";
+    lint.mockImplementation(() => async () => ({ diagnostics: [{
+        ...finding("EOF problem"), from: content.length, to: content.length,
+    }] }));
+    await upload(content);
+    await loaded(content);
+    const row = container.querySelector<HTMLElement>("tbody tr");
+    if (!row) throw new Error("Missing EOF diagnostic");
+    await act(async () => row.click());
+    expect(editor().state.selection.main.head).toBe(content.length);
+});
+
+test("a real CodeMirror gutter click reveals an issue hidden by display filters", async () => {
+    lint.mockImplementation(() => async () => ({ diagnostics: [finding("Gutter issue")] }));
+    await upload("swagger: '2.0'\ninfo: {}\npaths: {}\n");
+    await loaded("swagger: '2.0'\ninfo: {}\npaths: {}\n");
+    const severity = container.querySelector<HTMLScaleDropdownSelectElement>('scale-dropdown-select[label="Severity"]');
+    if (!severity) throw new Error("Missing severity filter");
+    await act(async () => {
+        severity.value = "low";
+        severity.dispatchEvent(new CustomEvent("scale-change"));
+    });
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(0);
+    await waitFor(() => Boolean(container.querySelector(".cm-gutter-lint .cm-lint-marker")));
+    const marker = container.querySelector<HTMLElement>(".cm-gutter-lint .cm-lint-marker");
+    if (!marker) throw new Error("Missing lint gutter marker");
+    await act(async () => marker.click());
+    expect(container.querySelector("tr[data-active=true]")?.textContent).toContain("Gutter issue");
+    expect(container.querySelector('[data-tab="issues"]')?.nextElementSibling?.hasAttribute("hidden")).toBe(false);
+});
+
 test("unmount cancels pending reads and ignores already queued load events", async () => {
     const readers = controlledReaders();
     await upload("pending file");
