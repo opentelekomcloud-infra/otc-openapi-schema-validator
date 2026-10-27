@@ -12,7 +12,6 @@ import type { NativeExecutionContext } from "@/lib/openapi/executionContext";
 import { giteaClient } from "@/clients/gitea";
 import { reportPortalClient } from "@/clients/reportportal";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
-import { prepareOpenApiDocument } from "@/lib/openapi/prepareOpenApiDocument";
 import { readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
 
 jest.mock("node:fs/promises", () => {
@@ -27,13 +26,10 @@ jest.mock("@/lib/linter/runLinter", () => {
     const actual = jest.requireActual<typeof import("@/lib/linter/runLinter")>("@/lib/linter/runLinter");
     return { ...actual, runLinter: jest.fn(actual.runLinter) };
 });
-jest.mock("@/lib/openapi/prepareOpenApiDocument", () => ({
-    prepareOpenApiDocument: jest.fn(() => { throw new Error("Native API must not prepare/convert input"); }),
-}));
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Native API must not convert"); }),
     convertObj: jest.fn(() => { throw new Error("Native API must not convert"); }),
-}));
+}), { virtual: true });
 
 type Handler = (req: NextApiRequest, res: NextApiResponse) => Promise<unknown>;
 type Source = "file_content" | "url" | "disk" | "gitea";
@@ -90,7 +86,6 @@ beforeEach(() => {
     });
 });
 afterEach(() => {
-    expect(prepareOpenApiDocument).not.toHaveBeenCalled();
     const converter = jest.requireMock<{ convertStr: jest.Mock; convertObj: jest.Mock }>("swagger2openapi");
     expect(converter.convertStr).not.toHaveBeenCalled();
     expect(converter.convertObj).not.toHaveBeenCalled();

@@ -10,7 +10,7 @@ import { readFixture, readFixtureContent, type Dialect } from "../fixtures/dual-
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Native parsing must not invoke the converter."); }),
     convertObj: jest.fn(() => { throw new Error("Native parsing must not invoke the converter."); }),
-}));
+}), { virtual: true });
 
 const converter = jest.requireMock<{ convertStr: jest.Mock; convertObj: jest.Mock }>("swagger2openapi");
 

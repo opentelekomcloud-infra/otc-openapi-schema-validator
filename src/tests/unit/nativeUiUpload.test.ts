@@ -39,7 +39,7 @@ jest.mock("@/utils/englishWords", () => ({
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("UI must not convert specifications"); }),
     convertObj: jest.fn(() => { throw new Error("UI must not convert specifications"); }),
-}));
+}), { virtual: true });
 
 let root: Root;
 let container: HTMLDivElement;

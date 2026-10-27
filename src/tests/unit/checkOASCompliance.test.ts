@@ -12,7 +12,7 @@ import type { ComplianceRule } from "@/utils/compliance";
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Compliance must not convert documents."); }),
     convertObj: jest.fn(() => { throw new Error("Compliance must not convert documents."); }),
-}));
+}), { virtual: true });
 
 const catalog = yaml.load(fs.readFileSync(
     path.join(process.cwd(), "public/rulesets/default/OAS_Compliance.yaml"),

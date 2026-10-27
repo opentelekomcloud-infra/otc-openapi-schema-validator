@@ -9,7 +9,7 @@ import { parseDeclaredMediaType } from "@/utils/mediaType";
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Native rules must not convert documents."); }),
     convertObj: jest.fn(() => { throw new Error("Native rules must not convert documents."); }),
-}));
+}), { virtual: true });
 
 type Dialect = "swagger2" | "openapi3";
 type Doc = Record<string, unknown>;

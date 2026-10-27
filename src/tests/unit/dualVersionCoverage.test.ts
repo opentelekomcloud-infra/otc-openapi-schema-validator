@@ -19,7 +19,7 @@ jest.mock("@/utils/utils", () => ({
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Fixture tests must not convert documents."); }),
     convertObj: jest.fn(() => { throw new Error("Fixture tests must not convert documents."); }),
-}));
+}), { virtual: true });
 
 const converter = jest.requireMock<{ convertStr: jest.Mock; convertObj: jest.Mock }>("swagger2openapi");
 const repoMap = jest.mocked(fetchRepoMap);

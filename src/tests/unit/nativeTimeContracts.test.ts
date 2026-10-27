@@ -13,7 +13,7 @@ jest.mock("@/utils/utils", () => ({
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Native time checks must not convert."); }),
     convertObj: jest.fn(() => { throw new Error("Native time checks must not convert."); }),
-}));
+}), { virtual: true });
 
 type Format = "yaml" | "flow" | "json";
 const formats: Format[] = ["yaml", "flow", "json"];

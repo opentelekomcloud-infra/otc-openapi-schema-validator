@@ -8,7 +8,7 @@ import { sourceLineNumber } from "@/lib/openapi/sourceMap";
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Native naming must not convert documents."); }),
     convertObj: jest.fn(() => { throw new Error("Native naming must not convert documents."); }),
-}));
+}), { virtual: true });
 
 type Doc = Record<string, unknown>;
 type Dialect = "swagger2" | "openapi3";

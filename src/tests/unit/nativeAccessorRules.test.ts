@@ -18,7 +18,7 @@ jest.mock("@/utils/utils", () => ({
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Native checks must not convert documents."); }),
     convertObj: jest.fn(() => { throw new Error("Native checks must not convert documents."); }),
-}));
+}), { virtual: true });
 
 const rules = new Map<string, AutoRule>();
 const converter = jest.requireMock<{ convertStr: jest.Mock; convertObj: jest.Mock }>("swagger2openapi");
