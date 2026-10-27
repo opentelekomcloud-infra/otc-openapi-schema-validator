@@ -49,6 +49,23 @@ test("PDF preserves mapped line metadata when no live editor is available", asyn
     }));
 });
 
+test("API JSON, PDF and Robot retain the corrected last-method line rather than the parent path", async () => {
+    const text = "openapi: 3.0.3\r\npaths:\r\n  /first:\r\n    get: {responses: {}}\r\n    get: {}\r\n";
+    const finding = {
+        ...sourceMap(text).locate("#/paths/~1first/get"),
+        severity: "error", message: "Missing response", source: "STC-010-01-2507-2507-M-2",
+    };
+    expect(finding.lineNumber).toBe(5);
+    expect(text.slice(finding.from, finding.to)).toBe("get");
+    const apiResult: typeof finding = JSON.parse(JSON.stringify(finding));
+    expect(apiResult).toEqual(finding);
+    expect(buildRobotXml([apiResult], {}, [], text, true)).toContain("Line 5:");
+    await exportPDF([apiResult], {}, [], { current: null });
+    expect(tables.autoTable).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({
+        body: [[5, finding.message, expect.any(String), finding.source]],
+    }));
+});
+
 test("browser Robot export uses the same mapped line, including without a live editor", async () => {
     const previous = Object.getOwnPropertyDescriptor(globalThis, "document");
     const anchor = { href: "", download: "", click: jest.fn() };

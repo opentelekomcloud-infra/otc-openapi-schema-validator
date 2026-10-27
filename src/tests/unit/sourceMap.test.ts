@@ -185,10 +185,10 @@ test("legacy Map node identities map to their own original properties", () => {
     exact(content, objectRange(document, content, properties, "id"), '"id"', content.indexOf('"id"'));
 });
 
-test("ambiguous/missing/invalid/empty source has explicit, valid parent fallbacks", () => {
+test("overwritten declarations use the effective parent; missing/invalid/empty source retains fallbacks", () => {
     const duplicate = "paths:\n  /first: {get: {}}\n  /first: {post: {}}\n";
-    expect(operationRange(duplicate, "/first", "get").fallback).toBe("ambiguous");
-    exact(duplicate, operationRange(duplicate, "/first", "get"), "paths", 0);
+    expect(operationRange(duplicate, "/first", "get").fallback).toBe("missing");
+    exact(duplicate, operationRange(duplicate, "/first", "get"), "/first", duplicate.lastIndexOf("/first"));
     expect(sourceMap("paths: [").locate("#/paths/get").fallback).toBe("invalid-source");
     expect(sourceMap("").locate("#/paths/get")).toMatchObject({ from: 0, to: 0, lineNumber: 1, fallback: "missing" });
     const noValue = "info:\n  version:\n";

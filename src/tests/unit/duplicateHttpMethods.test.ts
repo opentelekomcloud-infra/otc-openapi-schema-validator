@@ -216,11 +216,12 @@ test("rejects malformed configuration instead of silently disabling detection", 
     expect(diagnostics[0].message).toContain("functionParams.checkDuplicateMethods must be a boolean");
 });
 
-test("adding the opt-in AST reader does not change existing ambiguous coordinate fallback", () => {
+test("the raw duplicate audit preserves the effective last-declaration coordinate", () => {
     const content = "paths:\n  /first:\n    get: {}\n    get: {}\n";
     const map = sourceMap(content);
     const before = map.locate("#/paths/~1first/get");
     expect(map.duplicateMethods()).toHaveLength(1);
     expect(map.locate("#/paths/~1first/get")).toEqual(before);
-    expect(before).toMatchObject({ lineNumber: 2, fallback: "ambiguous" });
+    expect(before).toMatchObject({ lineNumber: 4 });
+    expect(before.fallback).toBeUndefined();
 });

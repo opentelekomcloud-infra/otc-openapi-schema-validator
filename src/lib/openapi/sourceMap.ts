@@ -71,7 +71,7 @@ export class OpenApiSourceMap {
     private readonly source: Document.Parsed;
     private readonly origins = new WeakMap<object, SourceEntry>();
     private readonly keys = new Map<string, SourceEntry[]>();
-    private readonly children = new WeakMap<object, Map<string, Lookup>>();
+    private readonly children = new WeakMap<object, Map<string, SourceEntry>>();
 
     constructor(readonly content: string, source?: Document.Parsed) {
         // Project lone CR line endings to LF without changing any source offsets.
@@ -84,7 +84,7 @@ export class OpenApiSourceMap {
             if (!isNode(entry.node) || this.origins.has(entry.node)) continue;
             this.origins.set(entry.node, entry);
             if (isMap(entry.node)) {
-                const children = new Map<string, Lookup>();
+                const children = new Map<string, SourceEntry>();
                 for (const pair of entry.node.items) {
                     if (isScalar(pair.key) && typeof pair.key.value === "symbol" && pair.key.source === "<<") {
                         pending.push({ node: pair.value, key: pair.key, pointer: appendPointer(entry.pointer, "<<") });
@@ -96,7 +96,7 @@ export class OpenApiSourceMap {
                     const entries = this.keys.get(name) ?? [];
                     entries.push(child);
                     this.keys.set(name, entries);
-                    children.set(name, children.has(name) ? { entry, fallback: "ambiguous" } : { entry: child });
+                    children.set(name, child);
                     pending.push(child);
                 }
                 this.children.set(entry.node, children);
@@ -110,20 +110,22 @@ export class OpenApiSourceMap {
         return isNode(node) ? this.origins.get(node) ?? { node, pointer: previous.pointer } : previous;
     }
 
-    private aliases(entry: SourceEntry): Lookup {
+    // Semantic lookup keeps its access route; raw audits retain authored origins.
+    private aliases(entry: SourceEntry, keepRoute = false): Lookup {
         const seen = new Set<object>();
         while (isAlias(entry.node)) {
             if (seen.has(entry.node)) return { entry, fallback: "unresolved-reference" };
             seen.add(entry.node);
             const target = entry.node.resolve(this.source);
             if (!target) return { entry, fallback: "unresolved-reference" };
-            entry = this.origin(target, entry);
+            const origin = this.origin(target, entry);
+            entry = keepRoute ? { ...origin, pointer: entry.pointer } : origin;
         }
         return { entry };
     }
 
     private child(entry: SourceEntry, token: string, active = new Set<object>()): Lookup {
-        const unwrapped = this.aliases(entry);
+        const unwrapped = this.aliases(entry, true);
         if (unwrapped.fallback) return unwrapped;
         entry = unwrapped.entry;
         const node = entry.node;
@@ -136,14 +138,16 @@ export class OpenApiSourceMap {
         if (!isMap(node)) return { entry, fallback: "missing" };
         if (active.has(node)) return { entry, fallback: "unresolved-reference" };
         const own = this.children.get(node)?.get(token);
-        if (own) return own;
+        if (own) return { entry: { ...own, pointer: appendPointer(entry.pointer, token) } };
         const next = new Set(active).add(node);
         for (const pair of node.items) {
             if (!isScalar(pair.key) || typeof pair.key.value !== "symbol" || pair.key.source !== "<<") continue;
             const sources = isSeq(pair.value) ? pair.value.items : [pair.value];
             for (const source of sources) {
                 const result = this.child(this.origin(source, entry), token, next);
-                if (result.fallback !== "missing") return result;
+                if (result.fallback !== "missing") {
+                    return result.fallback ? result : { entry: { ...result.entry, pointer: appendPointer(entry.pointer, token) } };
+                }
             }
         }
         return { entry, fallback: "missing" };
@@ -156,7 +160,7 @@ export class OpenApiSourceMap {
         const dereference = (value: SourceEntry): Lookup => {
             const references = new Set<object>();
             while (true) {
-                const aliases = this.aliases(value);
+                const aliases = this.aliases(value, true);
                 if (aliases.fallback || !followRefs) return aliases;
                 value = aliases.entry;
                 if (!isMap(value.node)) return { entry: value };
@@ -189,8 +193,7 @@ export class OpenApiSourceMap {
         return dereference(entry);
     }
 
-    locate(pointer: string, kind: "key" | "value" = "key", followRefs = false): SourceLocation {
-        const result = this.lookup(pointer, followRefs);
+    private location(result: Lookup, kind: "key" | "value"): SourceLocation {
         const valueRange = isNode(result.entry.node) ? result.entry.node.range : undefined;
         const preferKey = kind === "key" || result.fallback !== undefined || valueRange?.[0] === valueRange?.[1];
         const node = (preferKey && isNode(result.entry.key)) || !isNode(result.entry.node)
@@ -202,6 +205,10 @@ export class OpenApiSourceMap {
         return { from, to, pointer: result.entry.pointer, lineNumber: sourceLineNumber(this.content, from), ...(result.fallback ? { fallback: result.fallback } : {}) };
     }
 
+    locate(pointer: string, kind: "key" | "value" = "key", followRefs = false): SourceLocation {
+        return this.location(this.lookup(pointer, followRefs), kind);
+    }
+
     scalar(pointer: string, followRefs = false): unknown {
         const result = this.lookup(pointer, followRefs);
         return !result.fallback && isScalar(result.entry.node) ? result.entry.node.value : undefined;
@@ -210,7 +217,10 @@ export class OpenApiSourceMap {
     findKey(key: string, searchStart = 0): SourceLocation {
         const candidates = (this.keys.get(key) ?? []).filter((entry) =>
             isNode(entry.key) && (entry.key.range?.[0] ?? -1) >= searchStart);
-        if (candidates.length === 1) return this.locate(candidates[0].pointer);
+        if (candidates.length === 1) {
+            if (this.source.errors.length) return this.locate(candidates[0].pointer);
+            return this.location({ entry: candidates[0] }, "key");
+        }
         return { ...this.locate("#"), fallback: candidates.length ? "ambiguous" : "missing" };
     }
 
@@ -218,10 +228,14 @@ export class OpenApiSourceMap {
         const result = this.lookup(pointer, followRefs);
         if (result.fallback) return [];
         const { node } = result.entry;
-        if (isSeq(node)) return node.items.map((_, index) => ({ key: String(index), pointer: appendPointer(result.entry.pointer, index) }));
-        if (isMap(node)) return node.items.flatMap((pair) =>
-            isScalar(pair.key) && ["string", "number"].includes(typeof pair.key.value)
-                ? [{ key: String(pair.key.value), pointer: appendPointer(result.entry.pointer, String(pair.key.value)) }] : []);
+        // Keep the access route: an alias can reach an anchor whose authored pointer was overwritten.
+        const route = pointer.startsWith("/") ? `#${pointer}` : pointer;
+        if (isSeq(node)) return node.items.map((_, index) => ({ key: String(index), pointer: appendPointer(route, index) }));
+        if (isMap(node)) {
+            const keys = Array.from(this.children.get(node)?.keys() ?? []);
+            return Object.keys(Object.fromEntries(keys.map((key) => [key, true])))
+                .map((key) => ({ key, pointer: appendPointer(route, key) }));
+        }
         return [];
     }
 
