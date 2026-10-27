@@ -1,11 +1,11 @@
 'use client';
 
-import React, { useState, useRef, useEffect, SyntheticEvent, useMemo, useCallback } from "react";
+import React, { useState, useRef, useEffect, useMemo, useCallback } from "react";
 import Image from "next/image";
-import CodeMirror from "@uiw/react-codemirror";
+import CodeMirror, { ExternalChange } from "@uiw/react-codemirror";
 import { yaml } from "@codemirror/lang-yaml";
 import { EditorView } from "@codemirror/view";
-import { linter, lintGutter } from "@codemirror/lint";
+import { linter, lintGutter, setDiagnostics as setEditorDiagnostics, type Diagnostic } from "@codemirror/lint";
 import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector, { type Rule } from "@/components/RulesetsSelector";
 import ManualChecksSelector, { ManualRule } from "@/components/ManualChecksSelector";
@@ -33,23 +33,20 @@ declare module 'react' {
   }
 }
 
-interface Diagnostic {
-    from: number;
-    to: number;
-    severity: string;
-    message: string;
-    source?: string;
-}
-
 const HomePage = () => {
     const [code, setCode] = useState("// Start writing or load a file...");
     const [showScrollButton, setShowScrollButton] = useState(false);
     const scrollRef = useRef<HTMLElement | null>(null);
     const editorViewRef = useRef<EditorView | null>(null);
     const fileInputRef = useRef<HTMLInputElement | null>(null);
+    const fileReaderRef = useRef<FileReader | null>(null);
+    const fileReadIdRef = useRef(0);
+    const [sourceRevision, setSourceRevision] = useState(0);
+    const [editorReady, setEditorReady] = useState(false);
     const [selectedRules, setSelectedRules] = useState<Record<string, any>>({});
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
-    const prevDiagsRef = useRef<Diagnostic[]>([]);
+    const [isLinting, setIsLinting] = useState(false);
+    const [lintError, setLintError] = useState<string | null>(null);
     const [severityFilter, setSeverityFilter] = useState<string>("all");
     const [manualsIsOpen, setManualsIsOpen] = useState(true);
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
@@ -61,7 +58,6 @@ const HomePage = () => {
     const headerRef = useRef<HTMLDivElement>(null);
     const footerRef = useRef<HTMLDivElement>(null);
     const [isExporting, setIsExporting] = useState(false);
-    const [conversionNotice, setConversionNotice] = useState<string | null>(null);
 
     const [totalAvailableRules, setTotalAvailableRules] = useState<number>(0);
 
@@ -121,41 +117,42 @@ const HomePage = () => {
       });
     }, [filteredDiagnostics, sort]);
 
-    const diagnosticsListenerExtension = useMemo(
-      () =>
-        EditorView.updateListener.of(async (update) => {
-          if (!update.docChanged) return;
-          const runIdAtStart = lintRunIdRef.current;
-          const docLenAtStart = update.view.state.doc.length;
-
-          const { diagnostics: newDiags, specTitle: newTitle } =
-            await openApiLinter(selectedRules)(update.view);
-
-          // If we loaded a new spec while this lint was running, ignore these results.
-          if (lintRunIdRef.current !== runIdAtStart) return;
-
-          // If the editor doc changed while awaiting lint, positions may be invalid.
-          if (update.view.state.doc.length !== docLenAtStart) return;
-
-          if (newTitle !== specTitle) {
-            setSpecTitle(newTitle ?? null);
-          }
-          if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
-            prevDiagsRef.current = newDiags;
-            setDiagnostics(newDiags);
-          }
-        }),
-      [selectedRules, specTitle]
-    );
-
-    const cmLinterExtension = useMemo(() => {
-      // Lint only on edits; CodeMirror's linter runs on doc changes (not scroll)
-      return linter((v) => openApiLinter(selectedRules)(v).then((r) => r.diagnostics));
+    const lintDocument = useCallback(async (view: EditorView) => {
+      const runId = ++lintRunIdRef.current;
+      const document = view.state.doc;
+      const isCurrent = () => lintRunIdRef.current === runId &&
+        editorViewRef.current === view && view.state.doc === document;
+      setDiagnostics([]);
+      setSpecTitle(null);
+      setLintError(null);
+      setIsLinting(true);
+      setShowExportModal(false);
+      // An update listener cannot dispatch another transaction synchronously.
+      queueMicrotask(() => {
+        if (isCurrent()) view.dispatch(setEditorDiagnostics(view.state, []));
+      });
+      try {
+        const result = await openApiLinter(selectedRules)(view);
+        if (!isCurrent()) return;
+        setSpecTitle(result.specTitle ?? null);
+        setDiagnostics(result.diagnostics);
+        view.dispatch(setEditorDiagnostics(view.state, result.diagnostics));
+      } catch (error: unknown) {
+        if (!isCurrent()) return;
+        setLintError(`Unable to validate the specification: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        if (isCurrent()) setIsLinting(false);
+      }
     }, [selectedRules]);
 
+    const diagnosticsListenerExtension = useMemo(() => EditorView.updateListener.of((update) => {
+      if (!update.docChanged || update.transactions.some((transaction) => transaction.annotation(ExternalChange))) return;
+      void lintDocument(update.view);
+    }), [lintDocument]);
+
     const codeMirrorExtensions = useMemo(
-      () => [yaml(), cmLinterExtension, lintGutter(), diagnosticsListenerExtension],
-      [cmLinterExtension, diagnosticsListenerExtension]
+      () => [yaml(), linter(null), lintGutter(), diagnosticsListenerExtension],
+      [diagnosticsListenerExtension]
     );
 
     useEffect(() => {
@@ -164,41 +161,15 @@ const HomePage = () => {
       });
     }, []);
 
-    // Re-run lint when the selected ruleset/rules change (without requiring an edit)
     useEffect(() => {
-      if (!editorViewRef.current) return;
-
-      const view = editorViewRef.current;
-      const runIdAtStart = ++lintRunIdRef.current;
-      const docLenAtStart = view.state.doc.length;
-
-      (async () => {
-        try {
-          const { diagnostics: newDiags, specTitle: newTitle } = await openApiLinter(selectedRules)(view);
-
-          // If another lint started after this one, ignore these results.
-          if (lintRunIdRef.current !== runIdAtStart) return;
-
-          // If doc changed while awaiting, ignore (positions may be invalid).
-          if (view.state.doc.length !== docLenAtStart) return;
-
-          if (newTitle !== specTitle) {
-            setSpecTitle(newTitle ?? null);
-          }
-          if (JSON.stringify(newDiags) !== JSON.stringify(prevDiagsRef.current)) {
-            prevDiagsRef.current = newDiags;
-            setDiagnostics(newDiags);
-          }
-        } catch (e) {
-          console.error('Lint on ruleset change failed', e);
-        }
-      })();
-    }, [selectedRules]);
+      if (editorReady && editorViewRef.current) void lintDocument(editorViewRef.current);
+    }, [editorReady, lintDocument, sourceRevision]);
 
     const handleEditorCreated = (editorView: EditorView) => {
         editorViewRef.current = editorView;
         scrollRef.current = editorView.scrollDOM;
         scrollRef.current.addEventListener("scroll", handleScroll);
+        setEditorReady(true);
     };
 
     // Scroll event handler for CodeMirror's scrollDOM.
@@ -211,6 +182,9 @@ const HomePage = () => {
     // Cleanup scroll listener on unmount.
     useEffect(() => {
         return () => {
+            lintRunIdRef.current += 1;
+            fileReadIdRef.current += 1;
+            fileReaderRef.current?.abort();
             if (scrollRef.current) {
                 scrollRef.current.removeEventListener("scroll", handleScroll);
             }
@@ -223,47 +197,47 @@ const HomePage = () => {
         }
     };
 
-    const handleFileUpload = (event: SyntheticEvent) => {
-        const target = event.target as HTMLInputElement;
-        if (target.files && target.files[0]) {
-            const file = target.files[0];
-            if (file.name.endsWith(".yaml") || file.name.endsWith(".yml")) {
-                const reader = new FileReader();
-                reader.onload = async (e) => {
-                  try {
-                    const originalContent = e.target?.result as string;
-                    const response = await fetch("/api/convert", {
-                      method: "POST",
-                      headers: { "content-type": "application/json" },
-                      body: JSON.stringify({ file_content: originalContent }),
-                    });
-                    const prepared = await response.json();
-                    if (!response.ok) {
-                      throw new Error(prepared?.error || "Unable to prepare the uploaded specification.");
-                    }
-
-                    prevDiagsRef.current = [];
-                    setDiagnostics([]);
-                    setSpecTitle(null);
-                    lintRunIdRef.current += 1;
-                    setCode(prepared.content);
-                    setConversionNotice(
-                      prepared.conversion.converted
-                        ? `Converted Swagger ${prepared.conversion.from} to OpenAPI ${prepared.conversion.to} before validation.`
-                        : null
-                    );
-                  } catch (error: unknown) {
-                    const message = error instanceof Error ? error.message : String(error);
-                    setConversionNotice(null);
-                    alert(message);
-                  } finally {
-                    target.value = "";
-                  }
-                };
-                reader.readAsText(file);
-            } else {
-                alert("Please upload a valid .yaml or .yml file.");
+    const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+        const target = event.currentTarget;
+        const file = target.files?.[0];
+        target.value = "";
+        if (!file) return;
+        if (!file.name.endsWith(".yaml") && !file.name.endsWith(".yml")) {
+            alert("Please upload a valid .yaml or .yml file.");
+            return;
+        }
+        const readId = ++fileReadIdRef.current;
+        fileReaderRef.current?.abort();
+        const reader = new FileReader();
+        fileReaderRef.current = reader;
+        const isCurrent = () => fileReadIdRef.current === readId;
+        reader.onload = () => {
+            if (!isCurrent()) return;
+            if (typeof reader.result !== "string") {
+                alert("Unable to read the selected file as text.");
+                return;
             }
+            lintRunIdRef.current += 1;
+            setDiagnostics([]);
+            setSpecTitle(null);
+            setLintError(null);
+            setCode(reader.result);
+            setSourceRevision((revision) => revision + 1);
+        };
+        reader.onerror = () => {
+            if (isCurrent()) alert("Unable to read the selected file.");
+        };
+        reader.onabort = () => {
+            if (isCurrent()) alert("Reading the selected file was aborted.");
+        };
+        reader.onloadend = () => {
+            if (fileReaderRef.current === reader) fileReaderRef.current = null;
+        };
+        try {
+            reader.readAsText(file);
+        } catch (error: unknown) {
+            fileReaderRef.current = null;
+            alert(`Unable to read the selected file: ${error instanceof Error ? error.message : String(error)}`);
         }
     };
 
@@ -278,10 +252,12 @@ const HomePage = () => {
     };
 
     const handleExport = () => {
+        if (isLinting || lintError) return;
         setShowExportModal(true);
     };
 
     const handleSelectionChange = useCallback((newSelection: Rule[]) => {
+        lintRunIdRef.current += 1;
         setSelectedRules(newSelection);
     }, []);
 
@@ -347,11 +323,6 @@ const HomePage = () => {
             <scale-logo variant="white"></scale-logo>
           </div>
           <h1 className="ml-3 font-bold">OpenAPI Specification Validation</h1>
-          {conversionNotice && (
-            <span className="ml-4 text-sm text-green-700" role="status">
-              {conversionNotice}
-            </span>
-          )}
           <div className="flex gap-3 ml-auto mr-4">
             {/* Load YAML */}
             <scale-button
@@ -389,7 +360,7 @@ const HomePage = () => {
             </scale-button>
 
             {/* Export */}
-            <scale-button onClick={handleExport} variant="secondary" size="m">
+            <scale-button onClick={handleExport} variant="secondary" size="m" disabled={isLinting || Boolean(lintError)}>
               <Image
                 src="/images/export.png"
                 width={32}
@@ -477,7 +448,11 @@ const HomePage = () => {
                   <option value="critical">Critical</option>
                 </select>
               </div>
-              {filteredDiagnostics.length === 0 ? (
+              {isLinting ? (
+                <p className="text-gray-500" role="status">Validating specification...</p>
+              ) : lintError ? (
+                <p className="text-red-700" role="alert">{lintError}</p>
+              ) : filteredDiagnostics.length === 0 ? (
                 <p className="text-gray-500">No lint issues.</p>
               ) : (
                 <table className="w-full border-collapse table-fixed rounded-t-lg rounded-b-lg overflow-hidden">
