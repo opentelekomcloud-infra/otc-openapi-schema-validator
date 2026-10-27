@@ -187,6 +187,33 @@ test.each(["yaml", "yml"])("upload and Save preserve original %s text, CRLF, com
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:ui-test");
 });
 
+test("unavailable baseline leaves only a point on line one without covering other validation messages", async () => {
+    const actual = jest.requireActual<typeof import("@/components/Linter")>("@/components/Linter");
+    lint.mockImplementation(actual.openApiLinter);
+    jest.mocked(fetchRepoMap).mockResolvedValue(null);
+    await select(rules.filter((rule) => rule.id.startsWith("BAS-080-") ||
+        rule.id === "VER-030-01-2507-2507-O-5" || rule.call.function === "checkSuccessResponse"));
+    const content = "# vendor source\nswagger: '2.0'\ninfo: {title: Native, version: v1}\npaths:\n  /v1/resources:\n    get:\n      responses:\n        '400': {description: Bad request}\n";
+    await upload(content);
+    await loaded(content);
+    const baseline: { from: number; to: number }[] = [];
+    const others: { from: number; to: number }[] = [];
+    forEachDiagnostic(editor().state, (diagnostic, from, to) => {
+        if (diagnostic.source?.includes("BAS-080-") || diagnostic.source?.includes("VER-030-01-2507-2507-O-5")) {
+            baseline.push({ from, to });
+        } else {
+            others.push({ from, to });
+        }
+    });
+    expect(baseline).toEqual(Array.from({ length: 8 }, () => ({ from: 0, to: 0 })));
+    expect(others).toHaveLength(1);
+    expect(others[0].from).toBeGreaterThan(0);
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(9);
+    const firstLine = container.querySelector(".cm-line");
+    expect(firstLine?.querySelector(".cm-lintPoint-error")).not.toBeNull();
+    expect(firstLine?.querySelector(".cm-lintRange-error")).toBeNull();
+});
+
 test("reuploading exactly the same file revalidates and refreshes both the table and gutter", async () => {
     let runs = 0;
     lint.mockImplementation(() => async () => ({ diagnostics: [finding(`result ${++runs}`)] }));

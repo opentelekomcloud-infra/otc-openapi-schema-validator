@@ -179,6 +179,7 @@ test.each(["mapping", "fetch", "invalid"] as const)("unavailable %s fails every 
     const { diagnostics } = await runLinter(yaml.dump(fixture("swagger2")), rules);
     expect(diagnostics).toHaveLength(8);
     for (const diagnostic of diagnostics) {
+        expect(diagnostic).toMatchObject({ from: 0, to: 0, lineNumber: 1 });
         expect(diagnostic.severity).toBe("error");
         expect(diagnostic.source).not.toBe("parser");
         expect(diagnostic.message).toMatch(/execution failed.*[Bb]aseline/);
@@ -201,20 +202,47 @@ test("baseline failures retry on the next validation and successful data never b
 test("necessary broken baseline refs fail explicitly without highlighting an unrelated current schema", async () => {
     const baseline = fixture("openapi3");
     schemas(baseline, "openapi3").Input = { $ref: "#/missing" };
-    const { diagnostics, content } = await compare(fixture("openapi3"), baseline, [`${prefix}-1`]);
+    const { diagnostics } = await compare(fixture("openapi3"), baseline, [`${prefix}-1`]);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].message).toContain("execution failed");
     expect(diagnostics[0].message).toContain("#/missing");
-    expect(diagnostics[0]).toMatchObject({ from: 0, to: content.length });
+    expect(diagnostics[0]).toMatchObject({ from: 0, to: 0, lineNumber: 1 });
 });
 
 test("baseline accessor failures cannot borrow coordinates from the current document either", async () => {
     const baseline = fixture("openapi3");
     object(schemas(baseline, "openapi3").Input).properties = null;
-    const { diagnostics, content } = await compare(fixture("openapi3"), baseline, [`${prefix}-1`]);
+    const { diagnostics } = await compare(fixture("openapi3"), baseline, [`${prefix}-1`]);
     expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0].message).toContain("Cannot inspect baseline");
+    expect(diagnostics[0]).toMatchObject({ from: 0, to: 0, lineNumber: 1 });
+});
+
+test.each(["", "\r\n# vendor comment\r\n", "# first comment\n# second comment\n"])("baseline failures remain on line one with prefix %j", async (leading) => {
+    mapping.mockResolvedValue(null);
+    const { diagnostics } = await runLinter(leading + yaml.dump(fixture("swagger2")), rules);
+    expect(diagnostics).toHaveLength(8);
+    for (const diagnostic of diagnostics) expect(diagnostic).toMatchObject({ from: 0, to: 0, lineNumber: 1 });
+});
+
+test("ordinary execution failures keep their existing document range", async () => {
+    jest.spyOn(functionsMap, "checkCompatibility").mockImplementation(() => { throw new Error("Unrelated execution failure"); });
+    const content = yaml.dump(fixture("swagger2"));
+    const selected = rules.filter((rule) => rule.id === prefix);
+    const { diagnostics } = await runLinter(content, selected);
+    expect(diagnostics).toHaveLength(1);
     expect(diagnostics[0]).toMatchObject({ from: 0, to: content.length });
+    expect(diagnostics[0].message).toContain("Unrelated execution failure");
+});
+
+test("reference errors in the current document retain their authored coordinates", async () => {
+    const current = fixture("openapi3");
+    schemas(current, "openapi3").Input = { $ref: "#/missing" };
+    const { diagnostics, content } = await compare(current, fixture("openapi3"), [`${prefix}-1`]);
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].from).toBeGreaterThan(0);
+    expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toContain("#/missing");
+    expect(diagnostics[0].lineNumber).toBeGreaterThan(1);
 });
 
 test("allOf form fields and required declarations are compared against native Swagger formData", async () => {

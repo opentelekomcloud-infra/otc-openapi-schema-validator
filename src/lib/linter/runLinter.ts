@@ -53,11 +53,13 @@ import { assertRuleFunction } from "@/lib/linter/ruleCatalog";
 import { objectRange, sourceLineNumber, sourceMap } from "@/lib/openapi/sourceMap";
 import { NativeReferenceError, appendPointer } from "@/lib/openapi/references";
 import { NativeAccessorError } from "@/lib/openapi/accessorError";
+import { NativeBaselineError } from "@/lib/openapi/baselineError";
 import { NativeExampleError } from "@/lib/openapi/exampleError";
 import { createExecutionContext } from "@/lib/openapi/createExecutionContext";
 import { bindExecutionContext, type NativeExecutionContext } from "@/lib/openapi/executionContext";
 
 function executionRange(content: string, error: unknown, document: unknown) {
+  if (error instanceof NativeBaselineError) return { from: 0, to: 0, lineNumber: 1 };
   if (error instanceof NativeReferenceError && error.sourceNode !== undefined) {
     return objectRange(document, content, error.sourceNode, "$ref", "value");
   }
