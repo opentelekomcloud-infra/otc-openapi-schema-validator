@@ -161,7 +161,7 @@ paths: {}
     }
   });
 
-  it("converts Swagger 2.0 file content before validation", async () => {
+  it("validates native Swagger 2.0 file content without conversion", async () => {
     const spec = `
 swagger: "2.0"
 info:
@@ -176,21 +176,45 @@ paths: {}
     const res = await fetch(`${baseUrl}${validatePath}`, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ file_content: spec, ruleset: "default" }),
+      body: JSON.stringify({
+        file_content: spec, ruleset: "default",
+        auto_rules: ["BAS-110-01-2507-2507-M", "BAS-110-01-2507-2507-M-1"],
+      }),
     });
 
     expect(res.status).toBe(200);
     const json = await readJsonOrThrow(res);
-    expect(json.conversion).toEqual({
-      converted: true,
-      from: "2.0",
-      to: "3.0.3",
-    });
+    expect(json.conversion).toEqual({ converted: false });
     expect(json.diagnostics).not.toEqual(
       expect.arrayContaining([
         expect.objectContaining({ message: expect.stringContaining("Missing 'openapi' field") }),
       ])
     );
+  });
+
+  it("returns parser diagnostics with 400 instead of exporting malformed input", async () => {
+    const res = await fetch(`${baseUrl}${validatePath}`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ file_content: "swagger: [", auto_rules: ["BAS-110-01-2507-2507-M"], export: "xml" }),
+    });
+    expect(res.status).toBe(400);
+    const json = await readJsonOrThrow(res);
+    expect(json.error).toContain("Specification parsing error");
+    expect(json.conversion).toEqual({ converted: false });
+    expect(json.diagnostics).toEqual(expect.arrayContaining([expect.objectContaining({ source: "parser" })]));
+    expect(json).not.toHaveProperty("launch");
+  });
+
+  it("retires the conversion endpoint with a migration message", async () => {
+    const res = await fetch(`${baseUrl}/api/convert`, {
+      method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ file_content: 'swagger: "2.0"\\npaths: {}' }),
+    });
+    expect(res.status).toBe(410);
+    const json = await readJsonOrThrow(res);
+    expect(json.error).toContain("/api/validate");
+    expect(json).not.toHaveProperty("content");
   });
 
   it("returns 405 on GET (or 404 if route missing)", async () => {

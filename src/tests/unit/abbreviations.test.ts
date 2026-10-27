@@ -26,9 +26,6 @@ jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Dictionary initialization must not convert."); }),
     convertObj: jest.fn(() => { throw new Error("Dictionary initialization must not convert."); }),
 }));
-jest.mock("@/lib/openapi/prepareOpenApiDocument", () => ({
-    prepareOpenApiDocument: jest.fn(async (content: string) => ({ content, conversion: { converted: false } })),
-}));
 
 const dictionaryFunctions = [
     "checkCommonParameters", "checkParameterIsSnakeCase", "checkRootNodeMatchesResource", "checkURIContentDictionary",

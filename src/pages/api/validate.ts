@@ -10,7 +10,6 @@ import { reportPortalClient } from '@/clients/reportportal';
 import { getSeverityLabel } from "@/utils/mapSeverity";
 import { giteaClient } from '@/clients/gitea';
 import { requireApiAuth } from "@/lib/apiAuth";
-import { prepareOpenApiDocument } from "@/lib/openapi/prepareOpenApiDocument";
 import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
 
 const log = {
@@ -230,18 +229,6 @@ export default async function handler(
       return res.status(400).json({ error: 'Specification content is empty after reading provided source.' });
     }
 
-    let preparedSpec;
-    try {
-      preparedSpec = await prepareOpenApiDocument(specText);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      return res.status(400).json({ error: message });
-    }
-    specText = preparedSpec.content;
-    if (preparedSpec.conversion.converted) {
-      log.debug('spec converted', preparedSpec.conversion);
-    }
-
     // Load all rules, then filter if IDs provided
     let allManual: ManualRule[] = [];
     let allAuto: AutoRule[] = [];
@@ -278,6 +265,22 @@ export default async function handler(
       lineNumber: diagnosticLineNumber(specText, d),
       severity: getSeverityLabel(d?.severity),
     }));
+    const validationResult = {
+      diagnostics: diagnosticsWithLines,
+      conversion: { converted: false },
+      rules: {
+        manual,
+        auto,
+        manual_total: allManual.length,
+        auto_total: allAuto.length,
+        manual_selected: manual.length,
+        auto_selected: auto.length,
+      },
+    };
+    const parserError = diagnostics.find((diagnostic) => diagnostic.source === "parser" && diagnostic.severity === "error");
+    if (parserError) {
+      return res.status(400).json({ ...validationResult, error: parserError.message });
+    }
 
     // Export options
     if (exportMode === 'xml') {
@@ -312,7 +315,7 @@ export default async function handler(
       return res.status(200).json({
         success: true,
         launch: payload,
-        conversion: preparedSpec.conversion,
+        conversion: { converted: false },
       });
     }
 
@@ -325,18 +328,7 @@ export default async function handler(
 
     // Default JSON response
     log.debug('response', { mode: 'json', ms: Date.now() - t0, diagnostics: diagnosticsWithLines.length });
-    return res.status(200).json({
-      diagnostics: diagnosticsWithLines,
-      conversion: preparedSpec.conversion,
-      rules: {
-        manual,
-        auto,
-        manual_total: allManual.length,
-        auto_total: allAuto.length,
-        manual_selected: manual.length,
-        auto_selected: auto.length,
-      },
-    });
+    return res.status(200).json(validationResult);
   } catch (error: any) {
     console.error('Validate route error:', error);
     return res.status(500).json({ error: error?.message || 'Unknown error' });

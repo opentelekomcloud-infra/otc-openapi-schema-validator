@@ -1,9 +1,9 @@
 # T Cloud Public OpenAPI Schema Validator
 
 A web-based tool built with **Next.js 15**, **React 19**, and **Tailwind CSS 4** for validating and visualizing OpenAPI schemas (YAML/JSON).  
-It supports file uploads, URL-based loading (including Internal Gitea-hosted specs), and provides detailed diagnostics and reports. Swagger 2.0 documents are automatically converted to OpenAPI 3.0.3 before validation; existing OpenAPI 3 documents are validated unchanged.
+It supports file uploads, URL-based loading (including Internal Gitea-hosted specs), and provides detailed diagnostics and reports. Swagger 2.0 and OpenAPI 3.0.x documents are validated natively without automatic conversion or reference rewriting.
 
-The format-version and top-level-field rules accept native Swagger 2.0 and OpenAPI 3.0.x documents. OpenAPI 3.1 is not allowed by the default format-version rule. Automatic conversion in the upload and validation API remains enabled pending adaptation of the other rules.
+The format-version and top-level-field rules accept native Swagger 2.0 and OpenAPI 3.0.x documents. OpenAPI 3.1 is not allowed by the default format-version rule.
 
 ---
 
@@ -138,7 +138,9 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
 
 **Behavior**
 - If `file_content` is provided, it takes precedence.
-- Swagger 2.0 input is converted to OpenAPI 3.0.3 before rules run. JSON responses include a `conversion` object indicating whether conversion occurred.
+- Swagger 2.0 and OpenAPI 3.0.x inputs are validated in their original structure. The original source text is used for diagnostics, without conversion or YAML reserialization.
+- JSON validation and XML-export responses temporarily retain the deprecated `conversion: {"converted": false}` field for compatibility.
+- Syntax errors rejected by the runtime parser return **400** with the parser diagnostic, original source positions and rule summary. Such documents are not exported to ReportPortal. Format-version errors remain diagnostics of the selected rules rather than an independent global version gate.
 - If `path` is an **HTTP/HTTPS URL**. For Gitea URL, expected next shape: `/:owner/:repo/src/:branch/path/to/file.yaml`.
 - If `path` is a **server path**, the file is read from disk (if accessible to the server).
 - `ruleset` directory is read from `public/rulesets/<ruleset>`; only auto‑rules with `status: implemented` are used.
@@ -146,12 +148,15 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
 - `export: "xml"` builds **Robot XML** and imports a launch to **ReportPortal** (defaults used in server: project `openapi`, dynamic launch name/description). Response includes the created launch payload.
 - `export: "pdf"` currently returns **501** (use the UI export instead).
 
+The former POST `/api/convert` endpoint now returns **410 Gone** after authentication, with a migration message directing clients to `/api/validate`. Submit the original specification instead of requesting conversion.
+
 **Success Response (default validation)**
 ```json
 {
   "diagnostics": [
     { "id": "RULE_ID", "message": "…", "lineNumber": 42, "severity": "High", "from": 123, "to": 140 }
   ],
+  "conversion": { "converted": false },
   "rules": {
     "manual": [ { "id": "…" } ],
     "auto": [ { "id": "…" } ],
@@ -180,7 +185,7 @@ Validate from internal Gitea URL:
 curl -X POST http://localhost:3000/api/validate \
   -H 'Content-Type: application/json' \
   -d '{
-    "path": "https://gitea.my-service.com/owner/repo/src/main/specs/openapi.yaml",
+    "path": "https://gitea.eco.example.com/docs/repo/src/branch/main/openapi/spec.yaml",
     "auto_rules": ["RULE_1", "RULE_2"]
   }'
 ```
