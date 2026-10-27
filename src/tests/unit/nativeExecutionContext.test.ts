@@ -8,6 +8,7 @@ import { classifyNativeOpenApiDocument } from "@/lib/openapi/parseNativeOpenApi"
 import { sourceMap } from "@/lib/openapi/sourceMap";
 import { isRecord } from "@/lib/openapi/references";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
+import { flowExampleContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
 
 jest.mock("@/utils/utils", () => ({
     ...jest.requireActual<typeof import("@/utils/utils")>("@/utils/utils"),
@@ -76,6 +77,31 @@ test.each([
     expect(contexts[0]).toBe(contexts[1]);
     expect(executionContextFor(contexts[0].document)).toBeUndefined();
     expect(contexts[0].document).toEqual(yaml.load(content, { json: true }));
+});
+
+test.each<Dialect>(["swagger2", "openapi3"])("%s CCE-shaped flow examples reach real rules with original text and native values", async (dialect) => {
+    const content = flowExampleContent(dialect);
+    const original = functionsMap.checkOASVersion;
+    const version = jest.spyOn(functionsMap, "checkOASVersion").mockImplementation((document, text, rule, context) => {
+        expect(text).toBe(content);
+        expect(context?.originalContent).toBe(content);
+        expect(context?.document).toBe(document);
+        expect(context?.native?.dialect).toBe(dialect);
+        expect(context?.sourceDocument.errors).toEqual([]);
+        const schemas = dialect === "swagger2" ? document.definitions : document.components.schemas;
+        expect(schemas.ChartValue.properties.values.example).toEqual({ basic: { name: "demo" }, items: [] });
+        expect(schemas.Alias.$ref).toBe(`#/${dialect === "swagger2" ? "definitions" : "components/schemas"}/ChartValue`);
+        if (dialect === "swagger2") expect(document.openapi).toBeUndefined();
+        return original(document, text, rule, context);
+    });
+    const success = catalog.find((rule) => rule.call.function === "checkSuccessResponse");
+    if (!success) throw new Error("Missing success-response rule");
+    const result = await runLinter(content, [...compliance, success]);
+    expect(version).toHaveBeenCalledTimes(1);
+    expect(result.diagnostics).toEqual([expect.objectContaining({
+        source: expect.stringContaining(success.id), from: content.indexOf("get:"), lineNumber: 6,
+        message: expect.stringContaining("Missing: 200"),
+    })]);
 });
 
 test.each([

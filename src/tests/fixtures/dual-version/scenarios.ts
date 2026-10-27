@@ -33,6 +33,33 @@ export function readFixtureContent(dialect: Dialect, suffix = ""): string {
     return fs.readFileSync(path.join(__dirname, `${dialect}${suffix}.yaml`), "utf8");
 }
 
+export function flowExampleContent(dialect: Dialect): string {
+    const root = dialect === "swagger2" ? "definitions:" : "components:\n  schemas:";
+    const indent = dialect === "swagger2" ? "  " : "    ";
+    const schema = `ChartValue:
+  type: object
+  properties:
+    values:
+      type: object
+      example: {
+        "basic": {"name": "demo",},
+        "items": []
+      }
+Alias:
+  $ref: "#/${dialect === "swagger2" ? "definitions" : "components/schemas"}/ChartValue"`;
+    return `# native flow example
+${dialect === "swagger2" ? 'swagger: "2.0"' : "openapi: 3.0.3"}
+info: {title: Flow Example, version: v1}
+paths:
+  /v1/resources:
+    get:
+      responses:
+        "400": {description: Bad request}
+${root}
+${schema.split("\n").map((line) => indent + line).join("\n")}
+`.replace(/\n/g, "\r\n");
+}
+
 export function readFixture(dialect: Dialect, suffix = ""): JsonObject {
     const parsed: unknown = yaml.load(readFixtureContent(dialect, suffix));
     if (!isJsonValue(parsed)) throw new Error(`Fixture is not JSON-compatible: ${dialect}${suffix}`);

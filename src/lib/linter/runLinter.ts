@@ -188,7 +188,8 @@ export async function runLinter(
     }
   } catch (error: any) {
     const position = error instanceof yaml.YAMLException ? error.mark?.position : undefined;
-    const from = typeof position === "number" && position >= 0 && position <= content.length ? position : 0;
+    // js-yaml may append a virtual newline before reporting EOF.
+    const from = typeof position === "number" && position >= 0 ? Math.min(position, content.length) : 0;
     diagnostics.push({
       from,
       to: position === undefined ? content.length : Math.min(content.length, from + 1),

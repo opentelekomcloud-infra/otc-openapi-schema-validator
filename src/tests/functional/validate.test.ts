@@ -16,7 +16,7 @@ import { reportPortalClient } from "@/clients/reportportal";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import { getSeverityLabel } from "@/utils/mapSeverity";
 import { coverageLedger } from "@/tests/fixtures/dual-version/coverageLedger";
-import { readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
+import { flowExampleContent, readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
 
 jest.mock("node:fs/promises", () => {
     const actual = jest.requireActual<typeof import("node:fs/promises")>("node:fs/promises");
@@ -162,6 +162,20 @@ test("the HTTP catalog matches all 67 ledger IDs, 47 functions and 28 manual che
 });
 
 describe.each<Dialect>(["swagger2", "openapi3"])("%s isolated native HTTP sources", (dialect) => {
+    test.each(sources)("%s preserves CCE-shaped flow examples and executes the selected rules", async (source) => {
+        const content = flowExampleContent(dialect);
+        const successId = "STC-010-01-2507-2507-M-2";
+        const { status, json } = await post({
+            ...sourceBody(source, content, dialect), auto_rules: [versionId, structureId, successId],
+        });
+        expect(status).toBe(200);
+        expect(json.conversion).toEqual({ converted: false });
+        expect(json.diagnostics).toEqual([expect.objectContaining({
+            source: expect.stringContaining(successId), from: content.indexOf("get:"), lineNumber: 6,
+            message: expect.stringContaining("Missing: 200"),
+        })]);
+    });
+
     test.each(sources)("%s matches real engine findings and preserves the original source", async (source) => {
         const content = readFixtureContent(dialect);
         const body = sourceBody(source, content, dialect);

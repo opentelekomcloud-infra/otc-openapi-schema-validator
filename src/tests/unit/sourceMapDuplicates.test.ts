@@ -128,10 +128,12 @@ x-object:
     const parsed = yaml.load(content, { json: true }) as { "x-object": Record<string, string> };
     const source = sourceMap(content);
     const entries = source.entries("#/x-object");
-    const ownKeys = Object.keys(parsed["x-object"]).filter((key) => key !== "<<");
+    const ownKeys = ["2", "10", "a", "own"];
     expect(entries.map(({ key }) => key)).toEqual(ownKeys);
     expect(entries.map(({ pointer }) => source.scalar(pointer))).toEqual(ownKeys.map((key) => parsed["x-object"][key]));
     expect(source.scalar("#/x-object/b")).toBe("base");
+    expect(parsed["x-object"].b).toBe("base");
+    expect(entries.some(({ key }) => key === "b")).toBe(false);
     expect(source.scalar("#/x-object/a")).toBe("last");
     const merged = source.locate("#/x-object/b", "value");
     expect(merged.pointer).toBe("#/x-object/b");

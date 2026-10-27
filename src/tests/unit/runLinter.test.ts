@@ -62,7 +62,10 @@ describe("rule execution errors", () => {
         expect(tests[0][0]).not.toContain('status="PASS"');
     });
 
-    test.each(["openapi: 3.0.3\npaths: [", "openapi: 3.0.3\npaths: [}\n"])("parser errors retain exact original offsets: %j", async (text) => {
+    test.each([
+        "openapi: 3.0.3\npaths: [", "openapi: 3.0.3\npaths: [}\n",
+        "openapi: 3.0.3\r\npaths: [", "openapi: 3.0.3\r\npaths: [}\r\n",
+    ])("parser errors retain exact original offsets: %j", async (text) => {
         const { diagnostics } = await runLinter(text, [baseRule]);
         const from = text.includes("}") ? text.indexOf("}") : text.length;
         expect(diagnostics).toHaveLength(1);

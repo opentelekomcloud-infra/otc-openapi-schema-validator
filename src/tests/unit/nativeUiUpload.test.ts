@@ -15,7 +15,7 @@ import { setAllowedAbbreviations } from "@/utils/englishWords";
 import { parseAllowedAbbreviations } from "@/lib/abbreviations";
 import { exportJUnit, exportPDF, exportReportPortal } from "@/utils/export";
 import { coverageLedger } from "@/tests/fixtures/dual-version/coverageLedger";
-import { readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
+import { flowExampleContent, readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
 
 type LintResult = Awaited<ReturnType<ReturnType<typeof openApiLinter>>>;
 let mockSelector: { onSelectionChange: (rules: AutoRule[]) => void };
@@ -203,6 +203,20 @@ test.each<Dialect>(["swagger2", "openapi3"])("%s pasted into the real editor use
     expect(container.querySelectorAll("tbody tr")).toHaveLength(0);
     expect(editor().state.doc.toString()).toContain(dialect === "swagger2" ? "definitions:" : "components:");
     expect(container.textContent).not.toContain("Converted Swagger");
+});
+
+test.each<Dialect>(["swagger2", "openapi3"])("%s CCE-shaped upload displays rule findings instead of stopping at the parser", async (dialect) => {
+    const actual = jest.requireActual<typeof import("@/components/Linter")>("@/components/Linter");
+    lint.mockImplementation(actual.openApiLinter);
+    await select(rules.filter((rule) => ["checkOASVersion", "checkOASSpec", "checkSuccessResponse"].includes(rule.call.function)));
+    const content = flowExampleContent(dialect);
+    await upload(content);
+    await loaded(content);
+    expect(container.textContent).not.toContain("Specification parsing error");
+    expect(container.textContent).toContain("Missing: 200");
+    expect(container.textContent).toContain("STC-010-01-2507-2507-M-2");
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(window.alert).not.toHaveBeenCalled();
 });
 
 test.each(["yaml", "yml"])("upload and Save preserve original %s text, CRLF, comments, definitions and refs", async (extension) => {

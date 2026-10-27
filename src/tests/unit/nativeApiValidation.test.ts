@@ -12,7 +12,7 @@ import type { NativeExecutionContext } from "@/lib/openapi/executionContext";
 import { giteaClient } from "@/clients/gitea";
 import { reportPortalClient } from "@/clients/reportportal";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
-import { readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
+import { flowExampleContent, readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
 
 jest.mock("node:fs/promises", () => {
     const actual = jest.requireActual<typeof import("node:fs/promises")>("node:fs/promises");
@@ -94,6 +94,23 @@ afterEach(() => {
 });
 
 describe.each<Dialect>(["swagger2", "openapi3"])("%s original API sources", (dialect) => {
+    test.each(sources)("%s CCE-shaped flow examples return rule findings rather than a global parser failure", async (source) => {
+        const content = flowExampleContent(dialect);
+        const successId = "STC-010-01-2507-2507-M-2";
+        const res = await request(validate, {
+            ...sourceBody(source, content, dialect), auto_rules: [versionId, structureId, successId],
+        });
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(jest.mocked(runLinter).mock.calls[0][0]).toBe(content);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            conversion: { converted: false },
+            diagnostics: [expect.objectContaining({
+                source: expect.stringContaining(successId), from: content.indexOf("get:"), lineNumber: 6,
+                message: expect.stringContaining("Missing: 200"),
+            })],
+        }));
+    });
+
     test.each(sources)("%s executes all 67 native bindings with the untouched source and context", async (source) => {
         const content = `# original source\r\n${readFixtureContent(dialect).replace(/\r?\n/g, "\r\n")}`;
         jest.mocked(fetchSpecFromGitea).mockResolvedValue(yaml.load(content, { json: true }));
