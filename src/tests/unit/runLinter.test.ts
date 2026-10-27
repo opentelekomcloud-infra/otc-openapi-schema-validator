@@ -91,4 +91,25 @@ describe("rule execution errors", () => {
             expect.objectContaining({ source: "parser", severity: "error" }),
         ]);
     });
+
+    test("Robot marks selected rules SKIP, not PASS, when syntax prevented their execution", async () => {
+        const execute = jest.spyOn(functionsMap, "checkOASVersion");
+        const { diagnostics } = await runLinter("paths: [", [baseRule]);
+        expect(execute).not.toHaveBeenCalled();
+        const xml = buildRobotXml(diagnostics, { [baseRule.id]: baseRule }, [], "paths: [");
+        const ruleCase = [...xml.matchAll(/<test\b[\s\S]*?<\/test>/g)].find(([text]) => text.includes(baseRule.id))?.[0];
+        expect(ruleCase).toContain('status="SKIP"');
+        expect(ruleCase).not.toContain('status="PASS"');
+        expect(xml).toContain('name="Specification parsing"');
+        expect(xml).toContain('name="Not Executed Rules"');
+    });
+
+    test("parser text mentioning a rule ID cannot incorrectly attribute the document failure to that rule", () => {
+        const xml = buildRobotXml([{
+            from: 0, to: 0, severity: "error", source: "parser", message: `Invalid syntax near ${baseRule.id}`,
+        }], { [baseRule.id]: baseRule }, [], "");
+        const ruleCases = [...xml.matchAll(/<test\b[\s\S]*?<\/test>/g)].filter(([text]) => text.includes(`name="Rule ${baseRule.id}`));
+        expect(ruleCases).toHaveLength(1);
+        expect(ruleCases[0][0]).toContain('status="SKIP"');
+    });
 });

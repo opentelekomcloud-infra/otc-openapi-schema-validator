@@ -73,6 +73,10 @@ export class OpenApiSourceMap {
     private readonly keys = new Map<string, SourceEntry[]>();
     private readonly children = new WeakMap<object, Map<string, SourceEntry>>();
 
+    get sourceDocument(): Document.Parsed {
+        return this.source;
+    }
+
     constructor(readonly content: string, source?: Document.Parsed) {
         // Project lone CR line endings to LF without changing any source offsets.
         this.source = source ?? parseDocument(content.replace(/\r(?!\n)/g, "\n"), {

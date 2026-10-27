@@ -54,6 +54,8 @@ import { objectRange, sourceLineNumber, sourceMap } from "@/lib/openapi/sourceMa
 import { NativeReferenceError, appendPointer } from "@/lib/openapi/references";
 import { NativeAccessorError } from "@/lib/openapi/accessorError";
 import { NativeExampleError } from "@/lib/openapi/exampleError";
+import { createExecutionContext } from "@/lib/openapi/createExecutionContext";
+import { bindExecutionContext, type NativeExecutionContext } from "@/lib/openapi/executionContext";
 
 function executionRange(content: string, error: unknown, document: unknown) {
   if (error instanceof NativeReferenceError && error.sourceNode !== undefined) {
@@ -71,7 +73,7 @@ const log = {
 };
 
 export const functionsMap: {
-  [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
+  [key: string]: (spec: any, content: string, rule: any, context?: NativeExecutionContext) => Diagnostic[] | Promise<Diagnostic[]>;
 } = {
   checkHttpsServers,
   checkParamElementPresence,
@@ -145,37 +147,43 @@ export async function runLinter(
       return { diagnostics, specTitle };
     }
     log.debug("loaded rules: ", selectedRules)
-    const results = await Promise.all(
-      selectedRules.map(async (rule: any): Promise<SourceDiagnostic[]> => {
-        const funcName = rule?.call?.function;
-        try {
-          assertRuleFunction(rule, functionsMap);
-          const ruleFunc = functionsMap[rule.call.function];
-          const out = await ruleFunc(spec, content, rule);
-          if (!Array.isArray(out)) return [];
-          return out.map((diagnostic) => {
-            if (!Number.isInteger(diagnostic.from) || !Number.isInteger(diagnostic.to) ||
-                diagnostic.from < 0 || diagnostic.to < diagnostic.from || diagnostic.to > content.length) {
-              throw new RangeError("Rule produced a diagnostic outside the original content.");
-            }
-            return { ...diagnostic, lineNumber: sourceLineNumber(content, diagnostic.from) };
-          });
-        } catch (err: any) {
-          return [
-            {
-              ...executionRange(content, err, spec),
-              severity: 'error',
-              message: `Rule "${funcName}" execution failed: ${
-                err?.message || String(err)
+    const context = createExecutionContext(spec, content);
+    const releaseContext = bindExecutionContext(context);
+    try {
+      const results = await Promise.all(
+        selectedRules.map(async (rule: any): Promise<SourceDiagnostic[]> => {
+          const funcName = rule?.call?.function;
+          try {
+            assertRuleFunction(rule, functionsMap);
+            const ruleFunc = functionsMap[rule.call.function];
+            const out = await ruleFunc(spec, content, rule, context);
+            if (!Array.isArray(out)) return [];
+            return out.map((diagnostic) => {
+              if (!Number.isInteger(diagnostic.from) || !Number.isInteger(diagnostic.to) ||
+                  diagnostic.from < 0 || diagnostic.to < diagnostic.from || diagnostic.to > content.length) {
+                throw new RangeError("Rule produced a diagnostic outside the original content.");
+              }
+              return { ...diagnostic, lineNumber: sourceLineNumber(content, diagnostic.from) };
+            });
+          } catch (err: any) {
+            return [
+              {
+                ...executionRange(content, err, spec),
+                severity: 'error',
+                message: `Rule "${funcName}" execution failed: ${
+                  err?.message || String(err)
               }`,
-              source: rule?.id ? getSource(rule) : "ruleset",
-            },
-          ];
-        }
-      })
-    );
+                source: rule?.id ? getSource(rule) : "ruleset",
+              },
+            ];
+          }
+        })
+      );
 
-    diagnostics = results.flat();
+      diagnostics = results.flat();
+    } finally {
+      releaseContext();
+    }
   } catch (error: any) {
     const position = error instanceof yaml.YAMLException ? error.mark?.position : undefined;
     const from = typeof position === "number" && position >= 0 && position <= content.length ? position : 0;

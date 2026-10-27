@@ -75,9 +75,13 @@ export function buildRobotXml(
 
   const grouped: Record<string, any[]> = {};
   const failedRuleIds = new Set<string>();
+  const isDocumentError = (diag: { source?: unknown; severity?: unknown } | null | undefined) =>
+    diag?.severity === "error" && (diag.source === "parser" || diag.source === "version");
+  const documentFailed = diagnostics.some(isDocumentError);
   diagnostics.forEach((diag) => {
-    const key = extractRuleId((diag as any)?.ruleId ?? (diag as any)?.source ?? (diag as any)?.message) || 'unknown';
-    if (key !== 'unknown') failedRuleIds.add(key);
+    const key = isDocumentError(diag) ? String(diag.source)
+      : extractRuleId((diag as any)?.ruleId ?? (diag as any)?.source ?? (diag as any)?.message) || 'unknown';
+    if (key !== 'unknown' && !isDocumentError(diag)) failedRuleIds.add(key);
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(diag);
   });
@@ -121,8 +125,9 @@ export function buildRobotXml(
     const caseStart = runningMs;
     const caseEnd = caseStart + CASE_MS;
 
-    const testName =
-      source === 'unknown'
+    const testName = source === "parser" ? "Specification parsing"
+      : source === "version" ? "Specification version"
+      : source === 'unknown'
         ? (title || 'Unknown Rule')
         : `Rule ${source}${title ? ` - ${title}` : ''}`;
 
@@ -157,7 +162,7 @@ export function buildRobotXml(
 
   runningMs += GAP_MS;
 
-  // Passed Rules suite
+  // Rules without individual failures may not have executed if the document failed.
   const subSuiteId = `${automatedId}-s2`;
   const suiteStart = runningMs;
   let testsXml = '';
@@ -171,8 +176,8 @@ export function buildRobotXml(
 
     testsXml +=
       `      <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-      `        <msg timestamp="${fmt(caseStart)}" level="INFO">Passed</msg>\n` +
-      `        <status status="PASS" starttime="${fmt(
+      `        <msg timestamp="${fmt(caseStart)}" level="INFO">${documentFailed ? "Not executed: document parsing/version failure" : "Passed"}</msg>\n` +
+      `        <status status="${documentFailed ? "SKIP" : "PASS"}" starttime="${fmt(
         caseStart
       )}" endtime="${fmt(caseEnd)}"/>\n` +
       `      </test>\n`;
@@ -182,8 +187,8 @@ export function buildRobotXml(
 
   const suiteEnd = runningMs;
   autoInner +=
-    `    <suite id="${subSuiteId}" name="Passed Rules" source="${VROOT}/Automated_Compliance_Validation_Report/Passed_Rules.robot">\n` +
-    `      <status status="PASS" starttime="${fmt(
+    `    <suite id="${subSuiteId}" name="${documentFailed ? "Not Executed Rules" : "Passed Rules"}" source="${VROOT}/Automated_Compliance_Validation_Report/${documentFailed ? "Not_Executed" : "Passed"}_Rules.robot">\n` +
+    `      <status status="${documentFailed ? "SKIP" : "PASS"}" starttime="${fmt(
       suiteStart
     )}" endtime="${fmt(suiteEnd)}"/>\n` +
     testsXml +

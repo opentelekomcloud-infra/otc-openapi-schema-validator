@@ -4,6 +4,7 @@ import type {
     SourceFormat, SourceRange, Swagger2Document,
 } from "@/types/openapi";
 import { NativeOpenApiError } from "./documentError";
+import { executionContextFor } from "./executionContext";
 
 export interface NativeParseOptions {
     readonly format?: SourceFormat | "auto";
@@ -30,6 +31,11 @@ export function isOpenApi30Document(value: unknown): value is OpenApi30Document 
 }
 
 export function classifyNativeOpenApiDocument(value: unknown): NativeOpenApiDocument {
+    const classification = executionContextFor(value)?.classification;
+    if (classification) {
+        if (classification.ok) return classification.value;
+        throw classification.error;
+    }
     if (!isDocumentObject(value)) {
         throw new NativeOpenApiError("INVALID_DOCUMENT", "The specification root must be an object.");
     }
