@@ -36,9 +36,9 @@ rules:
 
   - id: "BAS-080-01-2507-2507-M-2"
     title: "Compatibility: The interfaces must be compatible"
-    description: This rule compares whether new Mandatory request parameters have been added to existing API calls when comparing to previous version of OpenAPI specification.
+    description: This rule compares whether any required or optional request body properties have been added to existing API calls when comparing to the native baseline specification.
     message: |
-      Adding Mandatory Request Parameters to APIs
+      Adding request body properties to APIs.
     option: Mandatory
     location: paths
     element: requestBody
@@ -93,7 +93,7 @@ rules:
 
   - id: "BAS-080-01-2507-2507-M-6"
     title: "Compatibility: The interfaces must be compatible"
-    description: This rule compares whether response header in API response has been deleted or modified when comparing to previous OpenAPI specification
+    description: This rule reports response header names added or removed compared to the native baseline specification. Names are case-insensitive; header schema and type changes are not compared.
     message: |
       Modify or delete a response header.
     option: Mandatory

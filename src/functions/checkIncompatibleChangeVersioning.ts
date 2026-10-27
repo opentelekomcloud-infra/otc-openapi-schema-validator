@@ -1,12 +1,13 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
-import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
+import { nativeBaseline, readBaseline } from "@/lib/openapi/baseline";
+import { classifyNativeOpenApiDocument } from "@/lib/openapi/parseNativeOpenApi";
+import type { NativeOpenApiDocument } from "@/types/openapi";
 import { getSource } from "@/functions/common";
 import { findInfoVersionPosition } from "@/utils/spec";
 import { stripOuterQuotes } from "@/utils/version";
-import { resolveRefDeep } from "@/utils/schema";
-
-const remoteSpecCache: Record<string, any> = {};
+import { comparisonOperations, comparisonParameters, responseCodes, responseMediaTypes } from "@/utils/nativeCompatibility";
+import { isRecord } from "@/lib/openapi/references";
 
 type BreakingChange = {
   kind: string;
@@ -24,113 +25,6 @@ function extractMajorVersion(version: string): number | null {
   const match = normalized.match(/^v(\d+)(?:\.\d+){0,2}$/);
   if (!match) return null;
   return Number(match[1]);
-}
-
-/**
- * Creates a stable lookup key for an operation.
- */
-function operationKey(path: string, method: string): string {
-  return `${method.toLowerCase()} ${path}`;
-}
-
-/**
- * Returns all HTTP operations from the spec keyed by `METHOD path`.
- */
-function collectOperations(spec: any): Record<string, any> {
-  const result: Record<string, any> = {};
-  const paths = spec?.paths;
-  if (!paths || typeof paths !== "object") return result;
-
-  for (const path of Object.keys(paths)) {
-    const pathItem = (paths as any)[path];
-    if (!pathItem || typeof pathItem !== "object") continue;
-
-    for (const method of Object.keys(pathItem)) {
-      const lowered = String(method).toLowerCase();
-      if (["get", "post", "put", "patch", "delete", "options", "head"].includes(lowered)) {
-        result[operationKey(path, lowered)] = (pathItem as any)[method];
-      }
-    }
-  }
-
-  return result;
-}
-
-/**
- * Resolves a parameter object if it is declared through a local `$ref`.
- *
- * This is required for breaking-change checks because many specs keep reusable
- * parameters under `#/components/parameters/...` and reference them from paths
- * and operations.
- */
-function resolveParameterRef(param: any, spec: any): any {
-  if (!param || typeof param !== "object") return null;
-  return resolveRefDeep(param, new Map<string, any>(), spec);
-}
-
-/**
- * Collects parameter signatures for an operation, including path-level parameters.
- *
- * Local `$ref` parameters from `#/components/parameters/...` are resolved before
- * comparison so that removed referenced parameters are detected correctly.
- */
-function collectParameterMap(spec: any, path: string, method: string): Record<string, { required: boolean; schemaType: string }> {
-  const result: Record<string, { required: boolean; schemaType: string }> = {};
-  const pathItem = spec?.paths?.[path];
-  const operation = pathItem?.[method];
-  if (!pathItem || !operation) return result;
-
-  const allParams = [
-    ...(Array.isArray(pathItem.parameters) ? pathItem.parameters : []),
-    ...(Array.isArray(operation.parameters) ? operation.parameters : []),
-  ];
-
-  for (const rawParam of allParams) {
-    const param = resolveParameterRef(rawParam, spec);
-    if (!param || typeof param !== "object") continue;
-
-    const name = String((param as any).name ?? "");
-    const paramIn = String((param as any).in ?? "").toLowerCase();
-    if (!name || !paramIn) continue;
-
-    const key = `${paramIn}:${name}`;
-    const schemaType = String((param as any).schema?.type ?? "");
-    result[key] = {
-      required: Boolean((param as any).required),
-      schemaType,
-    };
-  }
-
-  return result;
-}
-
-/**
- * Returns shallow response-code map for an operation.
- */
-function collectResponseCodes(operation: any): Record<string, any> {
-  const out: Record<string, any> = {};
-  const responses = operation?.responses;
-  if (!responses || typeof responses !== "object") return out;
-
-  for (const code of Object.keys(responses)) {
-    out[String(code)] = (responses as any)[code];
-  }
-
-  return out;
-}
-
-/**
- * Extracts a coarse response body media-type set for a response object.
- */
-function collectResponseMediaTypes(response: any): Set<string> {
-  const out = new Set<string>();
-  if (!response || typeof response !== "object") return out;
-  const content = (response as any).content;
-  if (!content || typeof content !== "object") return out;
-  for (const mediaType of Object.keys(content)) {
-    out.add(String(mediaType));
-  }
-  return out;
 }
 
 /**
@@ -165,16 +59,19 @@ function groupBreakingChangesByOperation(changes: BreakingChange[]): Record<stri
  * - removed success response codes
  * - removed response media types for an existing response code
  */
-function detectBreakingChanges(baseSpec: any, currentSpec: any): BreakingChange[] {
+function detectBreakingChanges(baseSpec: NativeOpenApiDocument, currentSpec: NativeOpenApiDocument): BreakingChange[] {
   const changes: BreakingChange[] = [];
 
-  const baseOps = collectOperations(baseSpec);
-  const currentOps = collectOperations(currentSpec);
+  const methods = ["get", "post", "put", "patch", "delete", "options", "head"];
+  const baseOps = readBaseline(() => comparisonOperations(baseSpec, methods));
+  const currentOps = comparisonOperations(currentSpec, methods, new Set([...baseOps.values()].map((operation) => operation.path)));
+  const baseCache = new Map<string, unknown>();
+  const currentCache = new Map<string, unknown>();
 
-  for (const key of Object.keys(baseOps)) {
-    if (!currentOps[key]) {
-      const [method, ...pathParts] = key.split(" ");
-      const path = pathParts.join(" ");
+  for (const [key, baseOperation] of baseOps) {
+    const { method, path } = baseOperation;
+    const currentOperation = currentOps.get(key);
+    if (!currentOperation) {
       changes.push({
         kind: "operationRemoved",
         path,
@@ -184,15 +81,11 @@ function detectBreakingChanges(baseSpec: any, currentSpec: any): BreakingChange[
       continue;
     }
 
-    const [method, ...pathParts] = key.split(" ");
-    const path = pathParts.join(" ");
+    const baseParams = readBaseline(() => comparisonParameters(baseSpec, baseOperation, baseCache));
+    const currentParams = comparisonParameters(currentSpec, currentOperation, currentCache);
 
-    const baseParams = collectParameterMap(baseSpec, path, method);
-    const currentParams = collectParameterMap(currentSpec, path, method);
-
-    for (const paramKey of Object.keys(baseParams)) {
-      const before = baseParams[paramKey];
-      const after = currentParams[paramKey];
+    for (const [paramKey, before] of baseParams) {
+      const after = currentParams.get(paramKey);
 
       if (!after) {
         changes.push({
@@ -214,16 +107,12 @@ function detectBreakingChanges(baseSpec: any, currentSpec: any): BreakingChange[
       }
     }
 
-    const baseResponses = collectResponseCodes(baseOps[key]);
-    const currentResponses = collectResponseCodes(currentOps[key]);
+    const currentResponses = new Set(responseCodes(currentOperation));
 
-    for (const code of Object.keys(baseResponses)) {
+    for (const code of readBaseline(() => responseCodes(baseOperation))) {
       if (!/^2\d\d$/.test(code)) continue;
 
-      const beforeResponse = baseResponses[code];
-      const afterResponse = currentResponses[code];
-
-      if (!afterResponse) {
+      if (!currentResponses.has(code)) {
         changes.push({
           kind: "responseRemoved",
           path,
@@ -233,8 +122,9 @@ function detectBreakingChanges(baseSpec: any, currentSpec: any): BreakingChange[
         continue;
       }
 
-      const beforeMedia = collectResponseMediaTypes(beforeResponse);
-      const afterMedia = collectResponseMediaTypes(afterResponse);
+      const beforeMedia = readBaseline(() => responseMediaTypes(baseSpec, baseOperation, code, baseCache));
+      const afterMedia = responseMediaTypes(currentSpec, currentOperation, code, currentCache);
+      if (!beforeMedia || !afterMedia) continue;
 
       for (const mediaType of beforeMedia) {
         if (!afterMedia.has(mediaType)) {
@@ -260,25 +150,17 @@ function detectBreakingChanges(baseSpec: any, currentSpec: any): BreakingChange[
  * If backward-incompatible changes are detected, the current major version must be
  * greater than the baseline major version.
  */
-export async function checkIncompatibleChangeVersioning(spec: any, content: string, rule: any): Promise<Diagnostic[]> {
+export async function checkIncompatibleChangeVersioning(spec: unknown, content: string, rule: any): Promise<Diagnostic[]> {
   const diagnostics: Diagnostic[] = [];
 
-  const repo = await fetchRepoMap(spec);
-  if (!repo) return diagnostics;
+  const current = classifyNativeOpenApiDocument(spec);
+  const remoteSpec = await nativeBaseline(spec);
 
-  const cacheKey = `${repo.reponame}:${repo.filename || repo.reponame}`;
-  let remoteSpec = remoteSpecCache[cacheKey];
-  if (!remoteSpec) {
-    remoteSpec = await fetchSpecFromGitea(repo);
-    if (!remoteSpec) return diagnostics;
-    remoteSpecCache[cacheKey] = remoteSpec;
-  }
-
-  const changes = detectBreakingChanges(remoteSpec, spec);
+  const changes = detectBreakingChanges(remoteSpec, current);
   if (changes.length === 0) return diagnostics;
 
-  const currentVersion = String(spec?.info?.version ?? "");
-  const baseVersion = String(remoteSpec?.info?.version ?? "");
+  const currentVersion = String(isRecord(current.document.info) ? current.document.info.version ?? "" : "");
+  const baseVersion = String(isRecord(remoteSpec.document.info) ? remoteSpec.document.info.version ?? "" : "");
 
   const currentMajor = extractMajorVersion(currentVersion);
   const baseMajor = extractMajorVersion(baseVersion);

@@ -5,6 +5,7 @@ import { Socket } from "node:net";
 import type { NextApiResponse } from "next";
 import handler from "@/pages/api/validate";
 import { runLinter } from "@/lib/linter/runLinter";
+import { giteaClient } from "@/clients/gitea";
 
 jest.mock("node:fs/promises", () => {
     const actual = jest.requireActual<typeof import("node:fs/promises")>("node:fs/promises");
@@ -14,7 +15,7 @@ jest.mock("@/lib/apiAuth", () => ({
     requireApiAuth: jest.fn(async () => ({ mode: "disabled" })),
 }));
 jest.mock("@/clients/gitea", () => ({
-    giteaClient: { fetchYamlFile: jest.fn() },
+    giteaClient: { fetchYamlFile: jest.fn(), fetchRawYamlFile: jest.fn() },
 }));
 jest.mock("@/clients/reportportal", () => ({
     reportPortalClient: { importLaunch: jest.fn() },
@@ -167,5 +168,41 @@ describe("/api/validate catalog integrity", () => {
             error: "Ruleset folder not found: nonexistent-t02-ruleset",
         });
         expect(lint).not.toHaveBeenCalled();
+    });
+
+    test.each(["src/branch/main", "raw/branch/main", "src/tag/v1", "src/commit/abc123", "src/main"])(
+        "Gitea %s uses original source text and its requested ref", async (source) => {
+            const content = "\uFEFF# original comment\r\nopenapi: 3.0.3\r\ninfo: {title: Demo, version: v1}\r\npaths: {}\r\n";
+            jest.mocked(giteaClient.fetchRawYamlFile).mockResolvedValueOnce(content);
+            const res = await validate({
+                file_content: undefined,
+                path: `https://gitea.eco.example.invalid/docs/native/${source}/openapi/spec.yaml`,
+            });
+            expect(res.status).toHaveBeenCalledWith(200);
+            expect(giteaClient.fetchRawYamlFile).toHaveBeenCalledWith("native", "openapi/spec.yaml", source.split("/").at(-1));
+            expect(giteaClient.fetchYamlFile).not.toHaveBeenCalled();
+            expect(lint.mock.calls[0][0]).toBe(content);
+        },
+    );
+
+    test("real primary Gitea diagnostics retain raw comments, duplicate methods and original line offsets", async () => {
+        const content = "# vendor source\r\nopenapi: 3.0.3\r\ninfo: {}\r\npaths:\r\n  /v1/resources:\r\n    get: {}\r\n    get: {}\r\n";
+        const actual = jest.requireActual<typeof import("@/lib/linter/runLinter")>("@/lib/linter/runLinter");
+        lint.mockImplementationOnce(actual.runLinter);
+        jest.mocked(giteaClient.fetchRawYamlFile).mockResolvedValueOnce(content);
+        const res = await validate({
+            file_content: undefined,
+            path: "https://gitea.eco.example.invalid/docs/native/src/branch/main/openapi/spec.yaml",
+            auto_rules: ["BAS-110-01-2507-2507-M-1"],
+        });
+        const from = content.indexOf("/v1/resources");
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            diagnostics: [expect.objectContaining({
+                from, to: from + "/v1/resources".length, lineNumber: 5,
+                message: expect.stringContaining("GET (2 declarations; lines 6, 7)"),
+            })],
+        }));
+        expect(lint.mock.calls[0][0]).toBe(content);
     });
 });

@@ -7,7 +7,6 @@ import { loadAllowedAbbreviationsOnServer } from '@/lib/server/abbreviations';
 import { getImplementedRules, loadRuleCatalog } from '@/lib/linter/ruleCatalog';
 import { buildRobotXml } from '@/lib/export/buildRobotXml';
 import { reportPortalClient } from '@/clients/reportportal';
-import * as yaml from "js-yaml";
 import { getSeverityLabel } from "@/utils/mapSeverity";
 import { giteaClient } from '@/clients/gitea';
 import { requireApiAuth } from "@/lib/apiAuth";
@@ -100,14 +99,17 @@ function safeJoin(base: string, segment: string) {
   return resolved.slice(0, -1); // remove trailing sep we added
 }
 
-function parseGiteaUrl(rawUrl: string): { repo: string; path: string } | null {
+function parseGiteaUrl(rawUrl: string): { repo: string; path: string; ref: string } | null {
   try {
     const u = new URL(rawUrl);
     const seg = u.pathname.split('/').filter(Boolean);
     if (seg.length >= 5 && (seg[2] === 'src' || seg[2] === 'raw')) {
       const repoName = seg[1];
-      const filePath = seg.slice(4).join('/');
-      return { repo: `${repoName}`, path: `${filePath}` };
+      const qualifiedRef = ["branch", "tag", "commit"].includes(seg[3]);
+      const refIndex = qualifiedRef ? 4 : 3;
+      const filePath = seg.slice(refIndex + 1).join('/');
+      if (!filePath || !seg[refIndex]) return null;
+      return { repo: repoName, path: filePath, ref: decodeURIComponent(seg[refIndex]) };
     }
   } catch {
     // ignore
@@ -193,15 +195,7 @@ export default async function handler(
             return res.status(400).json({ error: 'Unable to parse Gitea URL. Provide a URL like /:owner/:repo/src/:branch/path/to/file.yaml' });
           }
           try {
-            const fileData: any = await giteaClient.fetchYamlFile(parsed.repo, parsed.path);
-            if (typeof fileData === 'string') {
-              specText = fileData;
-            } else if (fileData && typeof fileData === 'object') {
-              // Client may already parse YAML; convert back to text so line numbers can be calculated downstream
-              specText = yaml.dump(fileData);
-            } else {
-              return res.status(400).json({ error: 'Gitea client returned empty or unsupported content.' });
-            }
+            specText = await giteaClient.fetchRawYamlFile(parsed.repo, parsed.path, parsed.ref);
           } catch (e: any) {
             return res.status(400).json({ error: `Failed to load spec from Gitea: ${e?.message || 'unknown error'}` });
           }

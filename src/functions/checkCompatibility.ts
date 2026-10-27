@@ -1,451 +1,112 @@
-import { Diagnostic } from "@codemirror/lint";
+import type { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
-import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
-import { resolveRef, extractAllProperties, extractPropertyTypes, extractEnumIfExist } from "@/utils/schema";
-import {getSource} from "@/functions/common";
+import { getSource } from "@/functions/common";
+import { nativeBaseline, readBaseline } from "@/lib/openapi/baseline";
+import { classifyNativeOpenApiDocument } from "@/lib/openapi/parseNativeOpenApi";
+import { getNativeRequest, getNativeResponse } from "@/lib/openapi/payloads";
 import { pathRange } from "@/lib/openapi/sourceMap";
+import { isRecord } from "@/lib/openapi/references";
+import {
+    comparisonOperations, compatibilityShape, responseCodes, responseHeaders, type CompatibilityShape,
+} from "@/utils/nativeCompatibility";
 
-const remoteSpecCache: Record<string, any> = {};
+export async function checkCompatibility(spec: unknown, content: string, rule: any): Promise<Diagnostic[]> {
+    const diagnostics: Diagnostic[] = [];
+    const current = classifyNativeOpenApiDocument(spec);
+    const baseline = await nativeBaseline(spec);
+    const methods = rule.id === "BAS-080-01-2507-2507-M" ? rule.call.functionParams.methods : undefined;
+    const before = readBaseline(() => comparisonOperations(baseline, methods));
+    const after = comparisonOperations(current, methods, new Set([...before.values()].map((operation) => operation.path)));
+    const baseCache = new Map<string, unknown>();
+    const currentCache = new Map<string, unknown>();
+    const elements = typeof rule.element === "string" ? [rule.element] : Array.isArray(rule.element) ? rule.element : [];
+    const report = (path: string, message: string) => diagnostics.push({
+        ...pathRange(content, path), severity: mapSeverity(rule.severity), message, source: getSource(rule),
+    });
+    const missingPaths = new Set<string>();
 
-
-
-function checkDeletedApi(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
-    const allowedMethods = rule.call.functionParams.methods.map((m: string) => m.toLowerCase());
-    for (const pathKey in remoteSpec.paths) {
-        const remotePathItem = remoteSpec.paths[pathKey];
-        const currentPathItem = spec.paths[pathKey];
-
-        if (!currentPathItem) {
-            const { from: start, to: end } = pathRange(content, pathKey);
-
-            diagnostics.push({
-                from: start,
-                to: end,
-                severity: mapSeverity(rule.severity),
-                message: `Path "${pathKey}" was deleted in the new spec.`,
-                source: getSource(rule),
-            });
-
+    for (const [key, baseOperation] of before) {
+        const operation = after.get(key);
+        const { path, method } = baseOperation;
+        const methodName = method.toUpperCase();
+        if (rule.id === "BAS-080-01-2507-2507-M") {
+            if (!operation) {
+                const hasPath = isRecord(current.document.paths) && Object.hasOwn(current.document.paths, path);
+                if (hasPath) report(path, `${methodName} method at path "${path}" was deleted in the new spec.`);
+                else if (!missingPaths.has(path)) {
+                    missingPaths.add(path);
+                    report(path, `Path "${path}" was deleted in the new spec.`);
+                }
+            }
             continue;
         }
+        if (!operation) continue;
 
-        for (const method of allowedMethods) {
-            const remoteOperation = remotePathItem[method];
-            const currentOperation = currentPathItem[method];
+        const compare = (oldShape: CompatibilityShape | undefined, newShape: CompatibilityShape | undefined, code?: string) => {
+            if (!oldShape || !newShape) return;
+            const response = code !== undefined;
+            if (rule.id === "BAS-080-01-2507-2507-M-1") {
+                for (const property of oldShape.properties) {
+                    if (newShape.properties.has(property)) continue;
+                    report(path, response
+                        ? `Response property "${property}" in code ${code} was deleted in method ${methodName} at path "${path}".`
+                        : `Request body property "${property}" was deleted in method ${methodName} at path "${path}".`);
+                }
+            } else if (rule.id === "BAS-080-01-2507-2507-M-2" && !response) {
+                for (const property of newShape.properties) {
+                    if (!oldShape.properties.has(property)) {
+                        report(path, `Request body property "${property}" was added in method ${methodName} at path "${path}".`);
+                    }
+                }
+            } else if (rule.id === "BAS-080-01-2507-2507-M-3") {
+                for (const [property, oldType] of oldShape.types) {
+                    const newType = newShape.types.get(property);
+                    if (newType === undefined || newType === oldType) continue;
+                    report(path, response
+                        ? `Type of response property "${property}" (code ${code}) changed from "${oldType}" to "${newType}" in method ${methodName} at path "${path}".`
+                        : `Type of request body property "${property}" changed from "${oldType}" to "${newType}" in method ${methodName} at path "${path}".`);
+                }
+            } else if (rule.id === "BAS-080-01-2507-2507-M-4") {
+                for (const [property, oldValues] of oldShape.enums) {
+                    const newValues = newShape.enums.get(property);
+                    if (!newValues) continue;
+                    const removed = [...oldValues].filter((value) => !newValues.has(value));
+                    if (!removed.length) continue;
+                    report(path, response
+                        ? `Enum values removed for response property "${property}" (code ${code}) in ${methodName} ${path}: ${removed.join(", ")}.`
+                        : `Enum values removed for request body property "${property}" in ${methodName} ${path}: ${removed.join(", ")}.`);
+                }
+            }
+        };
 
-            if (remoteOperation && !currentOperation) {
-                const { from: start, to: end } = pathRange(content, pathKey);
-
-                diagnostics.push({
-                    from: start,
-                    to: end,
-                    severity: mapSeverity(rule.severity),
-                    message: `${method.toUpperCase()} method at path "${pathKey}" was deleted in the new spec.`,
-                    source: getSource(rule),
-                });
+        if (elements.includes("requestBody") && !["BAS-080-01-2507-2507-M-5", "BAS-080-01-2507-2507-M-6"].includes(rule.id)) {
+            compare(readBaseline(() => compatibilityShape(getNativeRequest(baseline, baseOperation, baseCache), baseline, baseCache)),
+                compatibilityShape(getNativeRequest(current, operation, currentCache), current, currentCache));
+        }
+        if (!elements.includes("responses") || rule.id === "BAS-080-01-2507-2507-M-2") continue;
+        const currentCodes = new Set(responseCodes(operation));
+        for (const code of readBaseline(() => responseCodes(baseOperation))) {
+            if (rule.id === "BAS-080-01-2507-2507-M-5") {
+                if (!currentCodes.has(code)) report(path, `Response code ${code} was deleted in method ${methodName} at path "${path}".`);
+                continue;
+            }
+            if (!currentCodes.has(code)) continue;
+            if (rule.id === "BAS-080-01-2507-2507-M-6") {
+                const oldHeaders = readBaseline(() => responseHeaders(baseline, baseOperation, code, baseCache));
+                const newHeaders = responseHeaders(current, operation, code, currentCache);
+                for (const header of oldHeaders) {
+                    if (!newHeaders.has(header)) report(path,
+                        `Response header "${header}" was deleted for code ${code} in ${methodName} at path "${path}".`);
+                }
+                for (const header of newHeaders) {
+                    if (!oldHeaders.has(header)) report(path,
+                        `Response header "${header}" was added for code ${code} in ${methodName} at path "${path}".`);
+                }
+            } else {
+                compare(readBaseline(() => compatibilityShape(getNativeResponse(baseline, baseOperation, code, baseCache), baseline, baseCache)),
+                    compatibilityShape(getNativeResponse(current, operation, code, currentCache), current, currentCache), code);
             }
         }
     }
-}
-
-function checkEnumDecrease(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
-    const elements: string[] = rule?.element ?? [];
-    if (!elements.length) return;
-
-    for (const pathKey in remoteSpec.paths) {
-        const remotePathItem = remoteSpec.paths[pathKey];
-        const currentPathItem = spec.paths[pathKey];
-        if (!currentPathItem) continue;
-
-        for (const method in remotePathItem) {
-            const remoteOp = remotePathItem[method];
-            const currentOp = currentPathItem[method];
-            if (!currentOp) continue;
-
-            // Compare request body schema types
-            if (elements.includes("requestBody")) {
-                const remoteSchemaRef = remoteOp?.requestBody?.content?.["application/json"]?.schema;
-                const currentSchemaRef = currentOp?.requestBody?.content?.["application/json"]?.schema;
-                const remoteSchema = remoteSchemaRef?.$ref ? resolveRef(remoteSchemaRef.$ref, remoteSpec) : remoteSchemaRef;
-                const currentSchema = currentSchemaRef?.$ref ? resolveRef(currentSchemaRef.$ref, spec) : currentSchemaRef;
-
-                if (remoteSchema && currentSchema) {
-                    const remoteEnums = extractEnumIfExist(remoteSchema, remoteSpec);
-                    const currentEnums = extractEnumIfExist(currentSchema, spec);
-
-                    for (const [propPath, oldSet] of remoteEnums.entries()) {
-                        const newSet = currentEnums.get(propPath);
-                        if (!newSet) continue; // no enum now; out of scope for this rule
-                        const removed: string[] = [];
-                        for (const v of oldSet) if (!newSet.has(v)) removed.push(v);
-                        if (removed.length) {
-                            const range = pathRange(content, pathKey);
-                            diagnostics.push({
-                                from: range.from,
-                                to: range.to,
-                                severity: mapSeverity(rule.severity),
-                                message: `Enum values removed for request body property "${propPath}" in ${method.toUpperCase()} ${pathKey}: ${removed.join(', ')}.`,
-                                source: getSource(rule),
-                            });
-                        }
-                    }
-                }
-            }
-
-            // Compare response schema types (per status code)
-            if (elements.includes("responses")) {
-                for (const code in (remoteOp.responses || {})) {
-                    const remoteResp = remoteOp.responses[code];
-                    const currentResp = currentOp.responses?.[code];
-                    const remoteSchemaRaw = remoteResp?.content?.["application/json"]?.schema;
-                    const currentSchemaRaw = currentResp?.content?.["application/json"]?.schema;
-                    const remoteSchema = remoteSchemaRaw?.$ref ? resolveRef(remoteSchemaRaw.$ref, remoteSpec) : remoteSchemaRaw;
-                    const currentSchema = currentSchemaRaw?.$ref ? resolveRef(currentSchemaRaw.$ref, spec) : currentSchemaRaw;
-
-                    if (remoteSchema && currentSchema) {
-                        const remoteEnums = extractEnumIfExist(remoteSchema, remoteSpec);
-                        const currentEnums = extractEnumIfExist(currentSchema, spec);
-
-                        for (const [propPath, oldSet] of remoteEnums.entries()) {
-                            const newSet = currentEnums.get(propPath);
-                            if (!newSet) continue;
-                            const removed: string[] = [];
-                            for (const v of oldSet) if (!newSet.has(v)) removed.push(v);
-                            if (removed.length) {
-                                const range = pathRange(content, pathKey);
-                                diagnostics.push({
-                                    from: range.from,
-                                    to: range.to,
-                                    severity: mapSeverity(rule.severity),
-                                    message: `Enum values removed for response property "${propPath}" (code ${code}) in ${method.toUpperCase()} ${pathKey}: ${removed.join(', ')}.`,
-                                    source: getSource(rule),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-function checkDeletedRequestResponseParam(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
-    const elements: string[] = rule?.element ?? [];
-    if (!elements.length) return;
-
-    for (const pathKey in remoteSpec.paths) {
-        const remotePathItem = remoteSpec.paths[pathKey];
-        const currentPathItem = spec.paths[pathKey];
-        if (!currentPathItem) continue;
-
-        for (const method in remotePathItem) {
-            const remoteOp = remotePathItem[method];
-            const currentOp = currentPathItem[method];
-            if (!currentOp) continue;
-
-            if (elements.includes("requestBody")) {
-                const remoteRef = remoteOp?.requestBody?.content?.["application/json"]?.schema?.$ref;
-                const currentRef = currentOp?.requestBody?.content?.["application/json"]?.schema?.$ref;
-                const remoteSchema = remoteRef && resolveRef(remoteRef, remoteSpec);
-                const currentSchema = currentRef && resolveRef(currentRef, spec);
-                if (remoteSchema && currentSchema) {
-                    const remoteProps = extractAllProperties(remoteSchema, remoteSpec);
-                    const currentProps = extractAllProperties(currentSchema, spec);
-                    for (const key of remoteProps) {
-                        if (!currentProps.has(key)) {
-                            const range = pathRange(content, pathKey);
-                            diagnostics.push({
-                                from: range.from,
-                                to: range.to,
-                                severity: mapSeverity(rule.severity),
-                                message: `Request body property "${key}" was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: getSource(rule),
-                            });
-                        }
-                    }
-                }
-            }
-            if (elements.includes("responses")) {
-                for (const code in remoteOp.responses || {}) {
-                    const remoteResp = remoteOp.responses[code];
-                    const currentResp = currentOp.responses?.[code];
-                    const remoteSchemaRaw = remoteResp?.content?.["application/json"]?.schema;
-                    const currentSchemaRaw = currentResp?.content?.["application/json"]?.schema;
-                    const remoteSchema = remoteSchemaRaw?.$ref ? resolveRef(remoteSchemaRaw.$ref, remoteSpec) : remoteSchemaRaw;
-                    const currentSchema = currentSchemaRaw?.$ref ? resolveRef(currentSchemaRaw.$ref, spec) : currentSchemaRaw;
-                    if (remoteSchema && currentSchema) {
-                        const remoteProps = extractAllProperties(remoteSchema, remoteSpec);
-                        const currentProps = extractAllProperties(currentSchema, spec);
-                        for (const key of remoteProps) {
-                            if (!currentProps.has(key)) {
-                                const range = pathRange(content, pathKey);
-                                diagnostics.push({
-                                    from: range.from,
-                                    to: range.to,
-                                    severity: mapSeverity(rule.severity),
-                                    message: `Response property "${key}" in code ${code} was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                    source: getSource(rule),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-function checkAddedRequestBodyParam(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
-    const elements: string[] = rule?.element ?? [];
-    if (!elements.length) return;
-
-    for (const pathKey in remoteSpec.paths) {
-        const remotePathItem = remoteSpec.paths[pathKey];
-        const currentPathItem = spec.paths[pathKey];
-        if (!currentPathItem) continue;
-
-        for (const method in remotePathItem) {
-            const remoteOp = remotePathItem[method];
-            const currentOp = currentPathItem[method];
-            if (!currentOp) continue;
-
-            if (elements.includes("requestBody")) {
-                const remoteRef = remoteOp?.requestBody?.content?.["application/json"]?.schema?.$ref;
-                const currentRef = currentOp?.requestBody?.content?.["application/json"]?.schema?.$ref;
-                const remoteSchema = remoteRef && resolveRef(remoteRef, remoteSpec);
-                const currentSchema = currentRef && resolveRef(currentRef, spec);
-                if (remoteSchema && currentSchema) {
-                    const remoteProps = extractAllProperties(remoteSchema, remoteSpec);
-                    const currentProps = extractAllProperties(currentSchema, spec);
-                    for (const key of currentProps) {
-                        if (!remoteProps.has(key)) {
-                            const range = pathRange(content, pathKey);
-                            diagnostics.push({
-                                from: range.from,
-                                to: range.to,
-                                severity: mapSeverity(rule.severity),
-                                message: `Request body property "${key}" was added in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: getSource(rule),
-                            });
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-function checkDeletedRequestResponseParamTypes(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
-    const elements: string[] = rule?.element ?? [];
-    if (!elements.length) return;
-
-    for (const pathKey in remoteSpec.paths) {
-        const remotePathItem = remoteSpec.paths[pathKey];
-        const currentPathItem = spec.paths[pathKey];
-        if (!currentPathItem) continue;
-
-        for (const method in remotePathItem) {
-            const remoteOp = remotePathItem[method];
-            const currentOp = currentPathItem[method];
-            if (!currentOp) continue;
-
-            // Compare request body schema types
-            if (elements.includes("requestBody")) {
-                const remoteSchemaRef = remoteOp?.requestBody?.content?.["application/json"]?.schema;
-                const currentSchemaRef = currentOp?.requestBody?.content?.["application/json"]?.schema;
-                const remoteSchema = remoteSchemaRef?.$ref ? resolveRef(remoteSchemaRef.$ref, remoteSpec) : remoteSchemaRef;
-                const currentSchema = currentSchemaRef?.$ref ? resolveRef(currentSchemaRef.$ref, spec) : currentSchemaRef;
-
-                if (remoteSchema && currentSchema) {
-                    const remoteTypes = extractPropertyTypes(remoteSchema, remoteSpec);
-                    const currentTypes = extractPropertyTypes(currentSchema, spec);
-
-                    for (const [propPath, oldType] of remoteTypes.entries()) {
-                        if (!currentTypes.has(propPath)) continue; // deletion is handled by another rule
-                        const newType = currentTypes.get(propPath)!;
-                        if (oldType !== newType) {
-                            const range = pathRange(content, pathKey);
-                            diagnostics.push({
-                                from: range.from,
-                                to: range.to,
-                                severity: mapSeverity(rule.severity),
-                                message: `Type of request body property "${propPath}" changed from "${oldType}" to "${newType}" in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: getSource(rule),
-                            });
-                        }
-                    }
-                }
-            }
-
-            // Compare response schema types (per status code)
-            if (elements.includes("responses")) {
-                for (const code in (remoteOp.responses || {})) {
-                    const remoteResp = remoteOp.responses[code];
-                    const currentResp = currentOp.responses?.[code];
-                    const remoteSchemaRaw = remoteResp?.content?.["application/json"]?.schema;
-                    const currentSchemaRaw = currentResp?.content?.["application/json"]?.schema;
-                    const remoteSchema = remoteSchemaRaw?.$ref ? resolveRef(remoteSchemaRaw.$ref, remoteSpec) : remoteSchemaRaw;
-                    const currentSchema = currentSchemaRaw?.$ref ? resolveRef(currentSchemaRaw.$ref, spec) : currentSchemaRaw;
-
-                    if (remoteSchema && currentSchema) {
-                        const remoteTypes = extractPropertyTypes(remoteSchema, remoteSpec);
-                        const currentTypes = extractPropertyTypes(currentSchema, spec);
-
-                        for (const [propPath, oldType] of remoteTypes.entries()) {
-                            if (!currentTypes.has(propPath)) continue; // deletion handled elsewhere
-                            const newType = currentTypes.get(propPath)!;
-                            if (oldType !== newType) {
-                                const range = pathRange(content, pathKey);
-                                diagnostics.push({
-                                    from: range.from,
-                                    to: range.to,
-                                    severity: mapSeverity(rule.severity),
-                                    message: `Type of response property "${propPath}" (code ${code}) changed from "${oldType}" to "${newType}" in method ${method.toUpperCase()} at path "${pathKey}".`,
-                                    source: getSource(rule),
-                                });
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-function checkResponseDeleted(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
-    const elements: string[] = rule?.element ?? [];
-    if (!elements.length) return;
-
-    for (const pathKey in remoteSpec.paths) {
-        const remotePathItem = remoteSpec.paths[pathKey];
-        const currentPathItem = spec.paths[pathKey];
-        if (!currentPathItem) continue;
-
-        for (const method in remotePathItem) {
-            const remoteOp = remotePathItem[method];
-            const currentOp = currentPathItem[method];
-            if (!currentOp) continue;
-
-            if (elements.includes("responses")) {
-                const remoteResponses = remoteOp?.responses || {};
-                const currentResponses = currentOp?.responses || {};
-
-                for (const code in remoteResponses) {
-                    if (!(code in currentResponses)) {
-                        const range = pathRange(content, pathKey);
-                        diagnostics.push({
-                            from: range.from,
-                            to: range.to,
-                            severity: mapSeverity(rule.severity),
-                            message: `Response code ${code} was deleted in method ${method.toUpperCase()} at path "${pathKey}".`,
-                            source: getSource(rule),
-                        });
-                    }
-                }
-            }
-        }
-    }
-}
-
-function checkResponseHeaderChange(remoteSpec: any, spec: any, content: string, diagnostics: Diagnostic[], rule: any) {
-    const elements: string[] = rule?.element ?? [];
-    if (!elements.length) return;
-
-    for (const pathKey in remoteSpec.paths) {
-        const remotePathItem = remoteSpec.paths[pathKey];
-        const currentPathItem = spec.paths[pathKey];
-        if (!currentPathItem) continue;
-
-        for (const method in remotePathItem) {
-            const remoteOp = remotePathItem[method];
-            const currentOp = currentPathItem[method];
-            if (!currentOp) continue;
-
-            if (elements.includes("responses")) {
-                for (const code in remoteOp.responses || {}) {
-                    const remoteResp = remoteOp.responses[code];
-                    const currentResp = currentOp.responses?.[code];
-
-                    if (!currentResp) continue;
-
-                    const remoteHeaders = (remoteResp && remoteResp.headers) ? remoteResp.headers : {};
-                    const currentHeaders = (currentResp && currentResp.headers) ? currentResp.headers : {};
-
-                    const toLowerKeySet = (obj: Record<string, any>) => new Set(Object.keys(obj || {}).map(k => k.toLowerCase()));
-                    const remoteKeys = toLowerKeySet(remoteHeaders);
-                    const currentKeys = toLowerKeySet(currentHeaders);
-
-                    // Deletions
-                    for (const key of remoteKeys) {
-                        if (!currentKeys.has(key)) {
-                            const range = pathRange(content, pathKey);
-                            diagnostics.push({
-                                from: range.from,
-                                to: range.to,
-                                severity: mapSeverity(rule.severity),
-                                message: `Response header "${key}" was deleted for code ${code} in ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: getSource(rule),
-                            });
-                        }
-                    }
-
-                    // Additions/changes
-                    for (const key of currentKeys) {
-                        if (!remoteKeys.has(key)) {
-                            const range = pathRange(content, pathKey);
-                            diagnostics.push({
-                                from: range.from,
-                                to: range.to,
-                                severity: mapSeverity(rule.severity),
-                                message: `Response header "${key}" was added for code ${code} in ${method.toUpperCase()} at path "${pathKey}".`,
-                                source: getSource(rule),
-                            });
-                        }
-                    }
-                }
-            }
-        }
-    }
-}
-
-export async function checkCompatibility(spec: any, content: string, rule: any): Promise<Diagnostic[]> {
-    const diagnostics: Diagnostic[] = [];
-
-    const repo = await fetchRepoMap(spec);
-    if (!repo) return diagnostics;
-
-    const cacheKey = `${repo.reponame}:${repo.filename || repo.reponame}`;
-    let remoteSpec = remoteSpecCache[cacheKey];
-    if (!remoteSpec) {
-        remoteSpec = await fetchSpecFromGitea(repo);
-        if (!remoteSpec) return diagnostics;
-        remoteSpecCache[cacheKey] = remoteSpec;
-    }
-
-    switch (rule.id) {
-        case 'BAS-080-01-2507-2507-M':
-            checkDeletedApi(remoteSpec, spec, content, diagnostics, rule,);
-            break;
-        case 'BAS-080-01-2507-2507-M-1':
-            checkDeletedRequestResponseParam(remoteSpec, spec, content, diagnostics, rule);
-            break;
-        case 'BAS-080-01-2507-2507-M-2':
-            checkAddedRequestBodyParam(remoteSpec, spec, content, diagnostics, rule);
-            break;
-        case 'BAS-080-01-2507-2507-M-3':
-            checkDeletedRequestResponseParamTypes(remoteSpec, spec, content, diagnostics, rule);
-            break;
-        case 'BAS-080-01-2507-2507-M-4':
-            checkEnumDecrease(remoteSpec, spec, content, diagnostics, rule);
-            break;
-        case 'BAS-080-01-2507-2507-M-5':
-            checkResponseDeleted(remoteSpec, spec, content, diagnostics, rule);
-            break
-        case 'BAS-080-01-2507-2507-M-6':
-            checkResponseHeaderChange(remoteSpec, spec, content, diagnostics, rule);
-            break
-        default:
-            return diagnostics;
-    }
-    return diagnostics
+    return diagnostics;
 }

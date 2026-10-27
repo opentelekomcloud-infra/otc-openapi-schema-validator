@@ -106,7 +106,6 @@ interface Scenario {
     prepare: (input: ScenarioInput) => void;
 }
 
-const baselineGap = { task: "T18", reason: "Both baseline and current schemas must be read in their native dialects." };
 
 export const scenarios = {
     examples: {
@@ -146,7 +145,6 @@ export const scenarios = {
         positive: "unchanged operation and major API version",
         negative: "successful response code removed without increasing major API version",
         message: "major version was not increased", baseline: true,
-        mixedBaselineGap: { task: "T18", reason: "Equivalent v2 produces and v3 content are incorrectly compared as media removal." },
         prepare: ({ operation, variant }) => {
             if (variant === "negative") operation.responses = { "400": { description: "Bad request" } };
         },
@@ -214,7 +212,7 @@ export const scenarios = {
     },
     deletedProperty: {
         positive: "all response properties are retained", negative: "response resource_id is removed",
-        message: 'property "resource_id"', baseline: true, detail: true, nativeV2: baselineGap,
+        message: 'property "resource_id"', baseline: true, detail: true,
         prepare: ({ definitions, variant }) => {
             if (variant === "negative") {
                 delete object(object(definitions.Resource).properties).resource_id;
@@ -224,7 +222,7 @@ export const scenarios = {
     },
     addedRequiredProperty: {
         positive: "request fields are unchanged", negative: "mandatory request field is added",
-        message: 'property "region" was added', baseline: true, method: "post", nativeV2: baselineGap,
+        message: 'property "region" was added', baseline: true, method: "post",
         prepare: ({ definitions, variant }) => {
             if (variant === "negative") {
                 object(object(definitions.ResourceRequest).properties).region = { type: "string" };
@@ -234,14 +232,14 @@ export const scenarios = {
     },
     changedPropertyType: {
         positive: "response property type is unchanged", negative: "resource_id changes from string to integer",
-        message: 'changed from "string" to "integer"', baseline: true, detail: true, nativeV2: baselineGap,
+        message: 'changed from "string" to "integer"', baseline: true, detail: true,
         prepare: ({ definitions, variant }) => {
             if (variant === "negative") object(object(object(definitions.Resource).properties).resource_id).type = "integer";
         },
     },
     narrowedEnum: {
         positive: "response enum values are retained", negative: "inactive is removed from response status enum",
-        message: "Enum values removed", baseline: true, detail: true, nativeV2: baselineGap,
+        message: "Enum values removed", baseline: true, detail: true,
         prepare: ({ definitions, variant }) => {
             if (variant === "negative") object(object(object(definitions.Resource).properties).status).enum = ["active"];
         },
