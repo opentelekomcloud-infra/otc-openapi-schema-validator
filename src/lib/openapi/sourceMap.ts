@@ -1,6 +1,7 @@
 import { isAlias, isMap, isNode, isScalar, isSeq, parseDocument, type Document } from "yaml";
 import type { NativeOpenApiContext, SourceRange } from "@/types/openapi";
 import { appendPointer, jsonPointer, NativeReferenceError, referenceTokens } from "./references";
+import { isPathEntryKey } from "./paths";
 
 export interface SourceLocation extends SourceRange {
     readonly pointer: string;
@@ -253,7 +254,7 @@ export class OpenApiSourceMap {
             if (paths.fallback) throw new Error("Cannot inspect duplicate HTTP methods: unresolved paths alias.");
             if (!isMap(paths.entry.node)) continue;
             for (const pathPair of paths.entry.node.items) {
-                if (!isScalar(pathPair.key) || typeof pathPair.key.value !== "string" || !pathPair.key.value.startsWith("/")) continue;
+                if (!isScalar(pathPair.key) || typeof pathPair.key.value !== "string" || !isPathEntryKey(pathPair.key.value)) continue;
                 const path = pathPair.key.value;
                 const pointer = appendPointer("#/paths", path);
                 const pending: SourceEntry[] = [{ node: pathPair.value, key: pathPair.key, pointer }];

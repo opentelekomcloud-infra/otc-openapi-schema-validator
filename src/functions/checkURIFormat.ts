@@ -2,6 +2,7 @@ import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { rulePathKeys } from "@/utils/nativeRule";
 
 export function checkURIFormat(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -27,9 +28,7 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
     const versionRegex = /^v[0-9]+(\.[0-9]+)?$/;
     const projectOrTenantRegex = /^\{(project_id|tenant_id)\}$/;
 
-    for (const pathKey of Object.keys(spec.paths)) {
-        if (!pathKey.startsWith("/")) continue;
-
+    for (const pathKey of rulePathKeys(spec)) {
         const segments = pathKey.split("/").filter(Boolean); // remove empty segments from leading/trailing slashes
         if (segments.length === 0) continue; // skip root
 

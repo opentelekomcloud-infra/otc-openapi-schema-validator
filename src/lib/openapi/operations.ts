@@ -1,5 +1,6 @@
 import type { NativeOpenApiDocument, NativeOperation } from "@/types/openapi";
 import { appendPointer, isRecord, jsonPointer, resolveObjectReference } from "./references";
+import { collectDocumentPathEntries } from "./paths";
 
 const HTTP_METHODS = new Set(["get", "put", "post", "delete", "options", "head", "patch", "trace"]);
 
@@ -13,8 +14,8 @@ export function collectDocumentOperations(
     const cache = new Map<string, unknown>();
     const result: NativeOperation[] = [];
 
-    for (const [path, rawPathItem] of Object.entries(document.paths)) {
-        if (!path.startsWith("/") || (pathFilter && !pathFilter(path))) continue;
+    for (const [path, rawPathItem] of collectDocumentPathEntries(document)) {
+        if (pathFilter && !pathFilter(path)) continue;
         const pathItemPointer = jsonPointer(["paths", path]);
         const resolved = resolveObjectReference(rawPathItem, document, cache, pathItemPointer, "reject");
         if (!resolved) continue;

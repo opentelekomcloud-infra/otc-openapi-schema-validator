@@ -3,6 +3,7 @@ import { getSource } from "@/functions/common";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodParametersPositionInYaml } from "@/utils/pos";
 import { resolveRefDeep } from "@/utils/schema";
+import { collectDocumentPathEntries } from "@/lib/openapi/paths";
 
 export function checkPaginationParameters(spec: any, content: string, rule: any): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
@@ -28,7 +29,7 @@ export function checkPaginationParameters(spec: any, content: string, rule: any)
 
   if (modes.length === 0) return diagnostics;
 
-  for (const path in spec.paths) {
+  for (const [path] of collectDocumentPathEntries(spec)) {
     const pathItem = spec.paths[path];
     if (!pathItem || typeof pathItem !== "object") continue;
 

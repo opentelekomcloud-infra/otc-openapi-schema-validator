@@ -1,5 +1,6 @@
 import { collectEffectiveParameterNodes } from "@/lib/openapi/parameters";
 import { collectDocumentOperations } from "@/lib/openapi/operations";
+import { collectDocumentPathEntries } from "@/lib/openapi/paths";
 import { appendPointer, isRecord, jsonPointer, resolveObjectReference } from "@/lib/openapi/references";
 import { NativeAccessorError } from "@/lib/openapi/accessorError";
 import { pathRange, sourceMap } from "@/lib/openapi/sourceMap";
@@ -33,8 +34,7 @@ export function collectHeaderLocations(spec: unknown): HeaderLocation[] {
       });
     });
   };
-  for (const [path, raw] of Object.entries(spec.paths)) {
-    if (!path.startsWith("/")) continue;
+  for (const [path, raw] of collectDocumentPathEntries(spec)) {
     const item = resolveObjectReference(raw, spec, cache, jsonPointer(["paths", path]), "reject");
     if (item) requestHeaders(item.value, item.pointer, `paths.${path}`);
   }

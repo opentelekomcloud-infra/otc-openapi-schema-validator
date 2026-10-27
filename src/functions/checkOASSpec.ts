@@ -2,6 +2,7 @@ import type { Diagnostic } from "@codemirror/lint";
 import { isDocumentObject } from "@/lib/openapi/parseNativeOpenApi";
 import { jsonPointer } from "@/lib/openapi/references";
 import { sourceMap } from "@/lib/openapi/sourceMap";
+import { collectDocumentPathEntries } from "@/lib/openapi/paths";
 import {
     classifyForCompliance, complianceDiagnostic, complianceStringList, type ComplianceRule,
 } from "@/utils/compliance";
@@ -16,6 +17,9 @@ export function checkOASSpec(spec: unknown, content: string, rule: ComplianceRul
     }
     if (params.checkDuplicateMethods !== undefined && typeof params.checkDuplicateMethods !== "boolean") {
         throw new Error("Compliance functionParams.checkDuplicateMethods must be a boolean.");
+    }
+    if (params.checkPathKeys !== undefined && typeof params.checkPathKeys !== "boolean") {
+        throw new Error("Compliance functionParams.checkPathKeys must be a boolean.");
     }
     let formatParams = params;
     if (params.formats !== undefined) {
@@ -46,6 +50,16 @@ export function checkOASSpec(spec: unknown, content: string, rule: ComplianceRul
             diagnostics.push(complianceDiagnostic(
                 content, rule, `Disallowed top-level field: '${key}'`, jsonPointer([key]),
             ));
+        }
+    }
+
+    if (params.checkPathKeys === true) {
+        for (const [path] of collectDocumentPathEntries(spec)) {
+            if (!path.startsWith("/")) {
+                diagnostics.push(complianceDiagnostic(
+                    content, rule, `Path key "${path}" must start with "/".`, jsonPointer(["paths", path]),
+                ));
+            }
         }
     }
 

@@ -2,6 +2,7 @@ import type { Diagnostic } from "@codemirror/lint";
 import { appendPointer, isRecord, jsonPointer, resolveObjectReference } from "@/lib/openapi/references";
 import { ruleDiagnostic, ruleDocument, ruleStrings, type NativeRule } from "@/utils/nativeRule";
 import { NativeAccessorError } from "@/lib/openapi/accessorError";
+import { collectDocumentPathEntries } from "@/lib/openapi/paths";
 
 const metadata = new Set(["parameters", "servers", "summary", "description", "$ref"]);
 
@@ -13,8 +14,7 @@ export function checkAllowedMethods(spec: unknown, content: string, rule: Native
     if (!isRecord(document.paths)) return [];
     const diagnostics: Diagnostic[] = [];
     const cache = new Map<string, unknown>();
-    for (const [path, raw] of Object.entries(document.paths)) {
-        if (!path.startsWith("/")) continue;
+    for (const [path, raw] of collectDocumentPathEntries(document)) {
         const resolved = resolveObjectReference(raw, spec, cache, jsonPointer(["paths", path]), "reject");
         if (!resolved) throw new NativeAccessorError("INVALID_DECLARATION", jsonPointer(["paths", path]), "Expected a Path Item object");
         // Invalid/unsupported operation keys, including Swagger TRACE, must not disappear in the valid-method iterator.

@@ -15,7 +15,7 @@ rules:
         allowedMediaTypes:
           - application/json
           - application/bson
-    description: Check native consumes, produces and content declarations. Additional representations are allowed; their order does not define a default.
+    description: Check native consumes, produces and content declarations. Additional representations are allowed; their order does not define a default. Response violations inherited from the same global Swagger produces declaration are summarized once per rule at that declaration, listing the affected methods, original paths and statuses. Local overrides and request violations remain separate.
     severity: high
     status: implemented
 

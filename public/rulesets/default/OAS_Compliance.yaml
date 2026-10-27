@@ -25,6 +25,7 @@ rules:
       function: checkOASSpec
       functionParams:
         allowExtensions: true
+        checkPathKeys: true
         checkDuplicateMethods: true
         formats:
           swagger:
@@ -56,6 +57,6 @@ rules:
               - tags
               - externalDocs
               - components
-    description: This rule checks the root object and its own top-level fields against the template for the supported specification format. Root x- extensions are allowed when allowExtensions is true; other unknown or cross-format fields are rejected. When checkDuplicateMethods is true, inspect original YAML/JSON Path Item declarations, including local refs and YAML aliases/merges, and report repeated HTTP method keys once per affected path with declaration lines. Do not rewrite the specification or block other rules; runtime last-value-wins behavior is preserved. This is not a full validation of nested OpenAPI objects.
+    description: This rule checks the root object and its own top-level fields against the template for the supported specification format. Root x- extensions are allowed when allowExtensions is true; other unknown or cross-format fields are rejected. When checkPathKeys is true, report each non-extension Paths Object key that does not start with /. Operations under invalid keys are still checked using their original keys and coordinates; keys are never normalized or merged. When checkDuplicateMethods is true, inspect original YAML/JSON Path Item declarations, including local refs and YAML aliases/merges, and report repeated HTTP method keys once per affected path with declaration lines. Do not rewrite the specification or block other rules; runtime last-value-wins behavior is preserved. This is not a full validation of nested OpenAPI objects.
     status: implemented
     severity: critical

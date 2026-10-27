@@ -1,4 +1,5 @@
 import { Diagnostic } from "@codemirror/lint";
+import { collectDocumentPathEntries } from "@/lib/openapi/paths";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
 import { sourceMap } from "@/lib/openapi/sourceMap";
@@ -92,7 +93,7 @@ function checkLegacyResponseEncapsulation(spec: any, content: string, rule: any)
 
     if (!spec?.paths || !Array.isArray(methodsToCheck)) return diagnostics;
 
-    for (const pathKey in spec.paths) {
+    for (const [pathKey] of collectDocumentPathEntries(spec)) {
         const pathItem = spec.paths[pathKey];
         for (const method in pathItem) {
             if (!pathItem || typeof pathItem !== "object") continue;

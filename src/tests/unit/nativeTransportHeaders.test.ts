@@ -310,6 +310,88 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s native MIME and 
     });
 });
 
+test.each(["yaml", "json", "flow"] as const)(
+    "v2 inherited global produces aggregates 14 response violations per rule in %s without losing context", async (format) => {
+        const statuses = ["200", "201", "202", "400", "403", "404", "500"];
+        const responses = Object.fromEntries(statuses.map((status) => [
+            status, { $ref: "#/responses/Shared" },
+        ]));
+        responses["204"] = { $ref: "#/responses/Empty" };
+        const doc = document("swagger2", {}, {
+            produces: ["application/xml;charset=UTF-8"],
+            responses: {
+                Shared: { description: "Body", schema: { type: "object" } },
+                Empty: { description: "No body" },
+            },
+            paths: {
+                "01 /": { post: { responses } },
+                "02 /": { put: { responses } },
+                "03 /": { post: { produces: ["application/json"], responses } },
+                "x-hidden": { post: { responses } },
+            },
+        });
+        for (const id of [bodyMime, responseMime]) {
+            const { diagnostics, content } = await check(doc, id, undefined, format);
+            expect(diagnostics).toHaveLength(1);
+            expect(diagnostics[0]).toMatchObject({ pointer: "#/produces" });
+            expect(content.slice(diagnostics[0].from, diagnostics[0].to))
+                .toBe(format === "json" ? '"produces"' : "produces");
+            expect(diagnostics[0].message).toContain("Inherited global produces:");
+            expect(diagnostics[0].message).toContain("Affects 14 response bodies:");
+            expect(diagnostics[0].message.match(/Response \d{3}/g)).toHaveLength(14);
+            for (const status of statuses) {
+                expect(diagnostics[0].message).toContain(`POST "01 /": Response ${status}`);
+                expect(diagnostics[0].message).toContain(`PUT "02 /": Response ${status}`);
+            }
+            expect(diagnostics[0].message).not.toContain("Response 204");
+            expect(diagnostics[0].message).not.toContain('"03 /"');
+            expect(diagnostics[0].message).not.toContain("x-hidden");
+        }
+        object(doc.paths)["04 /"] = { post: { produces: ["text/plain"],
+            responses: { "400": { $ref: "#/responses/Shared" } } } };
+        for (const id of [bodyMime, responseMime]) {
+            const { diagnostics, content } = await check(doc, id, undefined, format);
+            expect(diagnostics).toHaveLength(2);
+            const local = diagnostics.find(({ message }) => !message.includes("Inherited global produces:"));
+            if (!local) throw new Error("Missing local produces violation.");
+            expect(local.message).toContain("Response 400");
+            expect(content.slice(local.from, local.to))
+                .toBe(format === "json" ? '"produces"' : "produces");
+            expect(local.from).toBeGreaterThan(content.indexOf("04 /"));
+        }
+    },
+);
+
+test.each(["application/json; charset=UTF-16", ""] as const)(
+    "v2 global produces preserves charset/missing-media violations and skips bodies with local overrides: %j", async (media) => {
+        const responses = { "200": response("swagger2"), "400": response("swagger2") };
+        const doc = document("swagger2", { post: { responses }, put: { responses },
+            delete: { produces: ["application/json"], responses } }, { produces: media ? [media] : [] });
+        const { diagnostics } = await check(doc, responseMime);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0]).toMatchObject({ pointer: "#/produces" });
+        expect(diagnostics[0].message).toContain(media ? "JSON charset must be UTF-8" : "a body media type must be declared");
+        expect(diagnostics[0].message).toContain("Affects 4 response bodies");
+        expect(diagnostics[0].message).not.toContain("DELETE");
+    },
+);
+
+test("root response aggregation does not merge request errors or independent OAS3 response declarations", async () => {
+    const request = bodyOperation("swagger2", [], []);
+    delete request.consumes;
+    request.responses = { "204": { description: "No body" } };
+    const doc = document("swagger2", { post: request, put: { ...request } }, { consumes: [] });
+    const { diagnostics } = await check(doc, requestMime);
+    expect(diagnostics).toHaveLength(2);
+    expect(diagnostics.every(({ message }) => !message.includes("Inherited global produces"))).toBe(true);
+    const wrong = bodyOperation("openapi3", ["application/json"], ["text/plain"]);
+    wrong.responses = { "200": response("openapi3", ["text/plain"]), "400": response("openapi3", ["text/plain"]) };
+    const oas3 = document("openapi3", { post: wrong, put: { ...wrong } });
+    const local = await check(oas3, responseMime);
+    expect(local.diagnostics).toHaveLength(4);
+    expect(local.diagnostics.every(({ message }) => !message.includes("Inherited global produces"))).toBe(true);
+});
+
 test("OAS3 path servers override root; undetermined scheme templates never imply HTTPS", async () => {
     const doc = document("openapi3", { servers: [{ url: "https://{host}/" }], get: { responses: {} } },
         { servers: [{ url: "http://example.invalid/" }] });

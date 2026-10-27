@@ -318,6 +318,7 @@ describe("malformed roots, own fields and custom compliance configuration", () =
 
     test.each([
         { params: { allowExtensions: "true" }, name: "allowExtensions" },
+        { params: { checkPathKeys: "true" }, name: "checkPathKeys" },
         { params: { formats: null }, name: "formats" },
         { params: { formats: [] }, name: "formats" },
         { params: { formats: { openapi: {} } }, name: "formats.swagger" },

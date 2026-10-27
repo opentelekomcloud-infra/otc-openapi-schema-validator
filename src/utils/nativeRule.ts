@@ -7,6 +7,7 @@ import { isStringList, isSwagger2Root } from "@/lib/openapi/media";
 import { collectParameterDescriptors, collectEffectiveParameterNodes } from "@/lib/openapi/parameters";
 import { getRequestPayload } from "@/lib/openapi/payloads";
 import { collectDocumentOperations } from "@/lib/openapi/operations";
+import { collectDocumentPathEntries } from "@/lib/openapi/paths";
 import { isDocumentObject } from "@/lib/openapi/parseNativeOpenApi";
 import { sourceMap } from "@/lib/openapi/sourceMap";
 import { mapSeverity } from "@/utils/mapSeverity";
@@ -39,8 +40,7 @@ export function ruleOperations(
 }
 
 export function rulePathKeys(spec: unknown): string[] {
-    const document = ruleDocument(spec);
-    return isRecord(document.paths) ? Object.keys(document.paths).filter((path) => path.startsWith("/")) : [];
+    return collectDocumentPathEntries(ruleDocument(spec)).map(([path]) => path);
 }
 
 function validateParameterLists(op: NativeOperation, spec: unknown, cache: ReferenceCache): void {

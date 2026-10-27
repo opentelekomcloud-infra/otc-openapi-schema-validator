@@ -15,7 +15,7 @@ rules:
         allowedMediaTypes:
           - application/json
         requireUtf8Json: true
-    description: Check native produces or response.content for each response body. Bare application/json is accepted; an explicit JSON charset must be UTF-8. Additional representations are allowed.
+    description: Check native produces or response.content for each response body. Bare application/json is accepted; an explicit JSON charset must be UTF-8. Additional representations are allowed. Response violations inherited from the same global Swagger produces declaration are summarized once per rule at that declaration, listing the affected methods, original paths and statuses. Local overrides remain separate.
     severity: medium
     status: implemented
 

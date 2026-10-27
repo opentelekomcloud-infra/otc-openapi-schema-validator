@@ -5,6 +5,7 @@ import { sourceMap } from "@/lib/openapi/sourceMap";
 import { jsonPointer } from "@/lib/openapi/references";
 import { matchesMediaType, parseDeclaredMediaType } from "@/utils/mediaType";
 import { ruleDiagnostic, ruleOperations, ruleRequest, ruleStrings, type NativeRule } from "@/utils/nativeRule";
+import { collectDocumentPathEntries } from "@/lib/openapi/paths";
 
 export function checkRequestEncapsulation(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
     if (rule.element !== undefined && typeof rule.element !== "string") {
@@ -38,7 +39,7 @@ function checkLegacyRequestEncapsulation(spec: any, content: string, rule: any):
 
     if (!spec?.paths) return diagnostics;
 
-    for (const pathKey in spec.paths) {
+    for (const [pathKey] of collectDocumentPathEntries(spec)) {
         const pathItem = spec.paths[pathKey];
 
         for (const method in pathItem) {
