@@ -1,6 +1,7 @@
 import {convertMarkdownToPlainText} from '@/utils/utils';
 import { getSeverityLabel } from '@/utils/mapSeverity';
 import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
+import { diagnosticRuleId, isDocumentError, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
 
 // Build Robot Framework compliant XML (schema v4) from diagnostics + rules
 export function buildRobotXml(
@@ -17,7 +18,7 @@ export function buildRobotXml(
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/\\"/g, '&quot;')
+      .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
   };
 
@@ -32,31 +33,6 @@ export function buildRobotXml(
     const s = pad(d.getSeconds());
     const ms3 = pad(d.getMilliseconds(), 3);
     return `${y}${M}${D} ${h}:${m}:${s}.${ms3}`;
-  };
-
-  const extractRuleId = (raw: any): string | undefined => {
-    if (typeof raw !== 'string') return undefined;
-
-    const patterns: RegExp[] = [
-      /\b([A-Z]{2,}[A-Z0-9]*(?:-[A-Z0-9]+)+)\b/i,            // direct hyphenated ID
-      /\bRule\s+([A-Z]{2,}[A-Z0-9]*(?:-[A-Z0-9]+)+)\b/i,     // "Rule <hyphenated>"
-      /(\d+(?:\.\d+)+)\b/,                                  // direct dotted numeric ID
-      /\bRule\s+(\d+(?:\.\d+)+)\b/i                        // "Rule <dotted>"
-    ];
-
-    let best: { value: string; index: number } | undefined;
-
-    for (const re of patterns) {
-      const m = re.exec(raw);
-      if (m && m[1]) {
-        const idx = (m as any).index ?? raw.indexOf(m[0]);
-        if (best === undefined || idx < best.index) {
-          best = { value: m[1], index: idx };
-        }
-      }
-    }
-
-    return best?.value;
   };
 
   const findRuleMeta = (id: string): any => {
@@ -74,14 +50,10 @@ export function buildRobotXml(
   const testId = (suiteIdStr: string, idx: number) => `${suiteIdStr}-t${idx}`;
 
   const grouped: Record<string, any[]> = {};
-  const failedRuleIds = new Set<string>();
-  const isDocumentError = (diag: { source?: unknown; severity?: unknown } | null | undefined) =>
-    diag?.severity === "error" && (diag.source === "parser" || diag.source === "version");
-  const documentFailed = diagnostics.some(isDocumentError);
+  const { failedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
   diagnostics.forEach((diag) => {
     const key = isDocumentError(diag) ? String(diag.source)
-      : extractRuleId((diag as any)?.ruleId ?? (diag as any)?.source ?? (diag as any)?.message) || 'unknown';
-    if (key !== 'unknown' && !isDocumentError(diag)) failedRuleIds.add(key);
+      : diagnosticRuleId(diag) || 'unknown';
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(diag);
   });

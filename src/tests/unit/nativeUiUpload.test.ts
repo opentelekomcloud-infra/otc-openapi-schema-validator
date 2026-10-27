@@ -13,7 +13,8 @@ import { getImplementedRules, loadRuleCatalog, type AutoRule } from "@/lib/linte
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import { setAllowedAbbreviations } from "@/utils/englishWords";
 import { parseAllowedAbbreviations } from "@/lib/abbreviations";
-import { exportReportPortal } from "@/utils/export";
+import { exportJUnit, exportPDF, exportReportPortal } from "@/utils/export";
+import { coverageLedger } from "@/tests/fixtures/dual-version/coverageLedger";
 import { readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
 
 type LintResult = Awaited<ReturnType<ReturnType<typeof openApiLinter>>>;
@@ -174,6 +175,34 @@ test.each<Dialect>(["swagger2", "openapi3"])("%s upload runs all 67 real native 
     forEachDiagnostic(editor().state, (diagnostic) => gutterMessages.push(diagnostic.message));
     const tableMessages = [...container.querySelectorAll("tbody tr")].map((row) => row.children[2].textContent);
     expect(gutterMessages.sort()).toEqual(tableMessages.sort());
+    for (const [label, exporter] of [
+        ["Export to PDF", exportPDF], ["Export to jUnit", exportJUnit], ["Export to ReportPortal", exportReportPortal],
+    ] as const) {
+        await act(async () => button("Export").click());
+        await act(async () => button(label).click());
+        const call = jest.mocked(exporter).mock.calls.at(-1);
+        if (!call) throw new Error(`Missing export: ${label}`);
+        expect(call[0].map((diagnostic: Diagnostic) => diagnostic.message).sort()).toEqual(tableMessages.sort());
+        expect(Object.values(call[1]).map((rule: AutoRule) => rule.id).sort())
+            .toEqual(coverageLedger.map((entry) => entry.ruleId).sort());
+        expect(call[3].current).toBe(editor());
+    }
+});
+
+test.each<Dialect>(["swagger2", "openapi3"])("%s pasted into the real editor uses native linting without an upload request", async (dialect) => {
+    const actual = jest.requireActual<typeof import("@/components/Linter")>("@/components/Linter");
+    lint.mockImplementation(actual.openApiLinter);
+    await select(rules.filter((rule) => ["checkOASVersion", "checkOASSpec"].includes(rule.call.function)));
+    jest.clearAllMocks();
+    const content = readFixtureContent(dialect);
+    await act(async () => editor().dispatch({
+        changes: { from: 0, to: editor().state.doc.length, insert: content }, userEvent: "input.paste",
+    }));
+    await loaded(content);
+    expect(lint).toHaveBeenCalledTimes(1);
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(0);
+    expect(editor().state.doc.toString()).toContain(dialect === "swagger2" ? "definitions:" : "components:");
+    expect(container.textContent).not.toContain("Converted Swagger");
 });
 
 test.each(["yaml", "yml"])("upload and Save preserve original %s text, CRLF, comments, definitions and refs", async (extension) => {
