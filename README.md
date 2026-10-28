@@ -1,9 +1,15 @@
 # T Cloud Public OpenAPI Schema Validator
 
-A web-based tool built with **Next.js 15**, **React 19**, and **Tailwind CSS 4** for validating and visualizing OpenAPI schemas (YAML/JSON).  
-It supports file uploads, URL-based loading (including Internal Gitea-hosted specs), and provides detailed diagnostics and reports. Swagger 2.0 and OpenAPI 3.0.x documents are validated natively without automatic conversion or reference rewriting.
+A web-based tool built with **Next.js 16**, **React 19**, and **Tailwind CSS 4** for validating and visualizing OpenAPI schemas (YAML/JSON).
+Upload a file in the UI, or use the API to submit content or load a server-accessible path or URL, including internal Gitea-hosted specs. Swagger 2.0 and OpenAPI 3.0.x documents are validated natively without automatic conversion or reference rewriting.
 
-The format-version and top-level-field rules accept native Swagger 2.0 and OpenAPI 3.0.x documents. OpenAPI 3.1 is not allowed by the default format-version rule.
+The default format-version rule accepts `swagger: "2.0"` (or numeric `2`) and
+`openapi: "3.0.<patch>"`, for example `openapi: "3.0.3"`. Shortened or numeric
+OpenAPI versions, OpenAPI 3.1, and OpenAPI 3.2 are not accepted. The format marker
+is separate from `info.version`, which describes the API's own version.
+
+Validation uses the selected rules; it is not a complete validation of every
+nested object against the Swagger or OpenAPI standard.
 
 ---
 
@@ -43,7 +49,7 @@ Then open your browser at
 The app will automatically reload as you edit files.
 
 Main entry point:  
-`app/page.tsx`
+`src/app/page.tsx`
 
 ---
 
@@ -58,7 +64,7 @@ npm run build
 
 for full availability of public endpoints during API call need to set variable APP_URL
 ```bash
-EXPORT APP_URL=http://localhost:3000
+export APP_URL=http://localhost:3000
 ```
 
 ```bash
@@ -99,7 +105,7 @@ The app will be available at
 
 ## Tech Stack
 
-- **Next.js 15** (App Router)
+- **Next.js 16** (App Router and Pages API)
 - **React 19**
 - **TypeScript 5**
 - **Tailwind CSS 4**
@@ -128,6 +134,9 @@ In **Rules**, search and severity filters only change visibility.
 **Select filtered** adds visible rules to the current selection;
 **Clear filtered** removes only visible rules. Manual review remains separate
 from automatic validation and is saved locally in the browser.
+
+UI exports include PDF and Robot Framework XML, plus submission to ReportPortal.
+The XML report uses Robot Framework format, not JUnit format.
 
 ---
 
@@ -159,13 +168,13 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
 - If `file_content` is provided, it takes precedence.
 - Swagger 2.0 and OpenAPI 3.0.x inputs are validated in their original structure. The original source text is used for diagnostics, without conversion or YAML reserialization.
 - JSON validation and XML-export responses temporarily retain the deprecated `conversion: {"converted": false}` field for compatibility.
-- Syntax errors rejected by the runtime parser return **400** with the parser diagnostic, original source positions and rule summary. Such documents are not exported to ReportPortal. Format-version errors remain diagnostics of the selected rules rather than an independent global version gate.
-- If `path` is an **HTTP/HTTPS URL**. For Gitea URL, expected next shape: `/:owner/:repo/src/:branch/path/to/file.yaml`.
+- Invalid specification syntax returns **400** with `error`, `diagnostics`, `conversion`, and `rules`. Such documents are not exported to ReportPortal. Validation findings, including format-version violations reported by selected rules, return **200** in `diagnostics`.
+- If `path` is an **HTTP/HTTPS URL**, the API loads the document from that URL. Gitea URLs support `/:owner/:repo/src/:ref/path/to/file.yaml` and explicit `branch`, `tag`, or `commit` forms such as `/:owner/:repo/src/branch/:ref/path/to/file.yaml`.
 - If `path` is a **server path**, the file is read from disk (if accessible to the server).
 - `ruleset` directory is read from `public/rulesets/<ruleset>`; only auto‑rules with `status: implemented` are used.
 - Rule catalogs load atomically: unreadable or malformed YAML, duplicate IDs, and invalid implemented function bindings produce an error instead of partial validation. The UI displays catalog errors; the validation API returns HTTP 500 for a broken server-side catalog. Rules explicitly marked `unsupported` are not executed.
 - `export: "xml"` builds **Robot XML** and imports a launch to **ReportPortal** (defaults used in server: project `openapi`, dynamic launch name/description). Response includes the created launch payload.
-- `export: "pdf"` currently returns **501** (use the UI export instead).
+- `export: "pdf"` requires `out`; without it the API returns **400**. With `out`, it currently returns **501** (use the UI PDF export instead).
 
 The former POST `/api/convert` endpoint now returns **410 Gone** after authentication, with a migration message directing clients to `/api/validate`. Submit the original specification instead of requesting conversion.
 
@@ -173,23 +182,69 @@ The former POST `/api/convert` endpoint now returns **410 Gone** after authentic
 ```json
 {
   "diagnostics": [
-    { "id": "RULE_ID", "message": "…", "lineNumber": 42, "severity": "High", "from": 123, "to": 140 }
+    {
+      "source": "Rule RULE_ID - Rule title",
+      "message": "…",
+      "lineNumber": 42,
+      "severity": "High",
+      "from": 123,
+      "to": 140
+    }
   ],
   "conversion": { "converted": false },
   "rules": {
-    "manual": [ { "id": "…" } ],
-    "auto": [ { "id": "…" } ],
+    "manual": [],
+    "auto": [ { "id": "RULE_ID", "title": "Rule title" } ],
     "manual_total": 0,
-    "auto_total": 0,
+    "auto_total": 1,
     "manual_selected": 0,
-    "auto_selected": 0
+    "auto_selected": 1
   }
 }
 ```
 
+`from` and `to` are zero-based UTF-16 offsets in the submitted text; `to` is
+exclusive. `lineNumber` is one-based. Severity labels are `Critical`, `High`,
+`Medium`, and `Low`. Rule diagnostics identify their rule through `source`;
+a separate `id` field is not guaranteed. The `manual` and `auto` arrays contain
+the selected catalog entries, with additional rule metadata omitted above.
+Totals describe the available rules; selected counts reflect include/exclude
+filters. Omitting an include list or passing an empty one selects all available
+rules before exclusions.
+
+**Invalid specification syntax (HTTP 400)**
+
+The response has the same `diagnostics`, `conversion`, and `rules` fields as
+default validation, plus an `error` string. Source-related diagnostics use the
+same position fields described above.
+
+**Successful XML import (HTTP 200)**
+```json
+{
+  "success": true,
+  "launch": { "id": "launch-id" },
+  "conversion": { "converted": false }
+}
+```
+
+`launch` contains the ReportPortal import response; its fields depend on
+ReportPortal. This response does not include the default `diagnostics` or `rules`
+fields. Requesting XML export sends a report to ReportPortal, rather than
+returning a downloadable XML file.
+
 **Examples**
 
-Validate with raw content:
+Validate an original Swagger 2.0 document:
+```bash
+curl -X POST http://localhost:3000/api/validate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "file_content": "swagger: \"2.0\"\ninfo:\n  title: Demo\n  version: 1.0.0\npaths: {}",
+    "ruleset": "default"
+  }'
+```
+
+Validate an original OpenAPI 3.0 document:
 ```bash
 curl -X POST http://localhost:3000/api/validate \
   -H 'Content-Type: application/json' \
@@ -225,7 +280,7 @@ curl -X POST http://localhost:3000/api/validate \
   -H 'Content-Type: application/json' \
   -d '{
     "file_content": "openapi: 3.0.3\ninfo:\n  title: Demo\n  version: 1.0.0\npaths: {}",
-    "ruleset": "default"
+    "ruleset": "default",
     "exclude_auto_rules": ["COD-020-01-2507-2507-M", "BAS-090-01-2507-2507-M"]
   }'
 ```
