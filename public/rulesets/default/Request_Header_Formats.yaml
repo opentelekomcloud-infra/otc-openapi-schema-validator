@@ -5,13 +5,10 @@ rules:
     option: Optional
     location: paths
     call:
-      function: checkParamElementPresence
+      function: checkContentType
       functionParams:
-        headers:
-          - name: "Content-Type"
-            valueType: string
-            in: header
-        checkMethodIfSectionExist: requestBody
+        direction: request
+    description: Request bodies and form data must declare a non-empty native consumes or requestBody.content media type; an explicit Content-Type parameter is not required.
     severity: medium
     status: implemented
 

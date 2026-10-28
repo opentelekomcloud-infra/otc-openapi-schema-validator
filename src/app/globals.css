@@ -1,60 +1,138 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
-  --color-scheme: light;
+  color-scheme: light;
+  --background: var(--telekom-color-background-canvas, #fff);
+  --foreground: var(--telekom-color-text-and-icon-standard, #191919);
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
+* { box-sizing: border-box; }
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
-  color-scheme: light;
-  background-color: #ffffff !important;
-  color: #171717 !important;
+  margin: 0;
+  background: var(--telekom-color-background-canvas, #fff);
+  color: var(--telekom-color-text-and-icon-standard, #191919);
+  font-family: var(--scl-font-family-sans, Arial, Helvetica, sans-serif);
+  font-size: var(--scl-font-size-14, 14px);
 }
-
-/* Force light theme for Telekom Scale components */
-scale-card,
-scale-button {
-  color-scheme: light !important;
+button, input, select { font: inherit; }
+button:focus-visible, summary:focus-visible {
+  outline: 2px solid var(--telekom-color-functional-focus-standard);
+  outline-offset: 3px;
 }
-
-/* If parts are exposed, this will style their internals */
-scale-card::part(base) {
-  background: #ffffff !important;
-  color: #111111 !important;
-  border-color: #e5e7eb !important; /* gray-200 */
+.validatorApp { height: 100dvh; display: flex; flex-direction: column; min-width: 320px; overflow: hidden; }
+.appHeader {
+  display: flex; align-items: center; gap: var(--scl-spacing-16);
+  padding-right: var(--scl-spacing-16); flex-shrink: 0;
+  border-bottom: 1px solid var(--telekom-color-ui-faint);
+  background: var(--telekom-color-background-surface);
 }
-scale-button::part(button) {
-  background: #ffffff !important;
-  color: #111111 !important;
+.brandMark {
+  display: grid; place-items: center; width: 64px; height: 64px; flex-shrink: 0;
+  background: var(--telekom-color-primary-standard);
 }
-
-/* Override Telekom CSS variables to force light secondary buttons */
-scale-button[variant="secondary"] {
-  --background-secondary: #ffffff !important;
-  --background-secondary-hover: hsla(0, 0%, 0%, 0.07) !important;
-  --background-secondary-active: hsla(0, 0%, 0%, 0.21) !important;
-  --border-secondary: #000000 !important;
-  --border-secondary-hover: #000000 !important;
-  --border-secondary-active: hsla(0, 0%, 0%, 0.21) !important;
-  --color-secondary: #111111 !important;
-  --color-secondary-hover: #111111 !important;
-  --color-secondary-active: #111111 !important;
+.appTitle h1 { margin: 0; font-size: var(--scl-font-size-20); font-weight: var(--scl-font-weight-bold); }
+.appTitle > span { color: var(--telekom-color-text-and-icon-additional); font-size: var(--scl-font-size-12); }
+.headerActions { display: flex; align-items: center; gap: var(--scl-spacing-8); margin-left: auto; }
+.documentBar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--scl-spacing-16);
+  padding: var(--scl-spacing-8) var(--scl-spacing-16); flex-shrink: 0;
+  background: var(--telekom-color-background-canvas-subtle);
+  border-bottom: 1px solid var(--telekom-color-ui-faint);
+}
+.documentIdentity { display: flex; align-items: baseline; flex-wrap: wrap; gap: var(--scl-spacing-12); min-width: 0; margin-right: auto; }
+.documentIdentity strong { overflow-wrap: anywhere; }
+.documentIdentity > span, .muted { color: var(--telekom-color-text-and-icon-additional); }
+.workspace { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.15fr); }
+.editorPane, .resultsPane { min-width: 0; min-height: 0; display: flex; flex-direction: column; }
+.editorPane { border-right: 1px solid var(--telekom-color-ui-faint); }
+.paneHeading { display: flex; align-items: center; justify-content: space-between; gap: var(--scl-spacing-8); padding: var(--scl-spacing-12) var(--scl-spacing-16); border-bottom: 1px solid var(--telekom-color-ui-faint); }
+.paneHeading h2 { margin: 0; font-size: var(--scl-font-size-14); font-weight: var(--scl-font-weight-bold); }
+.paneHeading > span { font-size: var(--scl-font-size-12); }
+.editorSurface { position: relative; flex: 1; min-height: 0; }
+.editorSurface .cm-editor { height: 100%; }
+.editorSurface .cm-scroller { overflow: auto; font-family: var(--scl-font-family-mono, monospace); font-size: 13px; }
+.editorTop { position: absolute; bottom: var(--scl-spacing-16); right: var(--scl-spacing-16); }
+.workspaceTabs { display: block; height: 100%; min-height: 0; }
+.workspaceTabs::part(tab-nav) { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-template-rows: auto minmax(0, 1fr); height: 100%; }
+.workspaceTabs > scale-tab-header { min-width: 0; --tab-spacing-horizontal: var(--scl-spacing-12); }
+.workspaceTabs > scale-tab-panel { grid-column: 1 / -1; grid-row: 2; height: 100%; min-height: 0; overflow: hidden; --spacing-top: 0; }
+.workspaceTabs > scale-tab-panel[hidden] { display: none; }
+.workspaceTabs > scale-tab-panel::part(tab-panel) { height: 100%; }
+.issuesPanel, .settingsPanel { height: 100%; min-height: 0; display: flex; flex-direction: column; }
+.panelToolbar { flex-shrink: 0; padding: var(--scl-spacing-16); border-bottom: 1px solid var(--telekom-color-ui-faint); background: var(--telekom-color-background-surface); }
+.filterGrid { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: var(--scl-spacing-12); }
+.filterGrid > * { min-width: 0; }
+.settingsFilters { margin-top: var(--scl-spacing-12); }
+.panelSummary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--scl-spacing-8); margin-top: var(--scl-spacing-12); font-size: var(--scl-font-size-12); }
+.inlineActions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--scl-spacing-8); }
+.panelScroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.emptyState { padding: var(--scl-spacing-32); max-width: 36rem; }
+.emptyState h2 { font-size: var(--scl-font-size-20); font-weight: var(--scl-font-weight-bold); margin-bottom: var(--scl-spacing-12); }
+.emptyState p { margin-bottom: var(--scl-spacing-16); color: var(--telekom-color-text-and-icon-additional); line-height: 1.5; }
+[role="alert"] { color: var(--telekom-color-text-and-icon-functional-danger); }
+.workspaceTable { width: 100%; border-collapse: collapse; table-layout: fixed; font-size: var(--scl-font-size-12); }
+.workspaceTable th { text-align: left; font-weight: var(--scl-font-weight-bold); background: var(--telekom-color-background-surface-subtle); position: sticky; top: 0; z-index: 1; }
+.workspaceTable th, .workspaceTable td { padding: var(--scl-spacing-12) var(--scl-spacing-8); border-bottom: 1px solid var(--telekom-color-ui-faint); vertical-align: top; }
+.issuesTable th:first-child { width: 9%; }
+.issuesTable th:nth-child(2) { width: 23%; }
+.issuesTable th:nth-child(4) { width: 16%; }
+.issuesTable th:last-child { width: 12%; }
+.issuesTable tr { cursor: pointer; }
+.issuesTable tbody tr:hover { background: var(--telekom-color-ui-state-fill-hovered); }
+.issuesTable tr[data-active="true"] {
+  background: var(--telekom-color-background-canvas-subtle);
+  color: var(--telekom-color-text-and-icon-standard);
+  box-shadow: inset 3px 0 var(--telekom-color-primary-standard);
+}
+.issuePreview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.ruleId { font-family: var(--scl-font-family-mono, monospace); font-size: var(--scl-font-size-12); overflow-wrap: anywhere; }
+.textAction { background: none; border: 0; padding: 0; color: var(--telekom-color-text-and-icon-link-standard); cursor: pointer; text-align: left; text-decoration: underline; text-underline-offset: 3px; }
+.severityLabel { display: inline-flex; align-items: center; gap: var(--scl-spacing-4); white-space: nowrap; }
+.severityDot { width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: var(--telekom-color-ui-strong); }
+[data-severity="error"] .severityDot { background: var(--telekom-color-functional-danger-standard); }
+[data-severity="warning"] .severityDot { background: var(--telekom-color-functional-warning-standard); }
+[data-severity="info"] .severityDot { background: var(--telekom-color-functional-informational-standard); }
+.issueGroupHeading { font-size: var(--scl-font-size-14); font-weight: var(--scl-font-weight-bold); padding: var(--scl-spacing-12) var(--scl-spacing-16); background: var(--telekom-color-background-canvas-subtle); margin: 0; }
+.issueGroupHeading span { font-size: var(--scl-font-size-12); font-weight: normal; color: var(--telekom-color-text-and-icon-additional); }
+.pagination { flex-shrink: 0; padding: var(--scl-spacing-8); display: flex; justify-content: space-between; gap: var(--scl-spacing-8); align-items: center; border-top: 1px solid var(--telekom-color-ui-faint); font-size: var(--scl-font-size-12); }
+.ruleCard { display: flex; align-items: flex-start; gap: var(--scl-spacing-12); padding: var(--scl-spacing-16); border-bottom: 1px solid var(--telekom-color-ui-faint); }
+.ruleCard[data-reviewed="true"] { background: var(--telekom-color-functional-success-subtle); }
+.ruleContent { min-width: 0; flex: 1; }
+.ruleMeta { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--scl-spacing-8); justify-content: space-between; }
+.ruleContent h3 { margin: var(--scl-spacing-8) 0; font-size: var(--scl-font-size-14); font-weight: var(--scl-font-weight-medium); }
+.ruleContent summary { cursor: pointer; color: var(--telekom-color-text-and-icon-link-standard); font-size: var(--scl-font-size-12); }
+.ruleContent details > :not(summary) { margin-top: var(--scl-spacing-12); line-height: 1.5; }
+.fullMessage { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.6; margin-top: var(--scl-spacing-16); }
+.exportActions { display: flex; flex-direction: column; gap: var(--scl-spacing-12); margin-top: var(--scl-spacing-24); }
+.appFooter { padding: var(--scl-spacing-8) var(--scl-spacing-16); font-size: var(--scl-font-size-12); color: var(--telekom-color-text-and-icon-additional); border-top: 1px solid var(--telekom-color-ui-faint); flex-shrink: 0; }
+.mobileViewToggle { display: none; }
+.visuallyHidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+@media (max-width: 800px) {
+  .appHeader { gap: var(--scl-spacing-8); padding-right: var(--scl-spacing-8); }
+  .appTitle h1 { font-size: var(--scl-font-size-16); }
+  .appTitle > span { display: none; }
+  .headerActions { gap: var(--scl-spacing-4); }
+  .headerActions scale-button { --spacing-x: var(--scl-spacing-8); }
+  .brandMark { width: 48px; height: 64px; }
+  .mobileViewToggle { display: flex; gap: var(--scl-spacing-8); }
+  .documentBar { gap: var(--scl-spacing-8); }
+  .workspace { grid-template-columns: minmax(0, 1fr); }
+  .workspace > [data-mobile-visible="false"] { display: none; }
+  .editorPane { border-right: 0; }
+  .appFooter { font-size: 10px; }
+}
+@media (max-width: 450px) {
+  .appTitle { display: none; }
+  .headerActions { flex: 1; flex-wrap: wrap; justify-content: flex-end; padding: var(--scl-spacing-8) 0; }
+  .documentIdentity { flex-basis: 100%; }
+  .panelToolbar { padding: var(--scl-spacing-12); }
+  .issuesTable th:nth-child(2) { width: 22%; }
+  .issuesTable th:nth-child(4) { width: 19%; }
+  .issuesTable th:last-child { width: 15%; }
+  .workspaceTabs > scale-tab-header { --tab-spacing-horizontal: var(--scl-spacing-4); }
 }

@@ -10,6 +10,7 @@ import {
 } from "@/utils/schema";
 import { AsyncResponseConfig } from "@/types/async";
 import { isAsyncOperation, operationHasStatusCode } from "@/utils/spec";
+import { collectDocumentOperations } from "@/lib/openapi/operations";
 
 /**
  * ASY-010-01-2507-2507-M
@@ -54,69 +55,57 @@ export function checkAsyncBatchResponse(spec: any, content: string, rule: any): 
     ? asyncCfg.require!.resourcesListAnyOf!.map((x) => String(x))
     : ["resources", "items", "results"];
 
-  for (const path of Object.keys(spec.paths)) {
-    const pathItem = (spec.paths as any)[path];
-    if (!pathItem || typeof pathItem !== "object") continue;
+  for (const { path, method, operation, pathItem } of collectDocumentOperations(
+    spec, methodsToScan.length ? methodsToScan : undefined,
+  )) {
+    const isBatch = isBatchOperation(path, operation, spec, refCache, cfg, pathItem);
+    if (!isBatch) continue;
 
-    const availableMethods = Object.keys(pathItem)
-      .map((k) => String(k).toLowerCase())
-      .filter((k) => !["parameters", "$ref", "summary", "description"].includes(k));
+    const isAsync = isAsyncOperation(operation, asyncCfg);
+    if (!isAsync) continue;
 
-    const methodKeys = methodsToScan.length > 0 ? methodsToScan : availableMethods;
+    const hasRequiredStatus = operationHasStatusCode(operation, requiredStatusCode);
+    let violation = "";
 
-    for (const method of methodKeys) {
-      const operation = (pathItem as any)[method];
-      if (!operation || typeof operation !== "object") continue;
+    if (!hasRequiredStatus) {
+      violation = `Expected async success status code '${requiredStatusCode}'.`;
+    } else {
+      const responseSchema = getResponseSchemaByStatus(
+        operation,
+        requiredStatusCode,
+        spec,
+        refCache
+      );
 
-      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg);
-      if (!isBatch) continue;
-
-      const isAsync = isAsyncOperation(operation, asyncCfg);
-      if (!isAsync) continue;
-
-      const hasRequiredStatus = operationHasStatusCode(operation, requiredStatusCode);
-      let violation = "";
-
-      if (!hasRequiredStatus) {
-        violation = `Expected async success status code '${requiredStatusCode}'.`;
-      } else {
-        const responseSchema = getResponseSchemaByStatus(
-          operation,
-          requiredStatusCode,
+      if (!responseSchema) {
+        violation = `Response for status '${requiredStatusCode}' is missing a schema.`;
+      } else if (!schemaHasPropertyAnyOf(responseSchema, jobIdAnyOf, spec, refCache, new Set<any>())) {
+        violation = `Expected one of job identifier fields in async response payload: ${jobIdAnyOf.join(", ")}.`;
+      } else if (resourcesListRequired) {
+        const listFieldSchema = findFieldSchemaByNameDeep(
+          responseSchema,
+          resourcesListAnyOf,
           spec,
-          refCache
+          refCache,
+          new Set<any>()
         );
 
-        if (!responseSchema) {
-          violation = `Response for status '${requiredStatusCode}' is missing a schema.`;
-        } else if (!schemaHasPropertyAnyOf(responseSchema, jobIdAnyOf, spec, refCache, new Set<any>())) {
-          violation = `Expected one of job identifier fields in async response payload: ${jobIdAnyOf.join(", ")}.`;
-        } else if (resourcesListRequired) {
-          const listFieldSchema = findFieldSchemaByNameDeep(
-            responseSchema,
-            resourcesListAnyOf,
-            spec,
-            refCache,
-            new Set<any>()
-          );
-
-          if (!listFieldSchema || !schemaIsArrayLike(listFieldSchema, spec, refCache)) {
-            violation = `Expected one of [${resourcesListAnyOf.join(", ")}] as an array in async response payload.`;
-          }
+        if (!listFieldSchema || !schemaIsArrayLike(listFieldSchema, spec, refCache)) {
+          violation = `Expected one of [${resourcesListAnyOf.join(", ")}] as an array in async response payload.`;
         }
       }
-
-      if (!violation) continue;
-
-      const { start, end } = findMethodPositionInYaml(content, path, method);
-      diagnostics.push({
-        from: start,
-        to: end,
-        severity: mapSeverity(rule.severity),
-        message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message} ${violation}`,
-        source: getSource(rule),
-      });
     }
+
+    if (!violation) continue;
+
+    const { start, end } = findMethodPositionInYaml(content, path, method);
+    diagnostics.push({
+      from: start,
+      to: end,
+      severity: mapSeverity(rule.severity),
+      message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message} ${violation}`,
+      source: getSource(rule),
+    });
   }
 
   return diagnostics;

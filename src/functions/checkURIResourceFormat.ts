@@ -1,6 +1,8 @@
+import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { ruleOperations } from "@/utils/nativeRule";
 
 export function checkURIResourceFormat(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -70,31 +72,22 @@ export function checkURIResourceFormat(spec: any, content: string, rule: any): D
         return { segment: filtered[idx], reason: "ok" };
     }
 
-    for (const pathKey of Object.keys(spec.paths)) {
-        const pathItem = spec.paths[pathKey];
-        if (!pathItem || typeof pathItem !== "object") continue;
+    for (const { path: pathKey, method } of ruleOperations(spec, { methods: ["get", "post", "put", "patch", "delete"] })) {
+        const leaf = findLeafResourceSegment(pathKey, method);
+        if (!leaf.segment) continue;
 
-        for (const method of Object.keys(pathItem)) {
-            const m = method.toLowerCase();
-            if (!(["get", "post", "put", "patch", "delete"].includes(m))) continue;
+        if (pathParamRegex.test(leaf.segment)) continue;
 
-            const leaf = findLeafResourceSegment(pathKey, m);
-            if (!leaf.segment) continue;
-
-            // Skip if leaf segment is a param (should not happen but safe)
-            if (pathParamRegex.test(leaf.segment)) continue;
-
-            if (!isPluralResource(leaf.segment)) {
-                const index = content.indexOf(pathKey);
-                const extra = exceptionNote ? ` Exception: ${exceptionNote}` : "";
-                diagnostics.push({
-                    from: index >= 0 ? index : 0,
-                    to: index >= 0 ? index + pathKey.length : 0,
-                    severity: mapSeverity(rule.severity),
-                    message: `Resource segment "${leaf.segment}" in path "${pathKey}" should be plural for CRUD operations.${extra}`,
-                    source: getSource(rule),
-                });
-            }
+        if (!isPluralResource(leaf.segment)) {
+            const range = pathRange(content, pathKey);
+            const extra = exceptionNote ? ` Exception: ${exceptionNote}` : "";
+            diagnostics.push({
+                from: range.from,
+                to: range.to,
+                severity: mapSeverity(rule.severity),
+                message: `Resource segment "${leaf.segment}" in path "${pathKey}" should be plural for CRUD operations.${extra}`,
+                source: getSource(rule),
+            });
         }
     }
 

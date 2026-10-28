@@ -1,6 +1,8 @@
+import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { rulePathKeys } from "@/utils/nativeRule";
 
 export function checkURIFormat(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -26,9 +28,7 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
     const versionRegex = /^v[0-9]+(\.[0-9]+)?$/;
     const projectOrTenantRegex = /^\{(project_id|tenant_id)\}$/;
 
-    for (const pathKey of Object.keys(spec.paths)) {
-        if (!pathKey.startsWith("/")) continue;
-
+    for (const pathKey of rulePathKeys(spec)) {
         const segments = pathKey.split("/").filter(Boolean); // remove empty segments from leading/trailing slashes
         if (segments.length === 0) continue; // skip root
 
@@ -36,10 +36,10 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
 
         // First segment must be a version like v1, v2, v1.1, etc.
         if (!versionRegex.test(versionSegment)) {
-            const index = content.indexOf(pathKey);
+            const range = pathRange(content, pathKey);
             diagnostics.push({
-                from: index >= 0 ? index : 0,
-                to: index >= 0 ? index + pathKey.length : 0,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" must start with a version segment like /v1 according to URI format ${projectPattern}.`,
                 source: getSource(rule),
@@ -57,10 +57,10 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
         }
 
         if (hasExtraVersion) {
-            const index = content.indexOf(pathKey);
+            const range = pathRange(content, pathKey);
             diagnostics.push({
-                from: index >= 0 ? index : 0,
-                to: index >= 0 ? index + pathKey.length : 0,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" must not contain additional version segments after the leading /{version}.`,
                 source: getSource(rule),
@@ -89,10 +89,10 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
         }
 
         if (hasMisplacedProjectOrTenant) {
-            const index = content.indexOf(pathKey);
+            const range = pathRange(content, pathKey);
             diagnostics.push({
-                from: index >= 0 ? index : 0,
-                to: index >= 0 ? index + pathKey.length : 0,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" must use project_id/tenant_id only immediately after the version segment ("/${versionSegment}/{project_id|tenant_id}/...").`,
                 source: getSource(rule),
@@ -102,10 +102,10 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
 
         // Domain-scope URIs must have at least one resource segment after {project_id}/{tenant_id}
         if (isDomainScope && segments.length < 3) {
-            const index = content.indexOf(pathKey);
+            const range = pathRange(content, pathKey);
             diagnostics.push({
-                from: index >= 0 ? index : 0,
-                to: index >= 0 ? index + pathKey.length : 0,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" must contain at least one resource segment after {project_id|tenant_id} according to URI format ${domainPattern}.`,
                 source: getSource(rule),
@@ -131,11 +131,11 @@ export function checkURIFormat(spec: any, content: string, rule: any): Diagnosti
         }
 
         if (!isValid) {
-            const index = content.indexOf(pathKey);
+            const range = pathRange(content, pathKey);
             const allowedDesc = [projectPattern, domainPattern].filter(Boolean).join(" or ");
             diagnostics.push({
-                from: index >= 0 ? index : 0,
-                to: index >= 0 ? index + pathKey.length : 0,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `Path "${pathKey}" does not follow allowed URI formats: ${allowedDesc}.`,
                 source: getSource(rule),

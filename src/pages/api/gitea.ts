@@ -9,20 +9,29 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const principal = isInternalCall ? { mode: "internal" } : await requireApiAuth(req);
     if (!principal) return res.status(401).json({ error: "Unauthorized" });
 
-    const { repo, path } = req.query;
-    console.log("Incoming request:", { repo, path });
+    const { repo, path, raw, ref } = req.query;
 
-    if (!repo || !path) {
+    if (typeof repo !== "string" || !repo || typeof path !== "string" || !path) {
         console.error("Missing parameters");
         return res.status(400).json({ error: 'Missing required parameters: repo, path' });
     }
+    if (raw !== undefined && raw !== "0" && raw !== "1") {
+        return res.status(400).json({ error: 'Invalid raw parameter: expected 0 or 1' });
+    }
+    if (ref !== undefined && (typeof ref !== "string" || !ref)) {
+        return res.status(400).json({ error: 'Invalid ref parameter: expected a non-empty string' });
+    }
 
     try {
-        const yaml = await giteaClient.fetchYamlFile(repo as string, path as string);
-        console.log("YAML fetched successfully");
+        if (raw === "1") {
+            const content = await giteaClient.fetchRawYamlFile(repo, path, ref);
+            return res.status(200).json({ content });
+        }
+        const yaml = await giteaClient.fetchYamlFile(repo, path, ref);
         return res.status(200).json({ yaml });
-    } catch (error: any) {
-        console.error("Error while fetching YAML from Gitea:", error);
-        return res.status(500).json({ error: error.message });
+    } catch (error) {
+        const message = error instanceof Error ? error.message : "Failed to fetch YAML from Gitea";
+        console.error("Error while fetching YAML from Gitea:", message);
+        return res.status(500).json({ error: message });
     }
 }

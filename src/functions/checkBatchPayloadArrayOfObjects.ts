@@ -10,6 +10,7 @@ import {
 } from "@/utils/schema";
 import {isActionTagsBatchPayload} from "@/utils/batchPatterns";
 import { PayloadConfig } from "@/types/batch";
+import { collectDocumentOperations } from "@/lib/openapi/operations";
 
 /**
  * STS-030-01-2507-2507-M-2
@@ -38,54 +39,42 @@ export function checkBatchPayloadArrayOfObjects(spec: any, content: string, rule
 
   const cfg: BatchMatchConfig = (fp.batchMatch && typeof fp.batchMatch === "object") ? fp.batchMatch : {};
 
-  for (const path of Object.keys(spec.paths)) {
-    const pathItem = (spec.paths as any)[path];
-    if (!pathItem || typeof pathItem !== "object") continue;
+  for (const { path, method, operation, pathItem } of collectDocumentOperations(
+    spec, methodsToScan.length ? methodsToScan : undefined,
+  )) {
+    const isBatch = isBatchOperation(path, operation, spec, refCache, cfg, pathItem);
+    if (!isBatch) continue;
 
-    const availableMethods = Object.keys(pathItem)
-      .map((k) => String(k).toLowerCase())
-      .filter((k) => !["parameters", "$ref", "summary", "description"].includes(k));
+    const schema = getRequestBodySchema(operation, spec, refCache, payloadCfg, pathItem);
 
-    const methodKeys = methodsToScan.length > 0 ? methodsToScan : availableMethods;
+    const allowTopLevelArray = payloadCfg.allowTopLevelArray !== false;
+    const allowWrapper = payloadCfg.allowObjectWrapperWithAnyArrayOfObjects !== false;
+    const allowActionTags = payloadCfg.allowActionEnumCreateDeleteWithTagsArray !== false;
 
-    for (const method of methodKeys) {
-      const operation = (pathItem as any)[method];
-      if (!operation || typeof operation !== "object") continue;
+    const ok =
+      (allowTopLevelArray && schemaIsArrayOfObjects(schema, spec, refCache)) ||
+      (allowWrapper && schemaHasAnyArrayOfObjectsDeep(schema, spec, refCache)) ||
+      (allowActionTags && isActionTagsBatchPayload(schema, spec, refCache));
 
-      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg);
-      if (!isBatch) continue;
+    if (ok) continue;
 
-      const schema = getRequestBodySchema(operation, spec, refCache, payloadCfg);
+    const { start, end } = findRequestBodyPositionInYaml(content, path, method);
 
-      const allowTopLevelArray = payloadCfg.allowTopLevelArray !== false;
-      const allowWrapper = payloadCfg.allowObjectWrapperWithAnyArrayOfObjects !== false;
-      const allowActionTags = payloadCfg.allowActionEnumCreateDeleteWithTagsArray !== false;
+    const preferred = Array.isArray(payloadCfg.contentTypesPreferred) && payloadCfg.contentTypesPreferred.length > 0
+      ? payloadCfg.contentTypesPreferred
+      : ["application/json", "application/problem+json", "application/xml"];
 
-      const ok =
-        (allowTopLevelArray && schemaIsArrayOfObjects(schema, spec, refCache)) ||
-        (allowWrapper && schemaHasAnyArrayOfObjectsDeep(schema, spec, refCache)) ||
-        (allowActionTags && isActionTagsBatchPayload(schema, spec, refCache));
+    const extra = schema
+      ? `Request body schema must be array<object> or a wrapper containing array<object>. Checked media types: ${preferred.join(", ")}.`
+      : `Request body is missing or has no schema. Checked media types: ${preferred.join(", ")}.`;
 
-      if (ok) continue;
-
-      const { start, end } = findRequestBodyPositionInYaml(content, path, method);
-
-      const preferred = Array.isArray(payloadCfg.contentTypesPreferred) && payloadCfg.contentTypesPreferred.length > 0
-        ? payloadCfg.contentTypesPreferred
-        : ["application/json", "application/problem+json", "application/xml"];
-
-      const extra = schema
-        ? `Request body schema must be array<object> or a wrapper containing array<object>. Checked media types: ${preferred.join(", ")}.`
-        : `Request body is missing or has no schema. Checked media types: ${preferred.join(", ")}.`;
-
-      diagnostics.push({
-        from: start,
-        to: end,
-        severity: mapSeverity(rule.severity),
-        message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message} ${extra}`,
-        source: getSource(rule),
-      });
-    }
+    diagnostics.push({
+      from: start,
+      to: end,
+      severity: mapSeverity(rule.severity),
+      message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message} ${extra}`,
+      source: getSource(rule),
+    });
   }
 
   return diagnostics;

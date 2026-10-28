@@ -1,45 +1,35 @@
-import { Diagnostic } from "@codemirror/lint";
-import { mapSeverity } from "@/utils/mapSeverity";
-import { findParameterPositionInYaml } from "@/utils/pos";
-import { matchParameterSchema } from "@/utils/schema";
-import {getSource} from "@/functions/common";
+import type { Diagnostic } from "@codemirror/lint";
+import { getParameterSchema } from "@/lib/openapi/parameters";
+import { appendPointer } from "@/lib/openapi/references";
+import { ruleDiagnostic, ruleOperations, ruleParameterNodes, ruleStrings, type NativeRule } from "@/utils/nativeRule";
 
-export function checkElementSensitiveData(spec: any, content: string, rule: any): Diagnostic[] {
+export function checkElementSensitiveData(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
+    const params = rule.call.functionParams ?? {};
+    const names = ruleStrings(params.queryNotAllowed, "queryNotAllowed");
+    if (!names.length) throw new Error("functionParams.queryNotAllowed must not be empty.");
+    const locations = ruleStrings(params.parameterLocations === undefined
+        ? (typeof rule.element === "string" ? [rule.element] : undefined) : params.parameterLocations, "parameterLocations");
+    if (!locations.length) throw new Error("A parameter location must be configured.");
+    if (params.valueType !== undefined && typeof params.valueType !== "string") {
+        throw new Error("functionParams.valueType must be a string.");
+    }
+    if (params.matchByNameOnly !== undefined && typeof params.matchByNameOnly !== "boolean") {
+        throw new Error("functionParams.matchByNameOnly must be a boolean.");
+    }
+    const type = params.valueType ?? (params.matchByNameOnly === true ? undefined : "string");
     const diagnostics: Diagnostic[] = [];
-    if (!spec?.paths) return diagnostics;
-
-    const forbiddenKeys = rule.call.functionParams.queryNotAllowed;
-    const paramIn = rule.element;
-    const valueType = rule.call.functionParams.valueType || "string";
-
-    for (const path in spec.paths) {
-        const pathItem = spec.paths[path];
-
-        const methodsToCheck = rule.call.functionParams.methods || Object.keys(pathItem);
-        for (const method of methodsToCheck) {
-            const operation = pathItem[method];
-            if (!operation || typeof operation !== "object") continue;
-
-            const parameters = operation.parameters || [];
-            for (const key of forbiddenKeys) {
-                const found = parameters.find((param: any) =>
-                    matchParameterSchema(param, key, paramIn, valueType, spec)
-                );
-
-                if (found) {
-                    const { start, end } = findParameterPositionInYaml(content, path, method, key);
-                    diagnostics.push({
-                        from: start,
-                        to: end,
-                        severity: mapSeverity(rule.severity),
-                        message: rule.message,
-                        source: getSource(rule),
-                    });
-                    break;
-                }
-            }
+    const cache = new Map<string, unknown>();
+    for (const op of ruleOperations(spec, params)) {
+        const parameters = ruleParameterNodes(op, spec, cache);
+        for (const name of names) {
+            const found = parameters.find((param) => (param.parameter.in === "header"
+                ? String(param.parameter.name).toLowerCase() === name.toLowerCase() : param.parameter.name === name) &&
+                locations.includes(String(param.parameter.in)) && (type === undefined ||
+                    getParameterSchema(param.parameter, spec, cache, param.resolvedPointer)?.node.type === type));
+            if (!found) continue;
+            diagnostics.push(ruleDiagnostic(content, rule, appendPointer(found.resolvedPointer, "name"), "", "value"));
+            break;
         }
     }
-
     return diagnostics;
 }

@@ -122,7 +122,7 @@ paths:
     expect(diags).toHaveLength(1);
     expect(diags[0].message).toContain("Parameter 'userId'");
     expect(diags[0].message).toContain("must use snake_case");
-    expect(content.slice(diags[0].from, diags[0].to)).toBe("get");
+    expect(content.slice(diags[0].from, diags[0].to)).toBe("parameters");
   });
 
   test("ignores header parameters", () => {
@@ -362,4 +362,3 @@ paths:
     expect(diags).toHaveLength(0);
   });
 });
-

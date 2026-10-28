@@ -3,6 +3,7 @@ import { mapSeverity } from "@/utils/mapSeverity";
 import { findInvalidPercentEscape } from "@/utils/strings";
 import { getSource } from "@/functions/common";
 import { findPathKeyRangeInPathsBlock } from "@/utils/scan";
+import { rulePathKeys } from "@/utils/nativeRule";
 
 
 export function checkURIContentSyntax(spec: any, content: string, rule: any): Diagnostic[] {
@@ -28,7 +29,7 @@ export function checkURIContentSyntax(spec: any, content: string, rule: any): Di
 
     if (!regexes.length) return diagnostics;
 
-    for (const pathKey of Object.keys(spec.paths)) {
+    for (const pathKey of rulePathKeys(spec)) {
         const isValid = regexes.some((re) => re.test(pathKey));
         const checkInvalidPercentEscape = Boolean(rule?.call?.functionParams?.checkInvalidPercentEscape);
 

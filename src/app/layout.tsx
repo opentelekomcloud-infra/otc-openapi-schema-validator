@@ -26,11 +26,12 @@ export default function RootLayout({
 }>) {
   const authEnabled = process.env.ENABLE_AUTH === "true";
   return (
-    <html lang="en" data-theme="light" className="light" style={{ colorScheme: 'light' }}>
+    <html lang="en" data-mode="light" className="light" style={{ colorScheme: 'light' }}>
     <head>
       <meta name="color-scheme" content="light only"/>
     </head>
     <body
+      data-mode="light"
       className={`${geistSans.variable} ${geistMono.variable} antialiased`}
       >
         <Providers authEnabled={authEnabled}>

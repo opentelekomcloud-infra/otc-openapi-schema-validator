@@ -3,6 +3,7 @@ import { Diagnostic } from '@codemirror/lint';
 
 import { checkHttpsServers } from '@/functions/checkHttpsServers';
 import { checkParamElementPresence } from '@/functions/checkParamElementPresence';
+import { checkContentType } from '@/functions/checkContentType';
 import { checkElementSensitiveData } from '@/functions/checkElementSensitiveData';
 import { checkAllowedMethods } from '@/functions/checkAllowedMethods';
 import { checkOASSpec } from '@/functions/checkOASSpec';
@@ -47,16 +48,38 @@ import { checkParameterIsSnakeCase } from "@/functions/checkParameterIsSnakeCase
 import { checkProjectIdByTagScope } from "@/functions/checkProjectIdByTagScope";
 import { checkNoRedundantParameters } from "@/functions/checkNoRedundantParameters";
 import { checkRootNodeMatchesResource } from "@/functions/checkRootNodeMatchesResource";
+import { getSource } from "@/functions/common";
+import { assertRuleFunction } from "@/lib/linter/ruleCatalog";
+import { objectRange, sourceLineNumber, sourceMap } from "@/lib/openapi/sourceMap";
+import { NativeReferenceError, appendPointer } from "@/lib/openapi/references";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
+import { NativeBaselineError } from "@/lib/openapi/baselineError";
+import { NativeExampleError } from "@/lib/openapi/exampleError";
+import { createExecutionContext } from "@/lib/openapi/createExecutionContext";
+import { bindExecutionContext, type NativeExecutionContext } from "@/lib/openapi/executionContext";
+
+function executionRange(content: string, error: unknown, document: unknown) {
+  if (error instanceof NativeBaselineError) return { from: 0, to: 0, lineNumber: 1 };
+  if (error instanceof NativeReferenceError && error.sourceNode !== undefined) {
+    return objectRange(document, content, error.sourceNode, "$ref", "value");
+  }
+  if (error instanceof NativeReferenceError || error instanceof NativeAccessorError || error instanceof NativeExampleError) {
+    const pointer = error instanceof NativeReferenceError ? appendPointer(error.pointer, "$ref") : error.pointer;
+    return sourceMap(content).locate(pointer, error instanceof NativeReferenceError ? "value" : "key");
+  }
+  return sourceMap(content).locate("#");
+}
 
 const log = {
   debug: (...args: any[]) => console.debug("[runLinter]", ...args),
 };
 
 export const functionsMap: {
-  [key: string]: (spec: any, content: string, rule: any) => Diagnostic[] | Promise<Diagnostic[]>;
+  [key: string]: (spec: any, content: string, rule: any, context?: NativeExecutionContext) => Diagnostic[] | Promise<Diagnostic[]>;
 } = {
   checkHttpsServers,
   checkParamElementPresence,
+  checkContentType,
   checkElementSensitiveData,
   checkAllowedMethods,
   checkOASSpec,
@@ -103,6 +126,10 @@ export const functionsMap: {
   checkRootNodeMatchesResource
 };
 
+export interface SourceDiagnostic extends Diagnostic {
+  readonly lineNumber: number;
+}
+
 /**
  * Run the OpenAPI linter for a set of selected rules.
  * This is environment-agnostic (can be called from browser or server).
@@ -110,8 +137,8 @@ export const functionsMap: {
 export async function runLinter(
   content: string,
   selectedRules: any
-): Promise<{ diagnostics: Diagnostic[]; specTitle?: string }> {
-  let diagnostics: Diagnostic[] = [];
+): Promise<{ diagnostics: SourceDiagnostic[]; specTitle?: string }> {
+  let diagnostics: SourceDiagnostic[] = [];
   let specTitle: string | undefined;
 
   try {
@@ -122,40 +149,51 @@ export async function runLinter(
       return { diagnostics, specTitle };
     }
     log.debug("loaded rules: ", selectedRules)
-    const runnable = selectedRules.filter(
-      (rule: any) =>
-        !!rule?.call?.function &&
-        typeof functionsMap[rule.call.function] === 'function'
-    );
-
-    const results = await Promise.all(
-      runnable.map(async (rule: any) => {
-        const funcName = rule.call.function as string;
-        const ruleFunc = functionsMap[funcName];
-        try {
-          const out = await ruleFunc(spec, content, rule);
-          return Array.isArray(out) ? out : [];
-        } catch (err: any) {
-          return [
-            {
-              from: 0,
-              to: content.length,
-              severity: 'error',
-              message: `Rule "${funcName}" execution failed: ${
-                err?.message || String(err)
+    const context = createExecutionContext(spec, content);
+    const releaseContext = bindExecutionContext(context);
+    try {
+      const results = await Promise.all(
+        selectedRules.map(async (rule: any): Promise<SourceDiagnostic[]> => {
+          const funcName = rule?.call?.function;
+          try {
+            assertRuleFunction(rule, functionsMap);
+            const ruleFunc = functionsMap[rule.call.function];
+            const out = await ruleFunc(spec, content, rule, context);
+            if (!Array.isArray(out)) return [];
+            return out.map((diagnostic) => {
+              if (!Number.isInteger(diagnostic.from) || !Number.isInteger(diagnostic.to) ||
+                  diagnostic.from < 0 || diagnostic.to < diagnostic.from || diagnostic.to > content.length) {
+                throw new RangeError("Rule produced a diagnostic outside the original content.");
+              }
+              return { ...diagnostic, lineNumber: sourceLineNumber(content, diagnostic.from) };
+            });
+          } catch (err: any) {
+            return [
+              {
+                ...executionRange(content, err, spec),
+                severity: 'error',
+                message: `Rule "${funcName}" execution failed: ${
+                  err?.message || String(err)
               }`,
-              source: funcName,
-            } as Diagnostic,
-          ];
-        }
-      })
-    );
+                source: rule?.id ? getSource(rule) : "ruleset",
+              },
+            ];
+          }
+        })
+      );
 
-    diagnostics = results.flat();
+      diagnostics = results.flat();
+    } finally {
+      releaseContext();
+    }
   } catch (error: any) {
+    const position = error instanceof yaml.YAMLException ? error.mark?.position : undefined;
+    // js-yaml may append a virtual newline before reporting EOF.
+    const from = typeof position === "number" && position >= 0 ? Math.min(position, content.length) : 0;
     diagnostics.push({
-      from: 0,
-      to: content.length,
+      from,
+      to: position === undefined ? content.length : Math.min(content.length, from + 1),
+      lineNumber: sourceLineNumber(content, from),
       severity: 'error',
       message: 'Specification parsing error: ' + error.message,
       source: 'parser',

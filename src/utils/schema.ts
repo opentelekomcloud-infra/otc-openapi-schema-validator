@@ -1,11 +1,15 @@
 import { PayloadConfig, SyncGranularityConfig } from "@/types/batch";
-import { getResponseObjectByStatus, isPlainObject } from "@/utils/spec";
+import { isPlainObject } from "@/utils/spec";
+import { getParameterSchema } from "@/lib/openapi/parameters";
+import { resolveObjectReference, resolveReference, resolveReferenceNode } from "@/lib/openapi/references";
+import { getRequestPayload, getResponseMediaMatch, getResponsePayload, selectPayloadSchema } from "@/lib/openapi/payloads";
+import type { ContentTypeMatch } from "@/types/openapi";
 
 /**
  * Validates that a parameter matches expected schema conditions.
  *
- * Supports resolving `$ref` parameters from `#/components/...`.
- * Handles both `schema` and OpenAPI `content` parameter styles.
+ * Supports chained local refs, native Swagger 2 types and OpenAPI 3 schema/content.
+ * Unresolvable references throw an explicit rule execution error.
  *
  * Validation includes:
  * - parameter name
@@ -25,7 +29,7 @@ export function matchParameterSchema(
     param: any,
     name: string,
     paramIn: string,
-    type: string,
+    type: string | undefined,
     spec: any,
     options?: {
         required?: boolean;
@@ -34,41 +38,18 @@ export function matchParameterSchema(
     }
 ): boolean {
     if (!param || typeof param !== "object") return false;
-    if (typeof param["$ref"] === "string" && param["$ref"].startsWith("#/")) {
-        const refPath = param["$ref"].slice(2).split("/");
-        let resolved = spec;
-        for (const part of refPath) {
-            if (resolved instanceof Map) {
-                resolved = resolved.get(part);
-            } else if (typeof resolved === "object") {
-                resolved = resolved[part];
-            } else {
-                return false;
-            }
-        }
-        if (!resolved) return false;
-        param = resolved;
-    }
+    const cache = new Map<string, unknown>();
+    const resolved = resolveObjectReference(param, spec, cache);
+    if (!resolved) return false;
+    param = resolved.value;
 
     const nameMatches =
         paramIn === "header"
             ? String(param.name ?? "").toLowerCase() === String(name).toLowerCase()
             : param.name === name;
 
-    const schemaType = param.schema?.type;
-
-    // OpenAPI 3 allows parameters to use `content` with media types instead of `schema`.
-    let contentType: any = undefined;
-    const contentObj = param.content;
-    if (contentObj && typeof contentObj === "object") {
-        const media =
-            contentObj["application/json"] ??
-            contentObj["application/xml"] ??
-            contentObj[Object.keys(contentObj)[0]];
-        contentType = media?.schema?.type;
-    }
-
-    const matchesBase = nameMatches && param.in === paramIn && (schemaType === type || contentType === type);
+    const schemaType = getParameterSchema(param, spec, cache)?.node.type;
+    const matchesBase = nameMatches && param.in === paramIn && schemaType === type;
 
     if (!matchesBase) return false;
 
@@ -80,28 +61,16 @@ export function matchParameterSchema(
 }
 
 /**
- * Resolves a local OpenAPI JSON pointer reference (`#/...`).
+ * Resolves a local OpenAPI JSON Pointer and any chained references.
  *
  * Works with both plain objects and Map-based structures used in some parsers.
  *
  * @param ref JSON pointer reference
  * @param spec OpenAPI specification
- * @returns resolved object or undefined if resolution fails
+ * @returns original target; throws for invalid, external, missing or circular refs
  */
 export const resolveRef = (ref: string, spec: any): any => {
-    if (!ref || !ref.startsWith('#/')) return undefined;
-    const refPath = ref.slice(2).split('/');
-    let resolved = spec;
-    for (const part of refPath) {
-        if (resolved instanceof Map) {
-            resolved = resolved.get(part);
-        } else if (typeof resolved === 'object') {
-            resolved = resolved[part];
-        } else {
-            return undefined;
-        }
-    }
-    return resolved;
+    return resolveReference(ref, spec).value;
 };
 
 /**
@@ -261,22 +230,6 @@ export function extractEnumIfExist(schema: any, spec: any, basePath = ''): Map<s
 }
 
 /**
- * Decodes a single JSON Pointer token according to RFC 6901.
- *
- * Replaces escaped sequences:
- * - `~1` -> `/`
- * - `~0` -> `~`
- *
- * Used when resolving local `$ref` paths that may contain escaped characters.
- *
- * @param token Raw JSON Pointer token.
- * @returns Decoded token value.
- */
-function decodeJsonPointerToken(token: string): string {
-    return token.replace(/~1/g, "/").replace(/~0/g, "~");
-}
-
-/**
  * Resolves chained `$ref` references until a concrete schema object is reached.
  *
  * Includes caching and circular reference protection.
@@ -286,74 +239,21 @@ function decodeJsonPointerToken(token: string): string {
  * @param spec OpenAPI specification
  * @returns resolved schema node
  */
-export function resolveRefDeep(obj: any, refCache: any, spec: any): any {
-    let curObj: any = obj;
-    const seen = new Set<string>();
-
-    while (curObj && typeof curObj === "object" && typeof curObj.$ref === "string") {
-        const ref: string = curObj.$ref;
-        const cached = refCache.get(ref);
-        if (cached) {
-            curObj = cached;
-            continue;
-        }
-        if (!ref.startsWith("#/")) return curObj;
-        if (seen.has(ref)) return curObj;
-        seen.add(ref);
-
-        const parts = ref
-          .slice(2)
-          .split("/")
-          .filter(Boolean)
-          .map(decodeJsonPointerToken);
-
-        let resolved: any = spec;
-        for (const p of parts) {
-            if (!resolved || typeof resolved !== "object") {
-                resolved = null;
-                break;
-            }
-            resolved = resolved[p];
-        }
-
-        if (!resolved) return curObj;
-        refCache.set(ref, resolved);
-        curObj = resolved;
-    }
-
-    return curObj;
+export function resolveRefDeep(obj: any, refCache: Map<string, unknown>, spec: any): any {
+    return resolveReferenceNode(obj, spec, refCache).value;
 }
 
 /**
- * Resolves a single local `$ref` object if present.
+ * Resolves local `$ref` chains using the shared resolver.
  *
- * If resolution fails the original object is returned.
+ * Non-reference values retain their identity; broken references throw.
  *
  * @param spec OpenAPI specification
  * @param maybeRefObj Object that may contain `$ref`
  * @returns resolved object or original input
  */
 export function resolveLocalRef(spec: any, maybeRefObj: any): any {
-    if (!maybeRefObj || typeof maybeRefObj !== "object") return maybeRefObj;
-
-    const ref = maybeRefObj["$ref"];
-    if (typeof ref !== "string" || !ref.startsWith("#/")) return maybeRefObj;
-
-    const refPath = ref.slice(2).split("/");
-    let resolved: any = spec;
-
-    for (const part of refPath) {
-        if (resolved instanceof Map) {
-            resolved = resolved.get(part);
-        } else if (resolved && typeof resolved === "object") {
-            resolved = (resolved as any)[part];
-        } else {
-            return maybeRefObj;
-        }
-    }
-
-    // If resolution fails, fall back to original object.
-    return resolved ?? maybeRefObj;
+    return resolveReferenceNode(maybeRefObj, spec).value;
 }
 
 /**
@@ -508,31 +408,7 @@ export function schemaHasAnyArrayOfObjectsDeep(schema: any, spec: any, refCache:
 }
 
 /**
- * Selects the most suitable media type object from an OpenAPI `content` map.
- *
- * The function prefers media types in the provided order and falls back to the
- * first available content entry if none of the preferred types exist.
- *
- * @param contentObj OpenAPI `content` object.
- * @param preferred Ordered list of preferred media types.
- * @returns The selected media type definition or null if none is available.
- */
-function pickPreferredMediaType(contentObj: any, preferred: string[]): any {
-    if (!contentObj || typeof contentObj !== "object") return null;
-
-    const keys = Object.keys(contentObj);
-    if (keys.length === 0) return null;
-
-    for (const p of preferred) {
-        if (contentObj[p]) return contentObj[p];
-    }
-
-    // fallback to first media type
-    return contentObj[keys[0]];
-}
-
-/**
- * Extracts the requestBody schema from an OpenAPI operation.
+ * Extracts a native request schema, including inherited Swagger body parameters.
  *
  * Media type selection prefers configured types
  * (JSON → problem+json → XML → fallback).
@@ -545,27 +421,17 @@ export function getRequestBodySchema(
   operation: any,
   spec: any,
   refCache: Map<string, any>,
-  payloadCfg?: PayloadConfig
+  payloadCfg?: PayloadConfig,
+  pathItem?: unknown,
 ): any | null {
-    const rbRaw = operation?.requestBody;
-    if (!rbRaw) return null;
-
-    const rb = resolveRefDeep(rbRaw, refCache, spec);
-    if (!rb || typeof rb !== "object") return null;
-
-    const contentObj = (rb as any).content;
-    if (!contentObj || typeof contentObj !== "object") return null;
-
     const preferred =
       Array.isArray(payloadCfg?.contentTypesPreferred) && payloadCfg!.contentTypesPreferred!.length > 0
         ? payloadCfg!.contentTypesPreferred!
         : ["application/json", "application/problem+json", "application/xml"];
 
-    const media = pickPreferredMediaType(contentObj, preferred);
-    const schema = media?.schema;
-    if (!schema) return null;
-
-    return resolveRefDeep(schema, refCache, spec);
+    return selectPayloadSchema(
+        getRequestPayload(operation, pathItem, spec, refCache), preferred, spec, refCache,
+    )?.node ?? null;
 }
 
 /**
@@ -581,62 +447,27 @@ export function getResponseSchema(
   refCache: Map<string, any>,
   cfg: SyncGranularityConfig
 ): any | null {
-    const respRaw = getSuccessResponseObject(operation);
-    if (!respRaw) return null;
-
-    const resp = resolveRefDeep(respRaw, refCache, spec);
-    if (!resp || typeof resp !== "object") return null;
-
-    const contentObj = (resp as any).content;
-    if (!contentObj || typeof contentObj !== "object") {
-        return null;
-    }
-
     const preferred = Array.isArray(cfg.contentTypes) && cfg.contentTypes.length > 0
       ? cfg.contentTypes
       : ["application/json", "application/problem+json"];
 
-    const media = pickPreferredMediaType(contentObj, preferred);
-    const schema = media?.schema;
-    if (!schema) return null;
-
-    return resolveRefDeep(schema, refCache, spec);
+    return selectPayloadSchema(
+        getResponsePayload(operation, "200", spec, refCache), preferred, spec, refCache,
+    )?.node ?? null;
 }
 
 /**
- * Returns the primary success response object for an operation.
- *
- * Currently, this helper checks for `200` using both string and numeric keys,
- * because parsers may normalize response codes differently.
- *
- * @param operation OpenAPI operation object.
- * @returns The success response object or null if no 200 response exists.
+ * Matches declared response media without resolving unselected payload schemas.
+ * Missing Swagger produces remains unknown, never an implicit JSON match.
  */
-function getSuccessResponseObject(operation: any): any | null {
-    const responses = operation?.responses;
-    if (!responses || typeof responses !== "object") return null;
-    return (responses as any)["200"] ?? (responses as any)[200] ?? null;
-}
-
-/**
- * Checks whether a response contains `content` entries
- * for configured media types.
- *
- * Helps skip validation when operations return no body
- * (e.g. 204 responses).
- */
-export function schemaHasContentForConfiguredTypes(operation: any, cfg: SyncGranularityConfig): boolean {
-    const resp = getSuccessResponseObject(operation);
-    if (!resp || typeof resp !== "object") return false;
-
-    const contentObj = (resp as any).content;
-    if (!contentObj || typeof contentObj !== "object") return false;
-
+export function getResponseContentMatch(
+    operation: any, cfg: SyncGranularityConfig, spec: any, refCache: Map<string, unknown>,
+): ContentTypeMatch {
     const preferred = Array.isArray(cfg.contentTypes) && cfg.contentTypes.length > 0
       ? cfg.contentTypes
       : ["application/json", "application/problem+json"];
 
-    return preferred.some((t) => Boolean((contentObj as any)[t]));
+    return getResponseMediaMatch(operation, "200", spec, preferred, refCache);
 }
 
 /**
@@ -760,30 +591,15 @@ export function getResponseSchemaByStatus(
   spec: any,
   refCache: Map<string, any>
 ): any | null {
-    const respRaw = getResponseObjectByStatus(operation, statusCode);
-    if (!respRaw) return null;
-
-    const resp = resolveRefDeep(respRaw, refCache, spec);
-    if (!resp || typeof resp !== "object") return null;
-
-    const contentObj = (resp as any).content;
-    if (!contentObj || typeof contentObj !== "object") return null;
-
     const preferred = ["application/json", "application/problem+json", "application/xml"];
-    for (const mediaType of preferred) {
-        const media = (contentObj as any)[mediaType];
-        if (media?.schema) {
-            return resolveRefDeep(media.schema, refCache, spec);
-        }
-    }
+    return selectPayloadSchema(
+        getResponsePayload(operation, statusCode, spec, refCache), preferred, spec, refCache, "firstSchema",
+    )?.node ?? null;
+}
 
-    const firstKey = Object.keys(contentObj)[0];
-    const firstMedia = firstKey ? (contentObj as any)[firstKey] : null;
-    if (firstMedia?.schema) {
-        return resolveRefDeep(firstMedia.schema, refCache, spec);
-    }
-
-    return null;
+export interface SchemaFieldSource {
+    readonly owner: object;
+    readonly key: string;
 }
 
 /**
@@ -803,9 +619,13 @@ export function getResponseSchemaByStatus(
  * @param refCache Reference cache used by `$ref` resolution.
  * @param basePath Optional path prefix.
  * @param visited Cycle-detection set.
+ * @param sources Optional original property owners for source diagnostics.
  * @returns Set of discovered schema paths.
  */
-export function collectSchemaPaths(schema: any, spec: any, refCache: Map<string, any>, basePath = "", visited = new Set<any>()): Set<string> {
+export function collectSchemaPaths(
+    schema: any, spec: any, refCache: Map<string, any>, basePath = "", visited = new Set<any>(),
+    sources?: Map<string, SchemaFieldSource>,
+): Set<string> {
     const result = new Set<string>();
     const resolved = resolveRefDeep(schema, refCache, spec);
     if (!resolved || typeof resolved !== "object") return result;
@@ -817,7 +637,8 @@ export function collectSchemaPaths(schema: any, spec: any, refCache: Map<string,
         for (const [key, value] of Object.entries(props)) {
             const nextPath = basePath ? `${basePath}.${key}` : key;
             result.add(nextPath);
-            const childPaths = collectSchemaPaths(value, spec, refCache, nextPath, visited);
+            if (!sources?.has(nextPath)) sources?.set(nextPath, { owner: props, key });
+            const childPaths = collectSchemaPaths(value, spec, refCache, nextPath, visited, sources);
             for (const p of childPaths) result.add(p);
         }
     }
@@ -826,7 +647,7 @@ export function collectSchemaPaths(schema: any, spec: any, refCache: Map<string,
     if (items) {
         const nextBase = `${basePath}[]`;
         result.add(nextBase);
-        const childPaths = collectSchemaPaths(items, spec, refCache, nextBase, visited);
+        const childPaths = collectSchemaPaths(items, spec, refCache, nextBase, visited, sources);
         for (const p of childPaths) result.add(p);
     }
 
@@ -834,7 +655,7 @@ export function collectSchemaPaths(schema: any, spec: any, refCache: Map<string,
         const arr = (resolved as any)[key];
         if (Array.isArray(arr)) {
             for (const part of arr) {
-                const childPaths = collectSchemaPaths(part, spec, refCache, basePath, visited);
+                const childPaths = collectSchemaPaths(part, spec, refCache, basePath, visited, sources);
                 for (const p of childPaths) result.add(p);
             }
         }

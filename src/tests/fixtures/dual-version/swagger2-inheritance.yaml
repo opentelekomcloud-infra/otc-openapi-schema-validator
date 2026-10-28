@@ -1,0 +1,43 @@
+swagger: "2.0"
+info: {title: Native Inheritance API, version: v1}
+host: fixtures.example.invalid
+schemes: [https]
+produces: [application/json]
+paths:
+  /v1/resources:
+    get:
+      operationId: listResources
+      responses:
+        "200":
+          description: Resource collection
+          schema: {$ref: "#/definitions/ResourceList"}
+          examples:
+            application/json: {resources: [{resource_id: resource-1, name: sample, metadata: {"label/name~": sample}}], count: 1}
+definitions:
+  BaseResource:
+    type: object
+    required: [resource_id]
+    properties:
+      resource_id: {type: string}
+      created_at: {type: string, format: date-time, example: "2026-01-01T00:00:00Z"}
+  Resource:
+    allOf:
+      - {$ref: "#/definitions/BaseResource"}
+      - type: object
+        required: [name]
+        properties:
+          name: {type: string}
+          metadata: {$ref: "#/definitions/ResourceMeta"}
+  ResourceMeta:
+    type: object
+    properties:
+      label/name~: {type: string}
+  ResourceName: {$ref: "#/definitions/ResourceMeta/properties/label~1name~0"}
+  ResourceList:
+    type: object
+    required: [resources, count]
+    properties:
+      resources:
+        type: array
+        items: {$ref: "#/definitions/Resource"}
+      count: {type: integer}

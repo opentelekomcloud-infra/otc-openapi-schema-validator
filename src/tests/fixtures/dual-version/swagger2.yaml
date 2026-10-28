@@ -1,0 +1,85 @@
+swagger: "2.0"
+info:
+  title: Native Fixture API
+  version: v1
+host: fixtures.example.invalid
+basePath: /
+schemes: [https]
+consumes: [application/json]
+produces: [application/json]
+paths:
+  /v1/resources:
+    get:
+      operationId: listResources
+      tags: [global]
+      parameters: []
+      responses:
+        "200":
+          description: Resource collection
+          headers:
+            Content-Type: {type: string}
+            X-Request-Id: {type: string}
+          schema: {$ref: "#/definitions/ResourceList"}
+          examples:
+            application/json: {resources: [], count: 0}
+    post:
+      operationId: createResource
+      tags: [global]
+      parameters:
+        - name: body
+          in: body
+          required: true
+          schema: {$ref: "#/definitions/ResourceRequest"}
+      responses:
+        "201":
+          description: Resource created
+          headers:
+            Content-Type: {type: string}
+            X-Request-Id: {type: string}
+          schema: {$ref: "#/definitions/ResourceResponse"}
+          examples:
+            application/json: {resource: {resource_id: resource-1, name: sample, status: active}}
+  /v1/resources/{resource_id}:
+    get:
+      operationId: getResource
+      tags: [global]
+      parameters:
+        - {name: resource_id, in: path, required: true, type: string}
+      responses:
+        "200":
+          description: Resource details
+          headers:
+            Content-Type: {type: string}
+            X-Request-Id: {type: string}
+          schema: {$ref: "#/definitions/ResourceResponse"}
+          examples:
+            application/json: {resource: {resource_id: resource-1, name: sample, status: active}}
+definitions:
+  Resource:
+    type: object
+    required: [resource_id, name]
+    properties:
+      resource_id: {type: string}
+      name: {type: string}
+      status: {type: string, enum: [active, inactive]}
+      created_at: {type: string, format: date-time, example: "2026-01-01T00:00:00Z"}
+      updated_at: {type: string, format: date-time, example: "2026-01-02T00:00:00Z"}
+  ResourceRequest:
+    type: object
+    required: [resource]
+    properties:
+      resource: {$ref: "#/definitions/Resource"}
+    example: {resource: {resource_id: resource-1, name: sample, status: active}}
+  ResourceResponse:
+    type: object
+    required: [resource]
+    properties:
+      resource: {$ref: "#/definitions/Resource"}
+  ResourceList:
+    type: object
+    required: [resources, count]
+    properties:
+      resources:
+        type: array
+        items: {$ref: "#/definitions/Resource"}
+      count: {type: integer}

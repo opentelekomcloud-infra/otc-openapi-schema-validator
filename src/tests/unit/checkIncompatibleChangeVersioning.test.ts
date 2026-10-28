@@ -27,7 +27,7 @@ describe("checkIncompatibleChangeVersioning (VER-030-01-2507-2507-O-5)", () => {
     jest.clearAllMocks();
   });
 
-  test("returns no diagnostics when repository mapping cannot be resolved", async () => {
+  test("fails explicitly when repository mapping cannot be resolved", async () => {
     fetchRepoMapMock.mockResolvedValue(null);
 
     const spec: any = {
@@ -46,14 +46,12 @@ info:
   version: v2
 `;
 
-    const diags = await checkIncompatibleChangeVersioning(spec, content, rule);
-
-    expect(diags).toHaveLength(0);
+    await expect(checkIncompatibleChangeVersioning(spec, content, rule)).rejects.toThrow("Baseline repository mapping");
     expect(fetchRepoMapMock).toHaveBeenCalledTimes(1);
     expect(fetchSpecFromGiteaMock).not.toHaveBeenCalled();
   });
 
-  test("returns no diagnostics when baseline spec cannot be fetched", async () => {
+  test("fails explicitly when baseline spec cannot be fetched", async () => {
     fetchRepoMapMock.mockResolvedValue({
       reponame: "cloud-container-engine-baseline-miss",
       filename: "cce_v3_en_baseline_miss",
@@ -76,9 +74,7 @@ info:
   version: v2
 `;
 
-    const diags = await checkIncompatibleChangeVersioning(spec, content, rule);
-
-    expect(diags).toHaveLength(0);
+    await expect(checkIncompatibleChangeVersioning(spec, content, rule)).rejects.toThrow("Baseline specification could not be loaded");
     expect(fetchSpecFromGiteaMock).toHaveBeenCalledWith({
       reponame: "cloud-container-engine-baseline-miss",
       filename: "cce_v3_en_baseline_miss",

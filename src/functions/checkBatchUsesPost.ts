@@ -3,6 +3,7 @@ import { getSource } from "@/functions/common";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodPositionInYaml } from "@/utils/pos";
 import { BatchMatchConfig, isBatchOperation } from "@/utils/batchDetect";
+import { collectDocumentOperations } from "@/lib/openapi/operations";
 
 /**
  * STS-030-01-2507-2507-M-1
@@ -37,36 +38,24 @@ export function checkBatchUsesPost(spec: any, content: string, rule: any): Diagn
 
   const cfg: BatchMatchConfig = (fp.batchMatch && typeof fp.batchMatch === "object") ? fp.batchMatch : {};
 
-  for (const path of Object.keys(spec.paths)) {
-    const pathItem = (spec.paths as any)[path];
-    if (!pathItem || typeof pathItem !== "object") continue;
+  for (const { path, method, operation, pathItem } of collectDocumentOperations(
+    spec, methodsToScan.length ? methodsToScan : undefined,
+  )) {
+    const isBatch = isBatchOperation(path, operation, spec, refCache, cfg, pathItem);
+    if (!isBatch) continue;
 
-    const availableMethods = Object.keys(pathItem)
-      .map((k) => String(k).toLowerCase())
-      .filter((k) => !["parameters", "$ref", "summary", "description"].includes(k));
+    if (allowedMethods.includes(method)) continue;
 
-    const methodKeys = methodsToScan.length > 0 ? methodsToScan : availableMethods;
-
-    for (const method of methodKeys) {
-      const operation = (pathItem as any)[method];
-      if (!operation || typeof operation !== "object") continue;
-
-      const isBatch = isBatchOperation(path, operation, spec, refCache, cfg);
-      if (!isBatch) continue;
-
-      if (allowedMethods.includes(method)) continue;
-
-      const { start, end } = findMethodPositionInYaml(content, path, method);
-      diagnostics.push({
-        from: start,
-        to: end,
-        severity: mapSeverity(rule.severity),
-        message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message} Allowed methods: ${allowedMethods
-          .map((m) => m.toUpperCase())
-          .join(", ")}.`,
-        source: getSource(rule),
-      });
-    }
+    const { start, end } = findMethodPositionInYaml(content, path, method);
+    diagnostics.push({
+      from: start,
+      to: end,
+      severity: mapSeverity(rule.severity),
+      message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message} Allowed methods: ${allowedMethods
+        .map((m) => m.toUpperCase())
+        .join(", ")}.`,
+      source: getSource(rule),
+    });
   }
 
   return diagnostics;

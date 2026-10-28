@@ -1,5 +1,7 @@
 import {convertMarkdownToPlainText} from '@/utils/utils';
 import { getSeverityLabel } from '@/utils/mapSeverity';
+import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
+import { diagnosticRuleId, isDocumentError, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
 
 // Build Robot Framework compliant XML (schema v4) from diagnostics + rules
 export function buildRobotXml(
@@ -16,7 +18,7 @@ export function buildRobotXml(
       .replace(/&/g, '&amp;')
       .replace(/</g, '&lt;')
       .replace(/>/g, '&gt;')
-      .replace(/\\"/g, '&quot;')
+      .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
   };
 
@@ -33,31 +35,6 @@ export function buildRobotXml(
     return `${y}${M}${D} ${h}:${m}:${s}.${ms3}`;
   };
 
-  const extractRuleId = (raw: any): string | undefined => {
-    if (typeof raw !== 'string') return undefined;
-
-    const patterns: RegExp[] = [
-      /\b([A-Z]{2,}[A-Z0-9]*(?:-[A-Z0-9]+)+)\b/i,            // direct hyphenated ID
-      /\bRule\s+([A-Z]{2,}[A-Z0-9]*(?:-[A-Z0-9]+)+)\b/i,     // "Rule <hyphenated>"
-      /(\d+(?:\.\d+)+)\b/,                                  // direct dotted numeric ID
-      /\bRule\s+(\d+(?:\.\d+)+)\b/i                        // "Rule <dotted>"
-    ];
-
-    let best: { value: string; index: number } | undefined;
-
-    for (const re of patterns) {
-      const m = re.exec(raw);
-      if (m && m[1]) {
-        const idx = (m as any).index ?? raw.indexOf(m[0]);
-        if (best === undefined || idx < best.index) {
-          best = { value: m[1], index: idx };
-        }
-      }
-    }
-
-    return best?.value;
-  };
-
   const findRuleMeta = (id: string): any => {
     const direct = (selectedRules || {})[id];
     if (direct) return direct;
@@ -65,19 +42,7 @@ export function buildRobotXml(
   };
 
   const computeLineNumber = (diag: any): number | string => {
-    if (typeof diag?.lineNumber === 'number') return diag.lineNumber;
-    if (typeof diag?.from === 'number') {
-      if (typeof content === 'string' && content.length > 0) {
-        const idx = Math.max(0, Math.min(diag.from, content.length));
-        let count = 1;
-        for (let i = 0; i < idx; i++) {
-          if (content.charCodeAt(i) === 10) count++;
-        }
-        return count;
-      }
-      return diag.from;
-    }
-    return 'N/A';
+    return diagnosticLineNumber(content, diag);
   };
 
   const VROOT = 'virtual:///Compliance_Validation';
@@ -85,10 +50,10 @@ export function buildRobotXml(
   const testId = (suiteIdStr: string, idx: number) => `${suiteIdStr}-t${idx}`;
 
   const grouped: Record<string, any[]> = {};
-  const failedRuleIds = new Set<string>();
+  const { failedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
   diagnostics.forEach((diag) => {
-    const key = extractRuleId((diag as any)?.ruleId ?? (diag as any)?.source ?? (diag as any)?.message) || 'unknown';
-    if (key !== 'unknown') failedRuleIds.add(key);
+    const key = isDocumentError(diag) ? String(diag.source)
+      : diagnosticRuleId(diag) || 'unknown';
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(diag);
   });
@@ -132,8 +97,9 @@ export function buildRobotXml(
     const caseStart = runningMs;
     const caseEnd = caseStart + CASE_MS;
 
-    const testName =
-      source === 'unknown'
+    const testName = source === "parser" ? "Specification parsing"
+      : source === "version" ? "Specification version"
+      : source === 'unknown'
         ? (title || 'Unknown Rule')
         : `Rule ${source}${title ? ` - ${title}` : ''}`;
 
@@ -168,7 +134,7 @@ export function buildRobotXml(
 
   runningMs += GAP_MS;
 
-  // Passed Rules suite
+  // Rules without individual failures may not have executed if the document failed.
   const subSuiteId = `${automatedId}-s2`;
   const suiteStart = runningMs;
   let testsXml = '';
@@ -182,8 +148,8 @@ export function buildRobotXml(
 
     testsXml +=
       `      <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-      `        <msg timestamp="${fmt(caseStart)}" level="INFO">Passed</msg>\n` +
-      `        <status status="PASS" starttime="${fmt(
+      `        <msg timestamp="${fmt(caseStart)}" level="INFO">${documentFailed ? "Not executed: document parsing/version failure" : "Passed"}</msg>\n` +
+      `        <status status="${documentFailed ? "SKIP" : "PASS"}" starttime="${fmt(
         caseStart
       )}" endtime="${fmt(caseEnd)}"/>\n` +
       `      </test>\n`;
@@ -193,8 +159,8 @@ export function buildRobotXml(
 
   const suiteEnd = runningMs;
   autoInner +=
-    `    <suite id="${subSuiteId}" name="Passed Rules" source="${VROOT}/Automated_Compliance_Validation_Report/Passed_Rules.robot">\n` +
-    `      <status status="PASS" starttime="${fmt(
+    `    <suite id="${subSuiteId}" name="${documentFailed ? "Not Executed Rules" : "Passed Rules"}" source="${VROOT}/Automated_Compliance_Validation_Report/${documentFailed ? "Not_Executed" : "Passed"}_Rules.robot">\n` +
+    `      <status status="${documentFailed ? "SKIP" : "PASS"}" starttime="${fmt(
       suiteStart
     )}" endtime="${fmt(suiteEnd)}"/>\n` +
     testsXml +

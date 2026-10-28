@@ -1,44 +1,20 @@
-import { Diagnostic } from "@codemirror/lint";
-import { mapSeverity } from "@/utils/mapSeverity";
-import * as YAML from 'yaml';
-import {getSource} from "@/functions/common";
+import type { Diagnostic } from "@codemirror/lint";
+import { jsonPointer } from "@/lib/openapi/references";
+import {
+    classifyForCompliance, complianceDiagnostic, complianceStringList, type ComplianceRule,
+} from "@/utils/compliance";
 
-export function checkOASVersion(spec: any, content: string, rule: any): Diagnostic[] {
-    const diagnostics: Diagnostic[] = [];
-    const allowed = rule.call.functionParams.allowedVersions || [];
-    const doc = YAML.parseDocument(content);
-    const openapiNode = doc.get('openapi');
-    let rawVersion = spec?.openapi;
-
-    if (openapiNode && YAML.isScalar(openapiNode)) {
-        rawVersion = openapiNode.source;
+export function checkOASVersion(spec: unknown, content: string, rule: ComplianceRule): Diagnostic[] {
+    const allowed = complianceStringList(rule.call.functionParams?.allowedVersions, "allowedVersions");
+    const format = classifyForCompliance(spec, content, rule);
+    if (!format.ok) return [format.diagnostic];
+    const versionKey = format.native.dialect === "swagger2" ? "swagger" : "openapi";
+    const allowedVersion = format.native.dialect === "swagger2" ? "2.0" : "3.0";
+    if (!allowed.includes(allowedVersion)) {
+        return [complianceDiagnostic(
+            content, rule, `'${versionKey}' version '${format.native.formatVersion}' is not allowed.`,
+            jsonPointer([versionKey]), "value",
+        )];
     }
-    const openapiKeyIndex = content.indexOf("openapi");
-
-    if (rawVersion === undefined || rawVersion === null) {
-        diagnostics.push({
-            from: openapiKeyIndex >= 0 ? openapiKeyIndex : 0,
-            to: openapiKeyIndex >= 0 ? openapiKeyIndex + 7 : content.length,
-            severity: mapSeverity(rule.severity),
-            message: `'${rule.message}' Missing 'openapi' field.`,
-            source: getSource(rule),
-        });
-        return diagnostics;
-    }
-
-    const version = String(rawVersion);
-    const majorMinor = version.match(/^(\d+\.\d+)/)?.[1];
-
-    if (!majorMinor || !allowed.includes(majorMinor)) {
-        const index = content.indexOf(version);
-        diagnostics.push({
-            from: index >= 0 ? index : openapiKeyIndex,
-            to: index >= 0 ? index + version.length : content.length,
-            severity: mapSeverity(rule.severity),
-            message: `'${rule.message}' 'openapi' version '${version}' is not allowed.`,
-            source: getSource(rule),
-        });
-    }
-
-    return diagnostics;
+    return [];
 }

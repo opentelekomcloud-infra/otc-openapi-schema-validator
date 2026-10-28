@@ -1,0 +1,88 @@
+openapi: 3.0.3
+info:
+  title: Native Fixture API
+  version: v1
+servers:
+  - url: https://fixtures.example.invalid/
+paths:
+  /v1/resources:
+    get:
+      operationId: listResources
+      tags: [global]
+      parameters: []
+      responses:
+        "200":
+          description: Resource collection
+          headers:
+            Content-Type: {schema: {type: string}}
+            X-Request-Id: {schema: {type: string}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ResourceList"}
+              example: {resources: [], count: 0}
+    post:
+      operationId: createResource
+      tags: [global]
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ResourceRequest"}
+            example: {resource: {resource_id: resource-1, name: sample, status: active}}
+      responses:
+        "201":
+          description: Resource created
+          headers:
+            Content-Type: {schema: {type: string}}
+            X-Request-Id: {schema: {type: string}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ResourceResponse"}
+              example: {resource: {resource_id: resource-1, name: sample, status: active}}
+  /v1/resources/{resource_id}:
+    get:
+      operationId: getResource
+      tags: [global]
+      parameters:
+        - {name: resource_id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: Resource details
+          headers:
+            Content-Type: {schema: {type: string}}
+            X-Request-Id: {schema: {type: string}}
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ResourceResponse"}
+              example: {resource: {resource_id: resource-1, name: sample, status: active}}
+components:
+  schemas:
+    Resource:
+      type: object
+      required: [resource_id, name]
+      properties:
+        resource_id: {type: string}
+        name: {type: string}
+        status: {type: string, enum: [active, inactive]}
+        created_at: {type: string, format: date-time, example: "2026-01-01T00:00:00Z"}
+        updated_at: {type: string, format: date-time, example: "2026-01-02T00:00:00Z"}
+    ResourceRequest:
+      type: object
+      required: [resource]
+      properties:
+        resource: {$ref: "#/components/schemas/Resource"}
+      example: {resource: {resource_id: resource-1, name: sample, status: active}}
+    ResourceResponse:
+      type: object
+      required: [resource]
+      properties:
+        resource: {$ref: "#/components/schemas/Resource"}
+    ResourceList:
+      type: object
+      required: [resources, count]
+      properties:
+        resources:
+          type: array
+          items: {$ref: "#/components/schemas/Resource"}
+        count: {type: integer}

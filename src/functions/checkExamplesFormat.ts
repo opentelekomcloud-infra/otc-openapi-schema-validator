@@ -3,6 +3,9 @@ import { ExampleRequirement, RuleConfig } from "@/types/example";
 import { dedupeDiagnostics, pushMethodDiagnostic } from "@/utils/diagnostic";
 import { validateRequestExamples, validateResponseExamples } from "@/utils/validation";
 import { extractRequestExamples, extractResponseExamples, getResponseCodesToCheck } from "@/utils/spec";
+import { collectDocumentOperations } from "@/lib/openapi/operations";
+import { appendPointer } from "@/lib/openapi/references";
+import { sourceMap } from "@/lib/openapi/sourceMap";
 
 /**
  * DOC-040-01-2507-2507-M
@@ -27,64 +30,45 @@ export function checkExamplesFormat(spec: any, content: string, rule: any): Diag
   const fp: RuleConfig = rule?.call?.functionParams ?? {};
   const methodsCfg = fp.methods ?? {};
 
-  for (const path of Object.keys(spec.paths)) {
-    const pathItem = (spec.paths as any)[path];
-    if (!pathItem || typeof pathItem !== "object") continue;
-
-    const availableMethods = Object.keys(pathItem)
-      .map((k) => String(k).toLowerCase())
-      .filter((k) => !["parameters", "$ref", "summary", "description"].includes(k));
-
-    for (const method of availableMethods) {
-      const operation = (pathItem as any)[method];
-      if (!operation || typeof operation !== "object") continue;
-
-      const methodCfg = methodsCfg[method] ?? {};
-      const requestRequirement = normalizeRequirement(methodCfg.requestExample, method === "get" || method === "delete" ? "forbidden" : "optional");
-      const responseRequirement = normalizeRequirement(methodCfg.responseExample, method === "delete" ? "forbidden" : "optional");
-
-      const requestExamples = extractRequestExamples(operation, fp);
-      const responseCodes = getResponseCodesToCheck(operation, fp);
-      const responseExamples = extractResponseExamples(operation, responseCodes, fp);
-
-      // Request example presence
-      if (requestRequirement === "required" && requestExamples.length === 0) {
-        pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required request example.`);
+  for (const { path, method, operation, pathItem, pointer, resolvedPathItemPointer } of collectDocumentOperations(spec)) {
+    const methodCfg = methodsCfg[method] ?? {};
+    const requestRequirement = normalizeRequirement(methodCfg.requestExample, method === "get" || method === "delete" ? "forbidden" : "optional");
+    const responseRequirement = normalizeRequirement(methodCfg.responseExample, method === "delete" ? "forbidden" : "optional");
+    const requestExamples = extractRequestExamples(operation, fp, spec, pathItem, refCache, {
+      operation: pointer, pathItem: resolvedPathItemPointer,
+    });
+    const responseCodes = getResponseCodesToCheck(operation, fp);
+    const responseExamples = extractResponseExamples(operation, responseCodes, fp, spec, refCache, pointer);
+    const requestPayloads = requestExamples.filter((example) => example.scope === "payload");
+    const responsePayloads = responseExamples.filter((example) => example.scope === "payload");
+    if (requestRequirement === "required" && requestPayloads.length === 0) {
+      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required request example.`, sourceMap(content).requestBody(path, method));
+    }
+    if (requestRequirement === "forbidden" && requestPayloads.length > 0) {
+      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Request example is not allowed for ${method.toUpperCase()} operations.`, requestPayloads[0].pointer);
+    }
+    if (responseRequirement === "required" && responsePayloads.length === 0) {
+      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required response example.`, sourceMap(content).locate(appendPointer(pointer, "responses")));
+    }
+    if (responseRequirement === "forbidden" && responsePayloads.length > 0) {
+      pushMethodDiagnostic(diagnostics, content, path, method, rule, `Response example is not allowed for ${method.toUpperCase()} operations.`, responsePayloads[0].pointer);
+    }
+    const requestToValidate = requestExamples.filter((example) => example.scope === "property" || requestRequirement !== "forbidden");
+    const locations = new Map<string, string>();
+    if (requestToValidate.length > 0) {
+      const effectiveRequestValidation = mergeRequestValidation(fp.requestValidation, methodCfg.requestValidation);
+      const requestProblems = validateRequestExamples(
+        operation, pathItem, requestToValidate, spec, refCache, effectiveRequestValidation, fp, locations,
+      );
+      for (const problem of requestProblems) {
+        pushMethodDiagnostic(diagnostics, content, path, method, rule, problem, locations.get(problem));
       }
-      if (requestRequirement === "forbidden" && requestExamples.length > 0) {
-        pushMethodDiagnostic(diagnostics, content, path, method, rule, `Request example is not allowed for ${method.toUpperCase()} operations.`);
-      }
-
-      // Response example presence
-      if (responseRequirement === "required" && responseExamples.length === 0) {
-        pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required response example.`);
-      }
-      if (responseRequirement === "forbidden" && responseExamples.length > 0) {
-        pushMethodDiagnostic(diagnostics, content, path, method, rule, `Response example is not allowed for ${method.toUpperCase()} operations.`);
-      }
-
-      // Request example validation
-      if (requestExamples.length > 0 && requestRequirement !== "forbidden") {
-        const effectiveRequestValidation = mergeRequestValidation(fp.requestValidation, methodCfg.requestValidation);
-        const requestProblems = validateRequestExamples(
-          operation,
-          pathItem,
-          requestExamples,
-          spec,
-          refCache,
-          effectiveRequestValidation
-        );
-        for (const problem of requestProblems) {
-          pushMethodDiagnostic(diagnostics, content, path, method, rule, problem);
-        }
-      }
-
-      // Response example validation
-      if (responseExamples.length > 0 && responseRequirement !== "forbidden") {
-        const responseProblems = validateResponseExamples(operation, responseExamples, responseCodes, spec, refCache, fp);
-        for (const problem of responseProblems) {
-          pushMethodDiagnostic(diagnostics, content, path, method, rule, problem);
-        }
+    }
+    const responseToValidate = responseExamples.filter((example) => example.scope === "property" || responseRequirement !== "forbidden");
+    if (responseToValidate.length > 0) {
+      const responseProblems = validateResponseExamples(operation, responseToValidate, responseCodes, spec, refCache, fp, locations);
+      for (const problem of responseProblems) {
+        pushMethodDiagnostic(diagnostics, content, path, method, rule, problem, locations.get(problem));
       }
     }
   }

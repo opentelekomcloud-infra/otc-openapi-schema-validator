@@ -1,9 +1,10 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
-import { safeRegex } from "@/utils/regex";
 import { collectHeaderLocations } from "@/utils/scan";
 import { isCustomHeader } from "@/utils/headers";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import { ruleDocument, ruleStrings, type NativeRule } from "@/utils/nativeRule";
 
 /**
  * HDR-020-01-2507-2507-M-3
@@ -27,65 +28,28 @@ import { isCustomHeader } from "@/utils/headers";
  * - Path-level and operation-level parameters with `in: header`
  * - Response header names under `responses[*].headers`
  */
-export function checkCustomHeaders(spec: any, content: string, rule: any): Diagnostic[] {
+export function checkCustomHeaders(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
   const diagnostics: Diagnostic[] = [];
-  if (!spec?.paths) return diagnostics;
+  ruleDocument(spec);
 
   const params = rule?.call?.functionParams ?? {};
-  const headerFormatPattern: string | undefined = params.header_format;
-  const headerRegex = safeRegex(headerFormatPattern);
+  const headerFormatPattern = params.header_format;
+  if (typeof headerFormatPattern !== "string" || !headerFormatPattern) {
+    throw new Error("functionParams.header_format must be a non-empty regular expression.");
+  }
+  const headerRegex = new RegExp(headerFormatPattern);
 
   const standardHeaders = new Set<string>(DEFAULT_STANDARD_HEADERS);
-  if (Array.isArray(params.standard_headers)) {
-    params.standard_headers
-      .filter((h: any) => typeof h === "string")
-      .forEach((h: string) => standardHeaders.add(h.toLowerCase()));
-  }
+  ruleStrings(params.standard_headers, "standard_headers").forEach((name) => standardHeaders.add(name.toLowerCase()));
 
   const headers = collectHeaderLocations(spec);
-
-  let paramCursor = 0;
-  let responseCursor = 0;
 
   for (const h of headers) {
     if (!isCustomHeader(h.headerName, standardHeaders)) continue;
 
-    // If regex is not valid/missing, do nothing (avoid false positives / crashes)
-    if (!headerRegex) continue;
-
     if (!headerRegex.test(h.headerName)) {
-      // Plain sequential scan to get stable positions per occurrence.
-      // We rely on traversal order and keep separate cursors for parameters vs responses.
-      const isResponseHeader = h.jsonPointer.includes(".responses.") && h.jsonPointer.includes(".headers.");
-
-      let src: { from: number; to: number } = { from: 0, to: 0 };
-
-      if (isResponseHeader) {
-        const needleKey = `${h.headerName}:`;
-        const needleQuotedKey = `"${h.headerName}":`;
-
-        let idx = content.indexOf(needleKey, responseCursor);
-        let len = needleKey.length;
-
-        // Prefer unquoted key; if not found, try quoted key.
-        if (idx === -1) {
-          idx = content.indexOf(needleQuotedKey, responseCursor);
-          len = needleQuotedKey.length;
-        }
-
-        if (idx !== -1) {
-          src = { from: idx, to: idx + len };
-          responseCursor = idx + len;
-        }
-      } else {
-        // Parameters: header name is stored as `name: <header>` in YAML.
-        const needleName = `name: ${h.headerName}`;
-        const idx = content.indexOf(needleName, paramCursor);
-        if (idx !== -1) {
-          src = { from: idx, to: idx + needleName.length };
-          paramCursor = idx + needleName.length;
-        }
-      }
+      const isResponseHeader = h.direction === "response";
+      const src = sourceMap(content).locate(h.sourcePointer, isResponseHeader ? "key" : "value", true);
 
       diagnostics.push({
         from: src.from,

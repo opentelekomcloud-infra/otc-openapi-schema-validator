@@ -1,0 +1,32 @@
+swagger: "2.0"
+info: {title: Native Form API, version: v1}
+host: fixtures.example.invalid
+schemes: [https]
+consumes: [application/json]
+produces: [application/json]
+paths:
+  /v1/uploads:
+    post:
+      operationId: uploadFile
+      consumes: [multipart/form-data]
+      produces: [text/plain]
+      parameters:
+        - {name: file, in: formData, required: true, type: file}
+        - {name: caption, in: formData, type: string}
+      responses:
+        "201":
+          description: Uploaded file name
+          schema: {type: string}
+          examples: {text/plain: sample.txt}
+  /v1/metadata:
+    post:
+      operationId: createMetadata
+      consumes: [application/x-www-form-urlencoded]
+      parameters:
+        - {name: name, in: formData, required: true, type: string}
+        - {name: count, in: formData, type: integer, default: 1}
+      responses:
+        "200":
+          description: Stored metadata
+          schema: {type: object, properties: {name: {type: string}}}
+          examples: {application/json: {name: sample}}

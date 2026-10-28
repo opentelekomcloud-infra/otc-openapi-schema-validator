@@ -1,8 +1,11 @@
 import { Diagnostic } from "@codemirror/lint";
-import { resolveRefDeep } from "@/utils/schema";
 import { splitPathIntoTokens, looksLikeUnknownWord } from "@/utils/englishWords";
 import { dedupeDiagnostics, pushOperationDiagnostic } from "@/utils/diagnostic";
-import { collectOperations } from "@/utils/spec";
+import type { NativeOperation, NativeParameterSchema } from "@/types/openapi";
+import type { ReferenceCache } from "@/lib/openapi/references";
+import { namingSchemas, rootSchemaFields } from "@/utils/nativeNaming";
+import { responseFor, responseStatuses } from "@/utils/nativeResponse";
+import { ruleOperations, ruleRequest } from "@/utils/nativeRule";
 
 type RootNodeConfig = {
     deriveResourceFromPath?: boolean;
@@ -119,11 +122,8 @@ function toSingular(word: string, mode: string): string {
 /**
  * Extracts top-level root property names from a schema.
  */
-function getRootPropertyNames(schema: any, spec: any): string[] {
-    const resolved = resolveRefDeep(schema, new Map<string, any>(), spec);
-    const props = resolved?.properties;
-    if (!props || typeof props !== "object") return [];
-    return Object.keys(props).map((k) => String(k));
+function getRootPropertyNames(schema: NativeParameterSchema, spec: unknown, cache: ReferenceCache): string[] {
+    return rootSchemaFields(schema, spec, cache).map((field) => field.name);
 }
 
 /**
@@ -154,24 +154,23 @@ function isEnglishWordSafeForStrictCheck(word: string, cfg: RootNodeConfig): boo
  * Validates request root node naming.
  */
 function validateRequestBody(
-    operation: any,
+    operation: NativeOperation,
     spec: any,
     resourceName: string,
     method: string,
-    cfg: RootNodeConfig
+    cfg: RootNodeConfig,
+    cache: ReferenceCache,
 ): string[] {
     const problems: string[] = [];
     const expectation = getRequestExpectation(method, cfg);
     if (expectation === "skip") return problems;
 
-    const contentObj = operation?.requestBody?.content;
-    if (!contentObj || typeof contentObj !== "object") return problems;
-
-    const firstMediaType = Object.keys(contentObj)[0];
-    const schema = contentObj?.["application/json"]?.schema ?? contentObj?.[firstMediaType]?.schema;
-    if (!schema) return problems;
-
-    const rootKeys = filterRelevantRootKeys(getRootPropertyNames(schema, spec), cfg);
+    const payload = ruleRequest(operation, spec, cache);
+    const schema = namingSchemas(payload, spec, cache)[0];
+    if (payload.kind !== "formData" && !schema) return problems;
+    const names = payload.kind === "formData" ? payload.fields.map((field) => field.name)
+        : schema ? getRootPropertyNames(schema, spec, cache) : [];
+    const rootKeys = filterRelevantRootKeys(names, cfg);
     if (rootKeys.length === 0) return problems;
 
     const singular = toSingular(resourceName, String(cfg.pluralizationMode ?? "simpleEnglish"));
@@ -188,19 +187,17 @@ function validateRequestBody(
  * Validates response root node naming.
  */
 function validateResponses(
-    operation: any,
+    operation: NativeOperation,
     spec: any,
     resourceName: string,
     path: string,
     method: string,
-    cfg: RootNodeConfig
+    cfg: RootNodeConfig,
+    cache: ReferenceCache,
 ): string[] {
     const problems: string[] = [];
     const expectation = getResponseExpectation(path, method, cfg);
     if (expectation === "skip") return problems;
-
-    const responses = operation?.responses;
-    if (!responses || typeof responses !== "object") return problems;
 
     const genericWrappers = new Set((cfg.allowedGenericCollectionWrappers ?? []).map((v) => String(v).toLowerCase()));
     const mode = String(cfg.pluralizationMode ?? "simpleEnglish");
@@ -214,18 +211,13 @@ function validateResponses(
         return problems;
     }
 
-    for (const code of Object.keys(responses)) {
+    for (const code of responseStatuses(operation)) {
         if (!/^2\d\d$/.test(String(code))) continue;
 
-        const response = resolveRefDeep(responses[code], new Map<string, any>(), spec);
-        const contentObj = response?.content;
-        if (!contentObj || typeof contentObj !== "object") continue;
-
-        const firstMediaType = Object.keys(contentObj)[0];
-        const schema = contentObj?.["application/json"]?.schema ?? contentObj?.[firstMediaType]?.schema;
+        const schema = namingSchemas(responseFor(operation, code, spec, cache), spec, cache)[0];
         if (!schema) continue;
 
-        const rootKeys = filterRelevantRootKeys(getRootPropertyNames(schema, spec), cfg);
+        const rootKeys = filterRelevantRootKeys(getRootPropertyNames(schema, spec, cache), cfg);
         if (rootKeys.length === 0) continue;
 
         const rootKeySet = new Set(rootKeys.map((k) => String(k).toLowerCase()));
@@ -265,15 +257,17 @@ export function checkRootNodeMatchesResource(spec: any, content: string, rule: a
     }
 
     const cfg = (rule?.call?.functionParams ?? {}) as RootNodeConfig;
-    const operations = collectOperations(spec);
+    const operations = ruleOperations(spec, {});
+    const cache = new Map<string, unknown>();
 
-    for (const { path, method, operation } of operations) {
+    for (const op of operations) {
+        const { path, method } = op;
         const resourceName = cfg.deriveResourceFromPath === false ? null : deriveResourceName(path, cfg);
         if (!resourceName) continue;
 
         const problems = [
-            ...validateRequestBody(operation, spec, resourceName, method, cfg),
-            ...validateResponses(operation, spec, resourceName, path, method, cfg),
+            ...validateRequestBody(op, spec, resourceName, method, cfg, cache),
+            ...validateResponses(op, spec, resourceName, path, method, cfg, cache),
         ];
 
         for (const problem of problems) {

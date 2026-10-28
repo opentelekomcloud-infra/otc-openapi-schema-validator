@@ -2,6 +2,9 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { violatingIndexRange } from "@/utils/pos";
 import {getSource} from "@/functions/common";
+import { appendPointer } from "@/lib/openapi/references";
+import { isSwagger2Root } from "@/lib/openapi/media";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
 
 const DEFAULT_CHINESE_UNICODE_RANGE = "\\u3400-\\u4DBF\\u4E00-\\u9FFF\\uF900-\\uFAFF";
 
@@ -17,7 +20,7 @@ type WalkCtx = {
     forbiddenLanguages: string[];
 };
 
-function pushIfViolation(value: unknown, pointer: string, ctx: WalkCtx) {
+function pushIfViolation(value: unknown, pointer: string, sourcePointer: string, ctx: WalkCtx) {
     if (typeof value !== "string" || !value.trim()) return;
 
     // Currently we only implement forbiddenLanguages: ['zh'] by detecting Chinese characters.
@@ -32,7 +35,7 @@ function pushIfViolation(value: unknown, pointer: string, ctx: WalkCtx) {
 
     if (!containsForbiddenChars(value, forbiddenRe)) return;
 
-    const { from, to } = violatingIndexRange(ctx.content, pointer, value, forbiddenRe, pointer.length);
+    const { from, to } = violatingIndexRange(ctx.content, sourcePointer);
     ctx.diagnostics.push({
         from,
         to,
@@ -42,26 +45,36 @@ function pushIfViolation(value: unknown, pointer: string, ctx: WalkCtx) {
     });
 }
 
-function walkObject(node: any, pointer: string, ctx: WalkCtx) {
-    if (!node || typeof node !== "object") return;
-
-    if (Array.isArray(node)) {
-        for (let i = 0; i < node.length; i++) {
-            walkObject(node[i], `${pointer}/${i}`, ctx);
+function walkObject(node: unknown, pointer: string, ctx: WalkCtx, sourcePointer = `#${pointer}`) {
+    type Frame = { kind: "node"; node: unknown; pointer: string; sourcePointer: string }
+        | { kind: "value"; value: unknown; pointer: string; sourcePointer: string }
+        | { kind: "leave"; node: object };
+    const pending: Frame[] = [{ kind: "node", node, pointer, sourcePointer }];
+    const active = new WeakSet<object>();
+    while (pending.length) {
+        const frame = pending.pop()!;
+        if (frame.kind === "leave") {
+            active.delete(frame.node);
+            continue;
         }
-        return;
-    }
-
-    for (const [k, v] of Object.entries(node)) {
-        const nextPtr = `${pointer}/${k}`;
-
-        if (ctx.elementKeys.has(k)) {
-            pushIfViolation(v, nextPtr, ctx);
+        if (frame.kind === "value") {
+            pushIfViolation(frame.value, frame.pointer, frame.sourcePointer, ctx);
+            continue;
         }
-
-        // Continue traversal for nested objects
-        if (v && typeof v === "object") {
-            walkObject(v, nextPtr, ctx);
+        if (frame.node === null || typeof frame.node !== "object") continue;
+        if (active.has(frame.node)) {
+            throw new NativeAccessorError("INVALID_DECLARATION", frame.sourcePointer, "Cyclic metadata object");
+        }
+        active.add(frame.node);
+        pending.push({ kind: "leave", node: frame.node });
+        const entries = Object.entries(frame.node);
+        for (let index = entries.length - 1; index >= 0; index--) {
+            const [key, value] = entries[index];
+            const next = { pointer: `${frame.pointer}/${key}`, sourcePointer: appendPointer(frame.sourcePointer, key) };
+            pending.push({ kind: "node", node: value, ...next });
+            if (!Array.isArray(frame.node) && ctx.elementKeys.has(key)) {
+                pending.push({ kind: "value", value, ...next });
+            }
         }
     }
 }
@@ -96,9 +109,11 @@ export function checkInternationalization(spec: any, content: string, rule: any)
         walkObject(spec.tags, "/tags", ctx);
     }
 
-    // components (deep)
-    if (locations.includes("components") && spec.components) {
-        walkObject(spec.components, "/components", ctx);
+    if (locations.includes("components")) {
+        const sections = isSwagger2Root(spec) ? ["definitions", "parameters", "responses", "securityDefinitions"] : ["components"];
+        for (const section of sections) {
+            if (spec[section]) walkObject(spec[section], `/${section}`, ctx);
+        }
     }
 
     return diagnostics;

@@ -4,6 +4,8 @@ import {EditorView} from "@codemirror/view";
 import React from "react";
 import {getSeverityLabel} from "@/utils/mapSeverity";
 import { buildRobotXml } from "@/lib/export/buildRobotXml";
+import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
+import { diagnosticRuleId, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
 
 export const exportPDF = async (
   diagnostics: any[],
@@ -24,21 +26,19 @@ export const exportPDF = async (
   // --- Found Issues ---
   doc.setFontSize(16);
   doc.text("Automated Compliance Validation report", 14, 40);
-  const failedRuleIds = new Set(diagnostics.map((diag) => diag.source));
+  const { failedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
   const tableColumn = ["Line #", "Summary", "Severity", "Rule ID"];
   const tableRows: (string | number)[][] = [];
 
   Object.values(selectedRules).forEach((rule: any) => {
     if (!failedRuleIds.has(rule.id)) {
-      tableRows.push(["Passed", rule.message, rule.severity, rule.id]);
+      tableRows.push([documentFailed ? "Not executed" : "Passed", rule.message, rule.severity, rule.id]);
     }
   });
 
   diagnostics.forEach((diag) => {
-    const lineNumber = editorViewRef.current
-      ? editorViewRef.current.state.doc.lineAt(diag.from).number
-      : "N/A";
-    tableRows.push([lineNumber, diag.message, getSeverityLabel(diag.severity), diag.source || ""]);
+    const lineNumber = diagnosticLineNumber(editorViewRef.current?.state.doc.toString(), diag);
+    tableRows.push([lineNumber, diag.message, getSeverityLabel(diag.severity), diag.source || diagnosticRuleId(diag) || ""]);
   });
 
   autoTable(doc, {
@@ -64,7 +64,7 @@ export const exportPDF = async (
     rule.id,
     rule.title,
     convertMarkdownToPlainText(rule.message),
-    rule.option,
+    rule.option ?? "",
     rule.verified ? "Verified" : "Unverified",
   ]);
   autoTable(doc, {
@@ -161,12 +161,12 @@ export const exportJUnit = async (
   // Group diagnostics by source
   const grouped: Record<string, any[]> = {};
   diagnostics.forEach((diag) => {
-    const key = diag?.source ? String(diag.source) : "unknown";
+    const key = diag?.source ? String(diag.source) : diagnosticRuleId(diag) || "unknown";
     if (!grouped[key]) grouped[key] = [];
     grouped[key].push(diag);
   });
 
-  const failedRuleIds = new Set(diagnostics.map((d) => d.source));
+  const { failedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
   const passedRules: any[] = Object.values(selectedRules).filter(
     (rule: any) => !failedRuleIds.has(rule.id)
   );
@@ -207,10 +207,7 @@ export const exportJUnit = async (
       const caseStart = runningMs;
       const caseEnd = caseStart + CASE_MS;
 
-      const v = editorViewRef.current as any;
-      const docLen = v?.state?.doc?.length ?? 0;
-      const within = typeof diag?.from === "number" && diag.from >= 0 && diag.from < docLen;
-      const lineNumber = within ? v.state.doc.lineAt(diag.from).number : "N/A";
+      const lineNumber = diagnosticLineNumber(editorViewRef.current?.state.doc.toString(), diag);
 
       const tName = `Line: ${lineNumber}`;
       const severity = xmlEscape(getSeverityLabel(diag?.severity));
@@ -245,7 +242,7 @@ export const exportJUnit = async (
     runningMs += GAP_MS;
   }
 
-  // Optional Passed Rules
+  // Rules without individual failures may not have executed after a document failure.
   if (passedRules.length > 0) {
     autoSuiteCounter += 1;
     const subSuiteId = `${automatedId}-s${autoSuiteCounter}`;
@@ -263,8 +260,8 @@ export const exportJUnit = async (
         `      <test id="${tId}" name="${xmlEscape(tName)}">\n` +
         `        <msg timestamp="${fmt(
           caseStart
-        )}" level="INFO">Passed</msg>\n` +
-        `        <status status="PASS" starttime="${fmt(
+        )}" level="INFO">${documentFailed ? "Not executed: document parsing/version failure" : "Passed"}</msg>\n` +
+        `        <status status="${documentFailed ? "SKIP" : "PASS"}" starttime="${fmt(
           caseStart
         )}" endtime="${fmt(caseEnd)}"/>\n` +
         `      </test>\n`;
@@ -274,8 +271,8 @@ export const exportJUnit = async (
 
     const suiteEnd = runningMs;
     autoInner +=
-      `    <suite id="${subSuiteId}" name="Passed Rules" source="${VROOT}/Automated_Compliance_Validation_Report/Passed_Rules.robot">\n` +
-      `      <status status="PASS" starttime="${fmt(
+      `    <suite id="${subSuiteId}" name="${documentFailed ? "Not Executed Rules" : "Passed Rules"}" source="${VROOT}/Automated_Compliance_Validation_Report/${documentFailed ? "Not_Executed" : "Passed"}_Rules.robot">\n` +
+      `      <status status="${documentFailed ? "SKIP" : "PASS"}" starttime="${fmt(
         suiteStart
       )}" endtime="${fmt(suiteEnd)}"/>\n` +
       testsXml +

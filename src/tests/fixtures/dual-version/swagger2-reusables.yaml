@@ -1,0 +1,42 @@
+swagger: "2.0"
+info: {title: Native Reusable API, version: v1}
+host: fixtures.example.invalid
+schemes: [https]
+produces: [application/json]
+securityDefinitions:
+  Token: {type: apiKey, name: X-Auth-Token, in: header}
+security:
+  - Token: []
+paths:
+  /v1/resources/{resource_id}:
+    parameters:
+      - {$ref: "#/parameters/ResourceId"}
+      - {$ref: "#/parameters/Limit"}
+    get:
+      operationId: getResource
+      parameters:
+        - {name: limit, in: query, type: integer, default: 25}
+      responses:
+        "200": {$ref: "#/responses/ResourceResponse"}
+    delete:
+      operationId: deleteResource
+      responses:
+        "204": {description: Deleted}
+parameters:
+  ResourceId: {name: resource_id, in: path, required: true, type: string}
+  Limit: {name: limit, in: query, type: integer, default: 1000}
+responses:
+  ResourceResponse:
+    description: Resource details
+    headers:
+      X-Request-Id: {type: string}
+    schema: {$ref: "#/definitions/ResourceAlias"}
+    examples:
+      application/json: {resource_id: resource-1}
+definitions:
+  ResourceAlias: {$ref: "#/definitions/Resource"}
+  Resource:
+    type: object
+    required: [resource_id]
+    properties:
+      resource_id: {type: string}

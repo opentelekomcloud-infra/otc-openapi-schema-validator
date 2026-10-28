@@ -2,6 +2,8 @@ import {Diagnostic} from "@codemirror/lint";
 import {mapSeverity} from "@/utils/mapSeverity";
 import {findInvalidPercentEscape} from "@/utils/strings";
 import {getSource} from "@/functions/common";
+import { pathRange } from "@/lib/openapi/sourceMap";
+import { rulePathKeys } from "@/utils/nativeRule";
 
 export function checkURIContentUnicode(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -18,17 +20,11 @@ export function checkURIContentUnicode(spec: any, content: string, rule: any): D
             : `${idPrefix}${base}\nPath: ${path}`;
     };
 
-    const findPathPosition = (pathKey: string) => {
-        return content.indexOf(pathKey);
-    };
-
-    for (const pathKey of Object.keys(spec.paths || {})) {
+    for (const pathKey of rulePathKeys(spec)) {
         if (checkInvalidPercentEscape) {
             const invalid = findInvalidPercentEscape(pathKey);
             if (invalid) {
-                const baseIdx = findPathPosition(pathKey);
-                const from = baseIdx >= 0 ? baseIdx + invalid.index : 0;
-                const to = baseIdx >= 0 ? baseIdx + invalid.index + invalid.length : Math.min(1, content.length);
+                const { from, to } = pathRange(content, pathKey);
                 diagnostics.push({
                     from,
                     to,
@@ -45,9 +41,7 @@ export function checkURIContentUnicode(spec: any, content: string, rule: any): D
             const ch = s[i];
             if (ch.charCodeAt(0) <= 0x7f) continue;
 
-            const baseIdx = findPathPosition(pathKey);
-            const from = baseIdx >= 0 ? baseIdx + i : 0;
-            const to = baseIdx >= 0 ? baseIdx + i + 1 : Math.min(1, content.length);
+            const { from, to } = pathRange(content, pathKey);
 
             diagnostics.push({
                 from,

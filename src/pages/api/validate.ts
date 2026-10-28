@@ -1,14 +1,16 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { runLinter } from '@/lib/linter/runLinter';
+import { functionsMap } from '@/lib/linter/runLinter';
+import { runPreparedLinter } from '@/lib/linter/runPreparedLinter';
+import { loadAllowedAbbreviationsOnServer } from '@/lib/server/abbreviations';
+import { getImplementedRules, loadRuleCatalog } from '@/lib/linter/ruleCatalog';
 import { buildRobotXml } from '@/lib/export/buildRobotXml';
 import { reportPortalClient } from '@/clients/reportportal';
-import * as yaml from "js-yaml";
 import { getSeverityLabel } from "@/utils/mapSeverity";
 import { giteaClient } from '@/clients/gitea';
 import { requireApiAuth } from "@/lib/apiAuth";
-import { prepareOpenApiDocument } from "@/lib/openapi/prepareOpenApiDocument";
+import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
 
 const log = {
   debug: (...args: any[]) => console.debug("[Validate]", ...args),
@@ -63,24 +65,10 @@ function resolvePath(p: string) {
   return path.isAbsolute(p) ? p : path.join(/*turbopackIgnore: true*/ process.cwd(), p);
 }
 
-async function loadYaml<T = any>(absPath: string): Promise<T | null> {
-  try {
-    const txt = await fs.readFile(absPath, 'utf8');
-    return yaml.load(txt) as T;
-  } catch {
-    return null;
-  }
-}
-
 async function listFilesDeep(dir: string, exts = ['.yaml', '.yml']): Promise<string[]> {
   const out: string[] = [];
   async function walk(d: string) {
-    let entries: any[] = [];
-    try {
-      entries = await fs.readdir(d, { withFileTypes: true });
-    } catch {
-      return;
-    }
+    const entries = await fs.readdir(d, { withFileTypes: true });
     for (const e of entries) {
       const p = path.join(d, e.name);
       if (e.isDirectory && e.isDirectory()) await walk(p);
@@ -95,14 +83,8 @@ async function listFilesDeep(dir: string, exts = ['.yaml', '.yml']): Promise<str
 async function loadAllManualRules(): Promise<ManualRule[]> {
   const root = path.join(process.cwd(), 'public', 'manual-checklist');
   const files = await listFilesDeep(root);
-  const acc: ManualRule[] = [];
-  for (const f of files) {
-    const data = await loadYaml<any>(f);
-    if (data?.rules && Array.isArray(data.rules)) {
-      for (const r of data.rules) acc.push({ ...r, verified: false });
-    }
-  }
-  return acc;
+  const rules = await loadRuleCatalog(files, (file) => fs.readFile(file, 'utf8'));
+  return rules.map((rule) => ({ ...rule, verified: false }));
 }
 
 // Helper for safe path joining
@@ -116,14 +98,17 @@ function safeJoin(base: string, segment: string) {
   return resolved.slice(0, -1); // remove trailing sep we added
 }
 
-function parseGiteaUrl(rawUrl: string): { repo: string; path: string } | null {
+function parseGiteaUrl(rawUrl: string): { repo: string; path: string; ref: string } | null {
   try {
     const u = new URL(rawUrl);
     const seg = u.pathname.split('/').filter(Boolean);
     if (seg.length >= 5 && (seg[2] === 'src' || seg[2] === 'raw')) {
       const repoName = seg[1];
-      const filePath = seg.slice(4).join('/');
-      return { repo: `${repoName}`, path: `${filePath}` };
+      const qualifiedRef = ["branch", "tag", "commit"].includes(seg[3]);
+      const refIndex = qualifiedRef ? 4 : 3;
+      const filePath = seg.slice(refIndex + 1).join('/');
+      if (!filePath || !seg[refIndex]) return null;
+      return { repo: repoName, path: filePath, ref: decodeURIComponent(seg[refIndex]) };
     }
   } catch {
     // ignore
@@ -140,16 +125,8 @@ async function loadAllAutoRules(ruleset: string = 'default'): Promise<AutoRule[]
     throw new Error(`Ruleset folder not found: ${ruleset}`);
   }
   const files = await listFilesDeep(root);
-  const acc: AutoRule[] = [];
-  for (const f of files) {
-    const data = await loadYaml<any>(f);
-    if (data?.rules && Array.isArray(data.rules)) {
-      for (const r of data.rules) {
-        if ((r?.status || '').toLowerCase() === 'implemented') acc.push(r as AutoRule);
-      }
-    }
-  }
-  return acc;
+  const rules = await loadRuleCatalog(files, (file) => fs.readFile(file, 'utf8'));
+  return getImplementedRules(rules, functionsMap);
 }
 
 function filterByIds<T extends { id?: string }>(items: T[], ids?: string[]) {
@@ -217,15 +194,7 @@ export default async function handler(
             return res.status(400).json({ error: 'Unable to parse Gitea URL. Provide a URL like /:owner/:repo/src/:branch/path/to/file.yaml' });
           }
           try {
-            const fileData: any = await giteaClient.fetchYamlFile(parsed.repo, parsed.path);
-            if (typeof fileData === 'string') {
-              specText = fileData;
-            } else if (fileData && typeof fileData === 'object') {
-              // Client may already parse YAML; convert back to text so line numbers can be calculated downstream
-              specText = yaml.dump(fileData);
-            } else {
-              return res.status(400).json({ error: 'Gitea client returned empty or unsupported content.' });
-            }
+            specText = await giteaClient.fetchRawYamlFile(parsed.repo, parsed.path, parsed.ref);
           } catch (e: any) {
             return res.status(400).json({ error: `Failed to load spec from Gitea: ${e?.message || 'unknown error'}` });
           }
@@ -260,18 +229,6 @@ export default async function handler(
       return res.status(400).json({ error: 'Specification content is empty after reading provided source.' });
     }
 
-    let preparedSpec;
-    try {
-      preparedSpec = await prepareOpenApiDocument(specText);
-    } catch (error: unknown) {
-      const message = error instanceof Error ? error.message : String(error);
-      return res.status(400).json({ error: message });
-    }
-    specText = preparedSpec.content;
-    if (preparedSpec.conversion.converted) {
-      log.debug('spec converted', preparedSpec.conversion);
-    }
-
     // Load all rules, then filter if IDs provided
     let allManual: ManualRule[] = [];
     let allAuto: AutoRule[] = [];
@@ -301,24 +258,29 @@ export default async function handler(
     log.debug('rules selected: ', { manual_selected: manual.length, auto_selected: auto.length });
 
     // Run linter
-    const { diagnostics, specTitle } = await runLinter(specText, auto);
+    const { diagnostics, specTitle } = await runPreparedLinter(specText, auto, loadAllowedAbbreviationsOnServer);
     log.debug('lint done: ', { diagnostics_count: Array.isArray(diagnostics) ? diagnostics.length : 0, specTitle });
-    // Helper to compute line number (1-based) from character offset
-    const computeLine = (text: string, idx: number) => {
-      if (typeof idx !== 'number' || idx < 0) return 'N/A' as const;
-      const clamped = Math.min(Math.max(0, idx), text.length);
-      let line = 1;
-      for (let i = 0; i < clamped; i++) {
-        if (text.charCodeAt(i) === 10 /* \n */) line++;
-      }
-      return line;
-    };
-
     const diagnosticsWithLines = (diagnostics || []).map((d: any) => ({
       ...d,
-      lineNumber: typeof d?.lineNumber === 'number' ? d.lineNumber : computeLine(specText, (d?.from as number) ?? -1),
+      lineNumber: diagnosticLineNumber(specText, d),
       severity: getSeverityLabel(d?.severity),
     }));
+    const validationResult = {
+      diagnostics: diagnosticsWithLines,
+      conversion: { converted: false },
+      rules: {
+        manual,
+        auto,
+        manual_total: allManual.length,
+        auto_total: allAuto.length,
+        manual_selected: manual.length,
+        auto_selected: auto.length,
+      },
+    };
+    const parserError = diagnostics.find((diagnostic) => diagnostic.source === "parser" && diagnostic.severity === "error");
+    if (parserError) {
+      return res.status(400).json({ ...validationResult, error: parserError.message });
+    }
 
     // Export options
     if (exportMode === 'xml') {
@@ -353,7 +315,7 @@ export default async function handler(
       return res.status(200).json({
         success: true,
         launch: payload,
-        conversion: preparedSpec.conversion,
+        conversion: { converted: false },
       });
     }
 
@@ -366,18 +328,7 @@ export default async function handler(
 
     // Default JSON response
     log.debug('response', { mode: 'json', ms: Date.now() - t0, diagnostics: diagnosticsWithLines.length });
-    return res.status(200).json({
-      diagnostics: diagnosticsWithLines,
-      conversion: preparedSpec.conversion,
-      rules: {
-        manual,
-        auto,
-        manual_total: allManual.length,
-        auto_total: allAuto.length,
-        manual_selected: manual.length,
-        auto_selected: auto.length,
-      },
-    });
+    return res.status(200).json(validationResult);
   } catch (error: any) {
     console.error('Validate route error:', error);
     return res.status(500).json({ error: error?.message || 'Unknown error' });

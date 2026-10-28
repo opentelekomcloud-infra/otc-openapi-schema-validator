@@ -1,25 +1,35 @@
 import englishWords from "an-array-of-english-words";
+import { validateAllowedAbbreviations } from "@/lib/abbreviations";
 
 let ALLOWED_ABBREVIATIONS = new Set<string>();
+let abbreviationsLoading: Promise<void> | undefined;
 
 export function getAllowedAbbreviations(): Set<string> {
-  return ALLOWED_ABBREVIATIONS;
+  return new Set(ALLOWED_ABBREVIATIONS);
 }
 
-export async function loadAllowedAbbreviationsFromApi() {
-  try {
-    const res = await fetch("/api/abbreviations");
-    if (!res.ok) {
-      console.error("Failed to fetch abbreviations:", res.status);
-      return;
-    }
-    const data: string[] = await res.json();
-    ALLOWED_ABBREVIATIONS = new Set(
-      data.map((abbr) => abbr.toLowerCase())
-    );
-  } catch (err) {
-    console.error("Failed to fetch abbreviations:", err);
+export function setAllowedAbbreviations(value: unknown): void {
+  ALLOWED_ABBREVIATIONS = new Set(validateAllowedAbbreviations(value));
+}
+
+export function loadAllowedAbbreviationsFromApi(): Promise<void> {
+  if (!abbreviationsLoading) {
+    abbreviationsLoading = (async () => {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(new Error("Timed out loading allowed abbreviations.")), 10_000);
+      try {
+        const res = await fetch("/api/abbreviations", { signal: controller.signal });
+        if (!res.ok) throw new Error(`Failed to fetch abbreviations: HTTP ${res.status}.`);
+        setAllowedAbbreviations(await res.json());
+      } finally {
+        clearTimeout(timeout);
+      }
+    })().catch((error: unknown) => {
+      abbreviationsLoading = undefined;
+      throw error;
+    });
   }
+  return abbreviationsLoading;
 }
 
 // Load full English dictionary from an-array-of-english-words
@@ -56,7 +66,7 @@ export function splitPathIntoTokens(path: string): string[] {
   return tokens;
 }
 
-export function looksLikeAbbreviation(token: string, allowed: Set<string>): boolean {
+export function looksLikeAbbreviation(token: string, allowed: ReadonlySet<string>): boolean {
   if (!token) return false;
   if (!/^[a-z]+$/.test(token)) return false; // only letters
   if (allowed.has(token) || (token.endsWith("s") && allowed.has(token.slice(0, -1)))) return false;
@@ -68,12 +78,12 @@ export function looksLikeAbbreviation(token: string, allowed: Set<string>): bool
   return vowels === 0;
 }
 
-export function looksLikeUnknownWord(token: string): boolean {
+export function looksLikeUnknownWord(token: string, allowed: ReadonlySet<string> = ALLOWED_ABBREVIATIONS): boolean {
   if (!token) return false;
   if (!/^[a-z]+$/.test(token)) return false;
 
   // Accept all valid English words and our domain-known words
-  if (ENGLISH_DICTIONARY.has(token) || ALLOWED_ABBREVIATIONS.has(token)) return false;
+  if (ENGLISH_DICTIONARY.has(token) || allowed.has(token)) return false;
 
   // Ignore very short tokens (like id, x, y)
   if (token.length <= 2) return false;

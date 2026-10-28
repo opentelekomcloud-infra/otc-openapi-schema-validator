@@ -65,9 +65,13 @@ rules:
           request:
             - content.example
             - content.examples
+            - schema.example
           response:
             - content.example
             - content.examples
+            - response.examples
+            - schema.example
+        jsonStringMode: serializedWhenStructured
         responseSelection:
           mode: successOnly
           include:

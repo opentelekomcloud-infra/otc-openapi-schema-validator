@@ -1,21 +1,21 @@
 rules:
   - id: "HDR-020-01-2507-2507-M-1"
     title: "Content-Type Header Requirement for Response"
-    message: "Content-Type must be set to application/json;charset=UTF-8 if the body is present in the response."
+    message: "A response body must declare application/json with UTF-8 encoding; an explicit charset parameter is optional."
     option: Optional
     location: paths
     call:
-      function: checkParamElementPresence
+      function: checkContentType
       functionParams:
         methods:
           - "post"
           - "put"
           - "delete"
-        headers:
-          - name: "Content-Type"
-            valueType: string
-            in: header
-        checkMethodIfSectionExist: requestBody
+        direction: response
+        allowedMediaTypes:
+          - application/json
+        requireUtf8Json: true
+    description: Check native produces or response.content for each response body. Bare application/json is accepted; an explicit JSON charset must be UTF-8. Additional representations are allowed. Response violations inherited from the same global Swagger produces declaration are summarized once per rule at that declaration, listing the affected methods, original paths and statuses. Local overrides remain separate.
     severity: medium
     status: implemented
 
@@ -80,6 +80,6 @@ rules:
           "access-control-request-headers",
           "access-control-request-method",
           "connection"
-        ]
+          ]
     severity: medium
     status: implemented

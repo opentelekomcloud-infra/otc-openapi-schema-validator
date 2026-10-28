@@ -1,6 +1,57 @@
 import { Diagnostic } from "@codemirror/lint";
+import { collectDocumentPathEntries } from "@/lib/openapi/paths";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
+import { sourceMap } from "@/lib/openapi/sourceMap";
+import { appendPointer, isRecord, jsonPointer } from "@/lib/openapi/references";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
+import { matchesMediaType, parseDeclaredMediaType, type DeclaredMediaType } from "@/utils/mediaType";
+import { ruleDiagnostic, ruleOperations, ruleRequest, ruleStrings, type NativeRule } from "@/utils/nativeRule";
+import { responseFor, responseStatuses } from "@/utils/nativeResponse";
+
+export function checkResponseEncapsulation(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
+    if (rule.element !== undefined && typeof rule.element !== "string") {
+        throw new Error("Response body rule.element must be a string.");
+    }
+    if (typeof rule.element === "string" && rule.element !== "responses") {
+        return checkLegacyResponseEncapsulation(spec, content, rule);
+    }
+    const params = rule.call.functionParams ?? {};
+    const allowed = ruleStrings(params.content, "content").map((type) => parseDeclaredMediaType(type, "#"));
+    if (!allowed.length) throw new Error("functionParams.content must not be empty.");
+    const excluded = ruleStrings(params.excludeContent, "excludeContent").map((type) => parseDeclaredMediaType(type, "#"));
+    const headers = ruleStrings(params.headers, "headers");
+    const matches = (types: readonly DeclaredMediaType[], patterns: readonly DeclaredMediaType[]) =>
+        types.some((type) => patterns.some((pattern) => matchesMediaType(type, pattern)));
+    const diagnostics: Diagnostic[] = [];
+    const cache = new Map<string, unknown>();
+    for (const op of ruleOperations(spec, params.methods === undefined ? { ...params, methods: [] } : params)) {
+        if (excluded.length) {
+            const request = ruleRequest(op, spec, cache);
+            if (request.hasBody && matches(request.media.map((entry) =>
+                parseDeclaredMediaType(entry.mediaType, entry.pointer)), excluded)) continue;
+        }
+        for (const status of responseStatuses(op)) {
+            const response = responseFor(op, status, spec, cache);
+            if (!response?.hasBody) continue;
+            const media = response.media.map((entry) => parseDeclaredMediaType(entry.mediaType, entry.pointer));
+            if (matches(media, excluded)) continue;
+            let hasHeaders = true;
+            if (headers.length && response.response.node.headers !== undefined) {
+                const block = response.response.node.headers;
+                if (!isRecord(block)) {
+                    throw new NativeAccessorError("INVALID_DECLARATION",
+                        appendPointer(response.response.resolvedPointer, "headers"), "Expected a headers object");
+                }
+                hasHeaders = !Object.keys(block).length || headers.every((name) => Object.hasOwn(block, name));
+            }
+            if (!matches(media, allowed) || !hasHeaders) {
+                diagnostics.push(ruleDiagnostic(content, rule, response.response.resolvedPointer));
+            }
+        }
+    }
+    return diagnostics;
+}
 
 /**
  * COD-040-01-2507-2507-M
@@ -13,9 +64,8 @@ import { getSource } from "@/functions/common";
  * then at least one of the configured media types must be present
  * (e.g. application/json or application/bson).
  *
- * Additionally, when headers are configured (e.g. Content-Type),
- * the rule ensures that required headers are present in the response
- * and correspond to the supported encapsulation formats.
+ * Explicit legacy header constraints apply only when a non-empty
+ * response headers block is present. Native defaults validate media declarations.
  *
  * Behavior is controlled via `rule.call.functionParams`:
  * - methods: string[]
@@ -30,7 +80,7 @@ import { getSource } from "@/functions/common";
  * The rule traverses:
  * - spec.paths -> path -> method -> responses -> statusCode
  */
-export function checkResponseEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
+function checkLegacyResponseEncapsulation(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
 
     const responsesKey: string = rule.element;
@@ -43,7 +93,7 @@ export function checkResponseEncapsulation(spec: any, content: string, rule: any
 
     if (!spec?.paths || !Array.isArray(methodsToCheck)) return diagnostics;
 
-    for (const pathKey in spec.paths) {
+    for (const [pathKey] of collectDocumentPathEntries(spec)) {
         const pathItem = spec.paths[pathKey];
         for (const method in pathItem) {
             if (!pathItem || typeof pathItem !== "object") continue;
@@ -94,22 +144,7 @@ export function checkResponseEncapsulation(spec: any, content: string, rule: any
                 const hasValidHeader = Object.keys(headersBlock).length === 0 || headersKeys.every((header: PropertyKey) => Object.hasOwn(headersBlock, header));
 
                 if (!hasValidContentType || (headersKeys.length > 0 && Object.keys(headersBlock).length > 0 && !hasValidHeader)) {
-                    // Prefer YAML-anchored searches to avoid matching path/method text in other places.
-                    const pathAnchor = `  ${pathKey}:`;
-                    const pathStart = content.indexOf(pathAnchor);
-                    if (pathStart < 0) continue;
-
-                    const methodAnchor = `    ${method}:`;
-                    const methodBlockStart = content.indexOf(methodAnchor, pathStart);
-                    if (methodBlockStart < 0) continue;
-
-                    const responsesAnchor = `      ${responsesKey}:`;
-                    const responsesKeyIndex = content.indexOf(responsesAnchor, methodBlockStart);
-                    if (responsesKeyIndex < 0) continue;
-
-                    const range = findStatusCodeRange(content, responsesKeyIndex, String(statusCode));
-                    const from = range?.from ?? responsesKeyIndex;
-                    const to = range?.to ?? (responsesKeyIndex + responsesAnchor.length);
+                    const { from, to } = sourceMap(content).locate(jsonPointer(["paths", pathKey, method, responsesKey, statusCode]));
 
                     diagnostics.push({
                       from,
@@ -124,25 +159,4 @@ export function checkResponseEncapsulation(spec: any, content: string, rule: any
     }
 
     return diagnostics;
-}
-
-function escapeRegExp(str: string): string {
-  return str.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
-
-function findStatusCodeRange(content: string, responsesKeyIndex: number, statusCode: string): { from: number; to: number } | null {
-  if (responsesKeyIndex < 0) return null;
-  const slice = content.slice(responsesKeyIndex);
-  // Match both quoted and unquoted YAML keys: "200": or 202:
-  const re = new RegExp(`^([\\t ]*)(["']?)(${escapeRegExp(statusCode)})\\2\\s*:`, "m");
-  const m = re.exec(slice);
-  if (!m) return null;
-
-  const indentLen = m[1].length;
-  const quote = m[2] ?? "";
-  const codeLen = (m[3] ?? "").length;
-
-  const from = responsesKeyIndex + m.index + indentLen;
-  const to = from + quote.length + codeLen + quote.length;
-  return { from, to };
 }

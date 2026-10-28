@@ -1,155 +1,169 @@
-import { FoundExample, RuleConfig } from "@/types/example";
+import type { FoundExample, NativeExample, RuleConfig } from "@/types/example";
+import type { NativeParameterSchema } from "@/types/openapi";
+import { NativeExampleError } from "@/lib/openapi/exampleError";
+import { collectEffectiveParameterNodes, getParameterSchema } from "@/lib/openapi/parameters";
+import { hasOwnField } from "@/lib/openapi/media";
+import { appendPointer, isRecord } from "@/lib/openapi/references";
 import {
-  collectExamplePaths,
-  collectRequiredSchemaPaths,
-  collectSchemaPaths,
-  getRequestBodySchema,
-  getResponseSchemaByStatus
-} from "@/utils/schema";
-import { matchesAnySchemaPath, matchesRequiredPath } from "@/utils/textMatch";
-import { collectOperationParameters, isPlainObject } from "@/utils/spec";
+  assertJsonExample, examplePath, expectsStructuredExample, validateExampleValue, type ExampleIssue,
+} from "@/lib/openapi/validateExample";
+import { getRequestBodySchema, getResponseSchemaByStatus } from "@/utils/schema";
 
-/**
- * Validates request examples against the configured request contract.
- *
- * Depending on the effective rule configuration, this validation may compare
- * request examples against:
- * - selected operation parameters (for example query/path parameters for GET),
- * - the requestBody schema,
- * - required request body fields.
- *
- * Checks performed:
- * - required operation parameters are present in parameter-style examples
- * - required request body fields are present in body-style examples
- * - no undefined fields appear in the example when strict validation is enabled
- *
- * @param operation OpenAPI operation object.
- * @param pathItem Parent path item object that may also define shared parameters.
- * @param examples Extracted request examples.
- * @param spec Full OpenAPI specification.
- * @param refCache Cache used for `$ref` resolution.
- * @param cfg Effective request validation configuration for the current method.
- * @returns List of validation problem messages.
- */
-export function validateRequestExamples(
-  operation: any,
-  pathItem: any,
-  examples: FoundExample[],
-  spec: any,
-  refCache: Map<string, any>,
-  cfg: any
-): string[] {
-  const problems: string[] = [];
+function native(example: FoundExample): example is NativeExample {
+  return "scope" in example && (example.scope === "payload" || example.scope === "property");
+}
 
-  const allowedParamDefs = collectOperationParameters(pathItem, operation, spec, refCache, cfg?.includeOperationParameters ?? {});
-  const allowedParamNames = new Set(allowedParamDefs.map((p) => p.name));
-  const requiredParamNames = new Set(allowedParamDefs.filter((p) => p.required).map((p) => p.name));
-
-  const requestBodySchema = cfg?.includeRequestBodySchema ? getRequestBodySchema(operation, spec, refCache) : null;
-  const allowedBodyPaths = requestBodySchema ? collectSchemaPaths(requestBodySchema, spec, refCache) : new Set<string>();
-  const requiredBodyPaths = cfg?.requireRequiredBodyFields && requestBodySchema
-    ? collectRequiredSchemaPaths(requestBodySchema, spec, refCache)
-    : new Set<string>();
-
-  for (const example of examples) {
-    const value = example.value;
-
-    // Parameter-style request example (GET query/path)
-    if (allowedParamNames.size > 0 && isPlainObject(value)) {
-      const exampleKeys = Object.keys(value);
-
-      for (const reqName of requiredParamNames) {
-        if (!Object.prototype.hasOwnProperty.call(value, reqName)) {
-          problems.push(`Request example is missing required operation parameter '${reqName}'.`);
-        }
+function decoded(
+  example: FoundExample, schema: NativeParameterSchema | undefined, spec: unknown,
+  cache: Map<string, unknown>, config: RuleConfig,
+): { value: unknown; problem?: never } | { problem: string; value?: never } {
+  const pointer = native(example) ? example.pointer : example.source;
+  const mode = config.jsonStringMode ?? "value";
+  if (!["value", "serializedWhenStructured"].includes(mode)) throw new NativeExampleError(pointer, "Unsupported jsonStringMode");
+  let value = example.value;
+  if (mode === "serializedWhenStructured" && typeof value === "string" && expectsStructuredExample(schema, spec, cache)) {
+    const media = native(example) ? example.mediaType?.split(";")[0].trim().toLowerCase() : undefined;
+    const format = media ? config.formatValidation?.[media] : undefined;
+    if (format !== undefined && format !== "json") throw new NativeExampleError(pointer, "Unsupported example format validator");
+    const json = format === "json" || media === "application/json" || media?.endsWith("+json");
+    if (json) {
+      try {
+        value = JSON.parse(value);
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+        return { problem: `Example contains malformed JSON at ${pointer}.` };
       }
-
-      if (cfg?.forbidUndefinedFields) {
-        for (const key of exampleKeys) {
-          if (!allowedParamNames.has(key) && !(requestBodySchema && matchesAnySchemaPath(key, allowedBodyPaths))) {
-            problems.push(`Request example contains undefined parameter/field '${key}'.`);
-          }
-        }
-      }
-    }
-
-    // Body-style request example
-    if (requestBodySchema) {
-      const examplePaths = collectExamplePaths(value);
-
-      for (const reqPath of requiredBodyPaths) {
-        if (!matchesRequiredPath(reqPath, examplePaths)) {
-          problems.push(`Request example is missing required body field '${reqPath}'.`);
-        }
-      }
-
-      if (cfg?.forbidUndefinedFields) {
-        for (const exPath of examplePaths) {
-          if (!matchesAnySchemaPath(exPath, allowedBodyPaths)) {
-            problems.push(`Request example contains field '${exPath}' that is not defined in the request schema.`);
-          }
-        }
-      }
+    } else {
+      return { problem: `Encoded structured example cannot be checked without a supported JSON media type at ${pointer}.` };
     }
   }
+  assertJsonExample(value, pointer);
+  return { value };
+}
 
+function context(message: string, example: FoundExample): string {
+  return native(example) ? `${message} Example: ${example.pointer}${example.mediaType ? ` (${example.mediaType})` : ""}.` : message;
+}
+
+function issueMessage(issue: ExampleIssue, example: FoundExample, response?: string): string {
+  const path = examplePath(issue.path);
+  const prefix = response === undefined ? "Request example" : `Response example for status '${response}'`;
+  let message: string;
+  if (issue.code === "required") {
+    message = response === undefined ? `${prefix} is missing required body field '${path}'.`
+      : `${prefix} is missing required field '${path}'.`;
+  } else if (issue.code === "undefined") {
+    message = `${prefix} contains field '${path}' that is not defined in the ${response === undefined ? "request" : "response"} schema.`;
+  } else {
+    message = `${prefix} has an incompatible value at '${path}': ${issue.detail}`;
+  }
+  if (native(example) && example.scope === "property") message = `Property example: ${message}`;
+  return context(message, example);
+}
+
+export function validateRequestExamples(
+  operation: unknown, pathItem: unknown, examples: readonly FoundExample[], spec: unknown,
+  refCache: Map<string, unknown>, cfg: RuleConfig["requestValidation"], config: RuleConfig = {},
+  locations?: Map<string, string>,
+): string[] {
+  const problems: string[] = [];
+  const parameterLocations = new Set(Object.entries(cfg?.includeOperationParameters ?? {}).filter(([, enabled]) => enabled).map(([location]) => location));
+  const params = parameterLocations.size ? collectEffectiveParameterNodes(pathItem, operation, spec, refCache)
+    .filter(({ parameter }) => parameterLocations.has(String(parameter.in))) : [];
+  const names = new Set(params.map(({ parameter }) => String(parameter.name)));
+  const legacySchema = cfg?.includeRequestBodySchema && examples.some((entry) => !native(entry))
+    ? getRequestBodySchema(operation, spec, refCache, undefined, pathItem) : null;
+  for (const example of examples) {
+    const add = (message: string, path: readonly (string | number)[] = []) => {
+      problems.push(message);
+      if (native(example)) locations?.set(message, appendPointer(example.pointer, ...path));
+    };
+    const property = native(example) && example.scope === "property";
+    if (property && !cfg?.includeRequestBodySchema) continue;
+    if (!cfg?.includeRequestBodySchema && !params.length) continue;
+    const schema = native(example) ? example.schema : legacySchema ? { node: legacySchema, pointer: "#" } : undefined;
+    const result = decoded(example, schema, spec, refCache, config);
+    if (result.problem !== undefined) {
+      add(result.problem);
+      continue;
+    }
+    const value = result.value;
+    if (!property && params.length) {
+      if (!isRecord(value)) {
+        add(context("Request example must be an object to check operation parameters.", example));
+      } else {
+        for (const param of params) {
+          const name = String(param.parameter.name);
+          if (!hasOwnField(value, name)) {
+            if (param.parameter.required === true) add(context(`Request example is missing required operation parameter '${name}'.`, example), [name]);
+            continue;
+          }
+          const parameterSchema = getParameterSchema(param.parameter, spec, refCache, param.resolvedPointer);
+          if (!parameterSchema) {
+            add(context(`Request example cannot be checked: operation parameter '${name}' has no schema.`, example), [name]);
+            continue;
+          }
+          for (const issue of validateExampleValue(value[name], parameterSchema, spec, refCache, {
+            direction: "request", checkTypes: true, checkRequired: true, forbidUndefined: cfg?.forbidUndefinedFields === true,
+          })) {
+            add(issueMessage({ ...issue, path: [name, ...issue.path] }, example), [name, ...issue.path]);
+          }
+        }
+        if (cfg?.forbidUndefinedFields && !cfg.includeRequestBodySchema) {
+          for (const name of Object.keys(value)) {
+            if (!names.has(name)) add(context(`Request example contains undefined parameter/field '${name}'.`, example), [name]);
+          }
+        }
+      }
+    }
+    if (!cfg?.includeRequestBodySchema) continue;
+    if (!schema) {
+      add(context("Request example cannot be checked because its media has no request schema.", example));
+      continue;
+    }
+    for (const issue of validateExampleValue(value, schema, spec, refCache, {
+      direction: "request", checkTypes: true, checkRequired: cfg.requireRequiredBodyFields !== false,
+      forbidUndefined: cfg.forbidUndefinedFields === true, allowedRootProperties: property ? undefined : names,
+    })) add(issueMessage(issue, example), issue.path);
+  }
   return problems;
 }
 
-/**
- * Validates response examples against the configured response schema.
- *
- * For each selected response code, the function resolves the corresponding
- * response schema and checks that example fields are defined by that schema.
- *
- * Checks performed:
- * - response example fields must exist in the response schema
- * - validation can be disabled or relaxed via `fp.responseValidation`
- *
- * @param operation OpenAPI operation object.
- * @param examples Extracted response examples paired with their status codes.
- * @param responseCodes Response codes selected for validation.
- * @param spec Full OpenAPI specification.
- * @param refCache Cache used for `$ref` resolution.
- * @param fp Rule function parameters/configuration.
- * @returns List of validation problem messages.
- */
 export function validateResponseExamples(
-  operation: any,
-  examples: Array<FoundExample & { statusCode: string }>,
-  responseCodes: string[],
-  spec: any,
-  refCache: Map<string, any>,
-  fp: RuleConfig
+  operation: unknown, examples: readonly (FoundExample & { statusCode?: string })[], responseCodes: readonly string[],
+  spec: unknown, refCache: Map<string, unknown>, config: RuleConfig, locations?: Map<string, string>,
 ): string[] {
+  const validation = config.responseValidation ?? {};
+  if (validation.validateAgainstResponseSchema === false && validation.forbidUndefinedFields === false) return [];
   const problems: string[] = [];
-  const responseValidation = fp.responseValidation ?? {};
-
-  if (responseValidation.validateAgainstResponseSchema === false && responseValidation.forbidUndefinedFields === false) {
-    return problems;
-  }
-
-  const schemaCache = new Map<string, any>();
-  for (const statusCode of responseCodes) {
-    const schema = getResponseSchemaByStatus(operation, statusCode, spec, refCache);
-    if (schema) schemaCache.set(statusCode, schema);
-  }
-
-  for (const example of examples) {
-    const schema = schemaCache.get(example.statusCode);
-    if (!schema) continue;
-
-    if (responseValidation.forbidUndefinedFields !== false) {
-      const allowedPaths = collectSchemaPaths(schema, spec, refCache);
-      const examplePaths = collectExamplePaths(example.value);
-
-      for (const exPath of examplePaths) {
-        if (!matchesAnySchemaPath(exPath, allowedPaths)) {
-          problems.push(`Response example for status '${example.statusCode}' contains field '${exPath}' that is not defined in the response schema.`);
-        }
-      }
+  const legacy = new Map<string, NativeParameterSchema>();
+  if (examples.some((entry) => !native(entry))) {
+    for (const status of responseCodes) {
+      const node = getResponseSchemaByStatus(operation, status, spec, refCache);
+      if (node) legacy.set(status, { node, pointer: "#" });
     }
   }
-
+  for (const example of examples) {
+    const add = (message: string, path: readonly (string | number)[] = []) => {
+      problems.push(message);
+      if (native(example)) locations?.set(message, appendPointer(example.pointer, ...path));
+    };
+    const status = example.statusCode;
+    if (status === undefined) throw new NativeExampleError(example.source, "Response example has no status");
+    const schema = native(example) ? example.schema : legacy.get(status);
+    if (!schema) {
+      add(context(`Response example for status '${status}' cannot be checked because its media has no response schema.`, example));
+      continue;
+    }
+    const result = decoded(example, schema, spec, refCache, config);
+    if (result.problem !== undefined) {
+      add(result.problem);
+      continue;
+    }
+    for (const issue of validateExampleValue(result.value, schema, spec, refCache, {
+      direction: "response", checkTypes: validation.validateAgainstResponseSchema !== false,
+      checkRequired: validation.validateAgainstResponseSchema !== false, forbidUndefined: validation.forbidUndefinedFields !== false,
+    })) add(issueMessage(issue, example, status), issue.path);
+  }
   return problems;
 }

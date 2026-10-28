@@ -2,7 +2,7 @@ rules:
   - id: "ARG-010-01-2507-2509-M"
     title: "Request and Response Parameter Naming Convention"
     message: "Request and response parameters must use snake_case with lowercase letters, and tokens should be valid English words or approved abbreviations."
-    description: "Enforces snake_case naming for request parameters and request/response body fields. Token validation may use the English dictionary and approved abbreviations loaded from the abbreviations API."
+    description: "Check effective native parameters and actual request/response schema property names, including Swagger body/formData and local reusable requestBody/schema references. Body container names and HTTP headers are excluded. Preserve naming/token policies and exact JSON then first-media selection; UI and API initialize the same shared abbreviation dictionary before validation."
     option: Mandatory
     location: paths
     element:
@@ -26,7 +26,7 @@ rules:
   - id: "ARG-040-01-2507-2507-O"
     title: "project_id Path Parameter Scope Consistency"
     message: "The project_id path parameter must be optional only for APIs marked as global services."
-    description: "Ensures that project_id usage is consistent with the scope indicated by operation tags. Regional APIs are expected to require project_id, while global APIs may keep it optional."
+    description: "Check the effective project_id declaration after operation-level parameter overrides and local references. Preserve configured regional/global requirements and missing/conflicting scope-tag policies in both Swagger 2 and OpenAPI 3."
     option: Optional
     location: operations
     element: parameters
@@ -48,7 +48,7 @@ rules:
   - id: "ARG-050-01-2507-2507-O"
     title: "Reserved and Redundant Parameter Design"
     message: "Parameters must not expose undocumented reserved fields or duplicate semantics without explicit documentation."
-    description: "Checks that reserved or currently unused parameters are explicitly marked and documented, and that duplicate semantics are not introduced inside the same parameter/body/response container without justification."
+    description: "Check native effective parameters and top-level request/response fields, including Swagger body/formData and local reusable bodies. Preserve reserved markers, descriptions, scope grouping and similarity thresholds. Operation overrides are not duplicates; repeated names within one parameter list still fail."
     option: Optional
     location: paths
     element:
@@ -71,7 +71,7 @@ rules:
   - id: "ARG-060-01-2507-2507-O"
     title: "Root Body Parameter Should Match Resource Type"
     message: "The root body parameter name should match the resource type, using singular form for single resources and plural form for collections."
-    description: "Checks that the top-level request and response body node matches the resource type derived from the path. Collection responses should use plural resource names, while single-resource request/response bodies should use singular names."
+    description: "Check native Swagger body/formData and response.schema or OpenAPI content schemas, including local references. Preserve top-level singular/plural heuristics, method/2xx scopes, wrappers, English-word safety and exact JSON then first-media selection; initialize the same abbreviation dictionary in UI and API without adding allOf inference."
     option: Optional
     location: paths
     element:

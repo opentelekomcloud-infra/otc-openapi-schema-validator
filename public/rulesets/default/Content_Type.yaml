@@ -1,21 +1,21 @@
 rules:
   - id: "COD-020-01-2507-2507-M"
     title: "Content-Type: Default Media Type"
-    message: "If the request or response body is present, the default media type must be application/json or application/bson."
+    message: "Each request or response body must declare at least one application/json or application/bson media type."
     option: Mandatory
     location: paths
     call:
-      function: checkParamElementPresence
+      function: checkContentType
       functionParams:
         methods:
           - "post"
           - "put"
           - "delete"
-        headers:
-          - name: "Content-Type"
-            valueType: string
-            in: header
-        checkMethodIfSectionExist: requestBody
+        direction: both
+        allowedMediaTypes:
+          - application/json
+          - application/bson
+    description: Check native consumes, produces and content declarations. Additional representations are allowed; their order does not define a default. Response violations inherited from the same global Swagger produces declaration are summarized once per rule at that declaration, listing the affected methods, original paths and statuses. Local overrides and request violations remain separate.
     severity: high
     status: implemented
 
@@ -27,6 +27,7 @@ rules:
     call:
       function: checkParamElementAbsence
       functionParams:
+        whenRequestBodyAbsent: true
         methods:
           - "get"
         headers:

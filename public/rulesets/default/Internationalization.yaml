@@ -20,6 +20,6 @@ rules:
           - "en"
         forbiddenLanguages:
           - "zh"
-    description: This rule check specification on allowed languages.
+    description: This rule checks configured text fields in info, tags and native reusable components for forbidden language characters.
     status: implemented
     severity: critical

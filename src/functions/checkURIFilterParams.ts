@@ -2,67 +2,24 @@ import { Diagnostic } from "@codemirror/lint";
 import { getSource } from "@/functions/common";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodParametersPositionInYaml } from "@/utils/pos";
-import { resolveRefDeep, schemaHasPropertyDeep } from "@/utils/schema";
+import { schemaHasPropertyDeep } from "@/utils/schema";
+import type { NativeOperation } from "@/types/openapi";
+import { selectPayloadSchema } from "@/lib/openapi/payloads";
+import { responseFor } from "@/utils/nativeResponse";
+import { ruleOperations, ruleParameterNodes } from "@/utils/nativeRule";
 
 /**
- * Extracts a response schema for code 200 from an operation.
- * Supports both numeric and string status keys (200 / "200") and `$ref` responses.
- */
-function getResponseSchema(operation: any, spec: any, refCache: Map<string, any>): any | null {
-  const responses = operation?.responses;
-  if (!responses || typeof responses !== "object") return null;
-
-  const respRaw = (responses as any)["200"] ?? (responses as any)[200];
-  if (!respRaw) return null;
-
-  const resp = resolveRefDeep(respRaw, refCache, spec);
-  return extractResponseSchemaFromResponseObject(resp, spec, refCache);
-}
-
-/**
- * Extracts the schema object from an OpenAPI Response object.
- * Prefers `content[*].schema`, falling back to `schema` (OAS2-style).
- */
-function extractResponseSchemaFromResponseObject(responseObj: any, spec: any, refCache: Map<string, any>): any | null {
-  if (!responseObj || typeof responseObj !== "object") return null;
-
-  const contentObj = (responseObj as any).content;
-  if (contentObj && typeof contentObj === "object") {
-    const mediaTypes = Object.keys(contentObj);
-    if (mediaTypes.length === 0) return null;
-
-    const preferred =
-      (contentObj as any)["application/json"] ??
-      (contentObj as any)["application/problem+json"] ??
-      (contentObj as any)[mediaTypes[0]];
-
-    const schema = preferred?.schema;
-    if (!schema) return null;
-    return resolveRefDeep(schema, refCache, spec);
-  }
-
-  // Some specs still place schema directly under the response.
-  const schemaDirect = (responseObj as any).schema;
-  if (schemaDirect) return resolveRefDeep(schemaDirect, refCache, spec);
-
-  return null;
-}
-
-/**
- * Collects `in: path` parameter names (case-sensitive as authored, compared case-sensitively).
+ * Collects effective path parameter names as authored; schema lookup retains its case-insensitive fallback.
  * `$ref` parameters are resolved.
  */
-function collectPathParamNames(allParams: any[], spec: any, refCache: Map<string, any>): string[] {
+function collectPathParamNames(op: NativeOperation, spec: any, refCache: Map<string, any>): string[] {
   const names: string[] = [];
 
-  for (const p of allParams) {
-    const param = resolveRefDeep(p, refCache, spec);
-    if (!param || typeof param !== "object") continue;
-
-    const inVal = String((param as any).in ?? "").toLowerCase();
+  for (const { parameter: param } of ruleParameterNodes(op, spec, refCache)) {
+    const inVal = String(param.in ?? "").toLowerCase();
     if (inVal !== "path") continue;
 
-    const name = String((param as any).name ?? "");
+    const name = String(param.name ?? "");
     if (!name) continue;
 
     names.push(name);
@@ -98,48 +55,24 @@ export function checkURIFilterParams(spec: any, content: string, rule: any): Dia
     ? fp.methods.map((m: any) => String(m).toLowerCase())
     : ["get"];
 
-  for (const path in spec.paths) {
-    const pathItem = spec.paths[path];
-    if (!pathItem || typeof pathItem !== "object") continue;
-
-    const methodKeys = methodsToCheck.length > 0
-      ? methodsToCheck
-      : Object.keys(pathItem).map((m) => String(m).toLowerCase());
-
-    for (const method of methodKeys) {
-      const operation = (pathItem as any)[method];
-      if (!operation || typeof operation !== "object") continue;
-
-      const opParams = Array.isArray(operation.parameters) ? operation.parameters : [];
-      const pathParams = Array.isArray((pathItem as any).parameters) ? (pathItem as any).parameters : [];
-      const allParams = [...pathParams, ...opParams];
-
-      const pathParamNames = collectPathParamNames(allParams, spec, refCache);
-      if (pathParamNames.length === 0) continue;
-
-      const schemaResp = getResponseSchema(operation, spec, refCache);
-      if (!schemaResp) {
-        // No schema to check against; do not emit a diagnostic.
-        continue;
-      }
-
-      const missing: string[] = [];
-      for (const pName of pathParamNames) {
-        const ok = schemaHasPropertyDeep(schemaResp, pName, spec, refCache, new Set<any>());
-        if (!ok) missing.push(pName);
-      }
-
-      if (missing.length === 0) continue;
-
-      const { start, end } = findMethodParametersPositionInYaml(content, path, method);
-      diagnostics.push({
-        from: start,
-        to: end,
-        severity: mapSeverity(rule.severity),
-        message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message}. Missing in response schema: ${missing.join(", ")}.`,
-        source: getSource(rule),
-      });
-    }
+  for (const op of ruleOperations(spec, methodsToCheck.length ? { methods: methodsToCheck } : {})) {
+    const { path, method } = op;
+    const pathParamNames = collectPathParamNames(op, spec, refCache);
+    if (pathParamNames.length === 0) continue;
+    const schemaResp = selectPayloadSchema(responseFor(op, "200", spec, refCache),
+      ["application/json", "application/problem+json"], spec, refCache);
+    if (!schemaResp) continue;
+    const missing = pathParamNames.filter((name) =>
+      !schemaHasPropertyDeep(schemaResp.node, name, spec, refCache, new Set<object>()));
+    if (missing.length === 0) continue;
+    const { start, end } = findMethodParametersPositionInYaml(content, path, method);
+    diagnostics.push({
+      from: start,
+      to: end,
+      severity: mapSeverity(rule.severity),
+      message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message}. Missing in response schema: ${missing.join(", ")}.`,
+      source: getSource(rule),
+    });
   }
 
   return diagnostics;

@@ -5,13 +5,11 @@ rules:
     option: Mandatory
     location: info
     element: version
-    call: {
-      function: checkVersionConvention,
-      functionParams: {
-        "mode": "presenceAndPrefix",
-        "versionPattern": "^v.+$"
-      }
-    }
+    call:
+      function: checkVersionConvention
+      functionParams:
+        mode: presenceAndPrefix
+        versionPattern: "^v.+$"
     severity: "critical"
     status: implemented
 
@@ -21,13 +19,11 @@ rules:
     option: Mandatory
     location: info
     element: version
-    call: {
-      function: checkVersionConvention,
-      functionParams: {
-        "mode": "formatCompliance",
-        "versionPattern": "^v[0-9]+(\\.[0-9]+)?(\\.[0-9]+)?$"
-      }
-    }
+    call:
+      function: checkVersionConvention
+      functionParams:
+        mode: formatCompliance
+        versionPattern: "^v[0-9]+(\\.[0-9]+)?(\\.[0-9]+)?$"
     severity: "critical"
     status: implemented
 
@@ -37,13 +33,11 @@ rules:
     option: Mandatory
     location: info
     element: version
-    call: {
-      function: checkVersionConvention,
-      functionParams: {
-        "mode": "maxSegments",
-        "maxVersions": 4
-      }
-    }
+    call:
+      function: checkVersionConvention
+      functionParams:
+        mode: maxSegments
+        maxVersions: 4
     severity: "high"
     status: implemented
 
@@ -53,13 +47,11 @@ rules:
     option: Mandatory
     location: info
     element: version
-    call: {
-      function: checkVersionConvention,
-      functionParams: {
-        "mode": "normalization",
-        "deprecatedPattern": "^v[0-9]+(\\.[0-9]+){1,2}$"
-      }
-    }
+    call:
+      function: checkVersionConvention
+      functionParams:
+        mode: normalization
+        deprecatedPattern: "^v[0-9]+(\\.[0-9]+){1,2}$"
     severity: "medium"
     status: implemented
 
@@ -69,11 +61,9 @@ rules:
     option: Mandatory
     location: info
     element: version
-    call: {
-      function: checkIncompatibleChangeVersioning,
-      functionParams: {
-        "versionPattern": "^v[0-9]+$"
-      }
-    }
+    call:
+      function: checkIncompatibleChangeVersioning
+      functionParams:
+        versionPattern: "^v[0-9]+$"
     severity: "high"
     status: implemented

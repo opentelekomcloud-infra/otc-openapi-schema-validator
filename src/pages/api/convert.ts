@@ -1,6 +1,5 @@
 import type { NextApiRequest, NextApiResponse } from "next";
 import { requireApiAuth } from "@/lib/apiAuth";
-import { prepareOpenApiDocument } from "@/lib/openapi/prepareOpenApiDocument";
 
 export const config = {
   api: {
@@ -20,16 +19,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     return res.status(405).json({ error: "Method not allowed" });
   }
 
-  const content = req.body?.file_content;
-  if (typeof content !== "string" || content.trim() === "") {
-    return res.status(400).json({ error: 'Provide non-empty "file_content".' });
-  }
-
-  try {
-    const prepared = await prepareOpenApiDocument(content);
-    return res.status(200).json(prepared);
-  } catch (error: unknown) {
-    const message = error instanceof Error ? error.message : String(error);
-    return res.status(400).json({ error: message });
-  }
+  return res.status(410).json({
+    error: "Automatic conversion is no longer available. Submit the original Swagger 2.0 or OpenAPI 3.0.x specification to /api/validate.",
+  });
 }

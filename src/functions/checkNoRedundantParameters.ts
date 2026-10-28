@@ -2,9 +2,14 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { getSource } from "@/functions/common";
 import { findMethodPositionInYaml } from "@/utils/pos";
-import { resolveRefDeep } from "@/utils/schema";
 import { dedupeDiagnostics } from "@/utils/diagnostic";
-import {collectOperations} from "@/utils/spec";
+import type { NativeOperation } from "@/types/openapi";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
+import { isSwagger2Root } from "@/lib/openapi/media";
+import { resolveObjectReference, type ReferenceCache } from "@/lib/openapi/references";
+import { declaredParameterGroups, namingSchemas, rootSchemaFields } from "@/utils/nativeNaming";
+import { responseFor, responseStatuses } from "@/utils/nativeResponse";
+import { ruleOperations, ruleParameterNodes, ruleRequest } from "@/utils/nativeRule";
 
 type RedundancyConfig = {
     checkReservedMarkerForUnused?: boolean;
@@ -61,98 +66,56 @@ function looksUnused(name: string, description: string): boolean {
     return ["reserved", "future", "unused", "not used", "for future use", "placeholder"].some((t) => combined.includes(t));
 }
 
-/**
- * Collects path-item and operation-level parameters.
- */
-function collectParameterDescriptors(pathItem: any, operation: any, spec: any, cfg: RedundancyConfig): FieldDescriptor[] {
-    const descriptors: FieldDescriptor[] = [];
+function parameterField(param: Record<string, unknown>, spec: unknown, cfg: RedundancyConfig): FieldDescriptor | undefined {
+    if (isSwagger2Root(spec) && param.in === "body") return undefined;
     const reservedFieldName = String(cfg.reservedFieldName ?? "x-reserved");
-    const allParams = [
-        ...(Array.isArray(pathItem?.parameters) ? pathItem.parameters : []),
-        ...(Array.isArray(operation?.parameters) ? operation.parameters : []),
-    ];
+    const form = isSwagger2Root(spec) && param.in === "formData";
+    return {
+        name: String(param.name ?? "").trim(),
+        description: String(param.description ?? "").trim(),
+        reserved: Boolean(param[reservedFieldName]),
+        container: form ? "requestBody" : "parameters",
+        scope: form ? undefined : String(param.in ?? "").trim().toLowerCase(),
+    };
+}
 
-    for (const rawParam of allParams) {
-        const param = resolveRefDeep(rawParam, new Map<string, any>(), spec);
-        if (!param || typeof param !== "object") continue;
-
-        const name = String((param as any).name ?? "").trim();
-        const description = String((param as any).description ?? "").trim();
-        const scope = String((param as any).in ?? "").trim().toLowerCase();
-        if (!name || !scope) continue;
-
-        descriptors.push({
-            name,
-            description,
-            reserved: Boolean((param as any)[reservedFieldName]),
-            container: "parameters",
-            scope,
-        });
-    }
-
-    return descriptors;
+function propertyFields(
+    fields: ReturnType<typeof rootSchemaFields>, container: string, spec: unknown, cfg: RedundancyConfig, cache: ReferenceCache,
+): FieldDescriptor[] {
+    const reservedFieldName = String(cfg.reservedFieldName ?? "x-reserved");
+    return fields.map((field) => {
+        const resolved = resolveObjectReference(field.node, spec, cache, field.pointer);
+        if (!resolved) throw new NativeAccessorError("INVALID_SCHEMA", field.pointer, "Expected a property schema");
+        return {
+            name: field.name, description: String(resolved.value.description ?? "").trim(),
+            reserved: Boolean(resolved.value[reservedFieldName]), container,
+        };
+    });
 }
 
 /**
  * Collects only top-level request body properties from the resolved schema.
  */
-function collectRequestBodyDescriptors(operation: any, spec: any, cfg: RedundancyConfig): FieldDescriptor[] {
-    const descriptors: FieldDescriptor[] = [];
-    const reservedFieldName = String(cfg.reservedFieldName ?? "x-reserved");
-    const contentObj = operation?.requestBody?.content;
-    if (!contentObj || typeof contentObj !== "object") return descriptors;
-
-    const firstMediaType = Object.keys(contentObj)[0];
-    const schema = resolveRefDeep(contentObj?.["application/json"]?.schema, new Map<string, any>(), spec)
-        ?? resolveRefDeep(contentObj?.[firstMediaType]?.schema, new Map<string, any>(), spec);
-    const props = schema?.properties;
-    if (!props || typeof props !== "object") return descriptors;
-
-    for (const [name, rawField] of Object.entries(props)) {
-        const field = resolveRefDeep(rawField, new Map<string, any>(), spec);
-        if (!field || typeof field !== "object") continue;
-
-        descriptors.push({
-            name: String(name),
-            description: String((field as any).description ?? "").trim(),
-            reserved: Boolean((field as any)[reservedFieldName]),
-            container: "requestBody",
+function collectRequestBodyDescriptors(op: NativeOperation, spec: unknown, cfg: RedundancyConfig, cache: ReferenceCache): FieldDescriptor[] {
+    const payload = ruleRequest(op, spec, cache);
+    if (payload.kind === "formData") {
+        return payload.fields.flatMap(({ parameter }) => {
+            const field = parameterField(parameter, spec, cfg);
+            return field ? [field] : [];
         });
     }
-
-    return descriptors;
+    return namingSchemas(payload, spec, cache).flatMap((schema) =>
+        propertyFields(rootSchemaFields(schema, spec, cache), "requestBody", spec, cfg, cache));
 }
 
 /**
  * Collects only top-level response properties from resolved response schemas.
  */
-function collectResponseDescriptors(operation: any, spec: any, cfg: RedundancyConfig): FieldDescriptor[] {
+function collectResponseDescriptors(op: NativeOperation, spec: unknown, cfg: RedundancyConfig, cache: ReferenceCache): FieldDescriptor[] {
     const descriptors: FieldDescriptor[] = [];
-    const reservedFieldName = String(cfg.reservedFieldName ?? "x-reserved");
-    const responses = operation?.responses;
-    if (!responses || typeof responses !== "object") return descriptors;
-
-    for (const code of Object.keys(responses)) {
-        const response = resolveRefDeep(responses[code], new Map<string, any>(), spec);
-        const contentObj = response?.content;
-        if (!contentObj || typeof contentObj !== "object") continue;
-
-        const firstMediaType = Object.keys(contentObj)[0];
-        const schema = resolveRefDeep(contentObj?.["application/json"]?.schema, new Map<string, any>(), spec)
-            ?? resolveRefDeep(contentObj?.[firstMediaType]?.schema, new Map<string, any>(), spec);
-        const props = schema?.properties;
-        if (!props || typeof props !== "object") continue;
-
-        for (const [name, rawField] of Object.entries(props)) {
-            const field = resolveRefDeep(rawField, new Map<string, any>(), spec);
-            if (!field || typeof field !== "object") continue;
-
-            descriptors.push({
-                name: String(name),
-                description: String((field as any).description ?? "").trim(),
-                reserved: Boolean((field as any)[reservedFieldName]),
-                container: `responses:${code}`,
-            });
+    for (const code of responseStatuses(op)) {
+        for (const schema of namingSchemas(responseFor(op, code, spec, cache), spec, cache)) {
+            descriptors.push(...propertyFields(rootSchemaFields(schema, spec, cache), `responses:${code}`, spec, cfg, cache));
         }
     }
 
@@ -246,17 +209,27 @@ export function checkNoRedundantParameters(spec: any, content: string, rule: any
     }
 
     const cfg = (rule?.call?.functionParams ?? {}) as RedundancyConfig;
-    const operations = collectOperations(spec);
-    for (const { path, method, operation, pathItem } of operations) {
-        const parameterFields = collectParameterDescriptors(pathItem, operation, spec, cfg);
-        const requestFields = collectRequestBodyDescriptors(operation, spec, cfg);
-        const responseFields = collectResponseDescriptors(operation, spec, cfg);
+    const cache = new Map<string, unknown>();
+    for (const op of ruleOperations(spec, {})) {
+        const { path, method } = op;
+        const parameterFields = ruleParameterNodes(op, spec, cache).flatMap(({ parameter }) => {
+            const field = parameterField(parameter, spec, cfg);
+            return field?.container === "parameters" ? [field] : [];
+        });
+        const requestFields = collectRequestBodyDescriptors(op, spec, cfg, cache);
+        const responseFields = collectResponseDescriptors(op, spec, cfg, cache);
+        const declarationDuplicates = declaredParameterGroups(op, spec, cache).flatMap((group) =>
+            checkDuplicates(group.flatMap((parameter) => {
+                const field = parameterField(parameter, spec, cfg);
+                return field ? [field] : [];
+            }), { ...cfg, semanticDuplicateDetectionMode: "none" }));
 
         const problems = [
             ...checkReservedMarkers(parameterFields, cfg),
             ...checkReservedMarkers(requestFields, cfg),
             ...checkReservedMarkers(responseFields, cfg),
             ...checkDuplicates(parameterFields, cfg),
+            ...declarationDuplicates,
             ...checkDuplicates(requestFields, cfg),
             ...checkDuplicates(responseFields, cfg),
         ];

@@ -1,6 +1,8 @@
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
+import { pathRange } from "@/lib/openapi/sourceMap";
+import { ruleOperations } from "@/utils/nativeRule";
 
 export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -12,41 +14,36 @@ export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
 
     const exceptionPaths: string[] = rule.call.functionParams.exceptionPaths || [];
 
-    for (const path in spec.paths) {
-        const isException = exceptionPaths.some(excPath => {
-            if (excPath.endsWith("*")) {
-                const prefix = excPath.slice(0, -1);
-                return path.startsWith(prefix);
-            }
-            return path === excPath;
-        });
-        if (isException) continue;
+    const operations = ruleOperations(spec, {}, (path) => !exceptionPaths.some(excPath => {
+        if (excPath.endsWith("*")) {
+            const prefix = excPath.slice(0, -1);
+            return path.startsWith(prefix);
+        }
+        return path === excPath;
+    }));
+    const methodsByPath = new Map<string, Set<string>>();
+    for (const { path, method } of operations) {
+        const methods = methodsByPath.get(path) ?? new Set<string>();
+        methods.add(method);
+        methodsByPath.set(path, methods);
+    }
+    const normalizedCreateMethods = createMethods.map(m => m.toLowerCase().trim());
+    const normalizedRequiredMethods = requiredMethods.map(m => m.toLowerCase().trim());
+    const normalizedOptionalMethods = optionalMethods.map(m => m.toLowerCase().trim());
 
-
-        const pathItem = spec.paths[path];
-        const methodsInPath = Object.keys(pathItem || {}).map(m => m.toLowerCase().trim());
-        const normalizedCreateMethods = createMethods.map(m => m.toLowerCase().trim());
-        const normalizedRequiredMethods = requiredMethods.map(m => m.toLowerCase().trim());
-        const normalizedOptionalMethods = optionalMethods.map(m => m.toLowerCase().trim());
-
-        const hasCreateMethod = normalizedCreateMethods.some(createMethod => methodsInPath.includes(createMethod));
+    for (const [path, methodsInPath] of methodsByPath) {
+        const hasCreateMethod = normalizedCreateMethods.some(createMethod => methodsInPath.has(createMethod));
         if (!hasCreateMethod) continue;
 
         const missingMethods = normalizedRequiredMethods
-            .filter(reqMethod => !methodsInPath.includes(reqMethod))
+            .filter(reqMethod => !methodsInPath.has(reqMethod))
             .filter(missing => !normalizedOptionalMethods.includes(missing));
 
         if (missingMethods.length > 0) {
-            function escapeRegExp(string: string): string {
-                return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            }
-
-            const pathPattern = new RegExp(`^\\s*["']?${escapeRegExp(path)}["']?:`, "m");
-            const match = content.match(pathPattern);
-            const pathIndex = match?.index ?? -1;
+            const range = pathRange(content, path);
             diagnostics.push({
-                from: pathIndex >= 0 ? pathIndex : 0,
-                to: pathIndex >= 0 ? pathIndex + path.length : content.length,
+                from: range.from,
+                to: range.to,
                 severity: mapSeverity(rule.severity),
                 message: `${rule.message} Missing: ${missingMethods.join(", ")}`,
                 source: getSource(rule),

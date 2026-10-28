@@ -3,11 +3,11 @@ rules:
     title: "Transmission Protocol Requirements"
     message: "All tenant-oriented APIs must use the HTTPS protocol."
     option: Mandatory
-    location: servers
-    element: url
-    call: {
-      function: checkHttpsServers,
+    location: file
+    element: transport
+    call:
+      function: checkHttpsServers
       functionParams: {}
-    }
+    description: Check effective Swagger schemes and OpenAPI servers, including operation/path overrides. Missing, empty or undetermined transport does not confirm HTTPS.
     severity: high
     status: implemented

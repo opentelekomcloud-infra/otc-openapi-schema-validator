@@ -1,7 +1,7 @@
 import { Diagnostic } from "@codemirror/lint";
-import { resolveRefDeep } from "@/utils/schema";
 import { dedupeDiagnostics, pushOperationDiagnostic } from "@/utils/diagnostic";
-import { collectOperations } from "@/utils/spec";
+import type { NativeOperation } from "@/types/openapi";
+import { ruleOperations, ruleParameterNodes } from "@/utils/nativeRule";
 
 type ScopeRuleConfig = {
     scopeField?: string;
@@ -42,21 +42,13 @@ function detectScope(operation: any, cfg: ScopeRuleConfig): ScopeType {
  * Finds the configured parameter on path-item or operation level.
  * Local `$ref` parameters are resolved before comparison.
  */
-function findScopedParameter(pathItem: any, operation: any, spec: any, cfg: ScopeRuleConfig): any | null {
+function findScopedParameter(op: NativeOperation, spec: any, cfg: ScopeRuleConfig): Record<string, unknown> | null {
     const targetName = String(cfg.parameterName ?? "project_id").trim();
     const targetLocation = String(cfg.parameterLocation ?? "path").trim().toLowerCase();
 
-    const allParams = [
-        ...(Array.isArray(pathItem?.parameters) ? pathItem.parameters : []),
-        ...(Array.isArray(operation?.parameters) ? operation.parameters : []),
-    ];
-
-    for (const rawParam of allParams) {
-        const param = resolveRefDeep(rawParam, new Map<string, any>(), spec);
-        if (!param || typeof param !== "object") continue;
-
-        const name = String((param as any).name ?? "").trim();
-        const paramIn = String((param as any).in ?? "").trim().toLowerCase();
+    for (const { parameter: param } of ruleParameterNodes(op, spec, new Map())) {
+        const name = String(param.name ?? "").trim();
+        const paramIn = String(param.in ?? "").trim().toLowerCase();
 
         if (name === targetName && paramIn === targetLocation) {
             return param;
@@ -81,11 +73,12 @@ export function checkProjectIdByTagScope(spec: any, content: string, rule: any):
     if (!spec?.paths) return diagnostics;
 
     const cfg = (rule?.call?.functionParams ?? {}) as ScopeRuleConfig;
-    const operations = collectOperations(spec);
+    const operations = ruleOperations(spec, {});
 
-    for (const { path, method, operation, pathItem } of operations) {
+    for (const op of operations) {
+        const { path, method, operation } = op;
         const scope = detectScope(operation, cfg);
-        const param = findScopedParameter(pathItem, operation, spec, cfg);
+        const param = findScopedParameter(op, spec, cfg);
 
         if (scope === "missing") {
             if (cfg.failWhenScopeTagMissing) {
@@ -126,7 +119,7 @@ export function checkProjectIdByTagScope(spec: any, content: string, rule: any):
                 continue;
             }
 
-            if (param && (param as any).required !== true) {
+            if (param && param.required !== true) {
                 pushOperationDiagnostic(
                     diagnostics,
                     content,
@@ -141,7 +134,7 @@ export function checkProjectIdByTagScope(spec: any, content: string, rule: any):
         }
 
         if (scope === "global") {
-            if (cfg.optionalForGlobal && param && (param as any).required === true) {
+            if (cfg.optionalForGlobal && param && param.required === true) {
                 pushOperationDiagnostic(
                     diagnostics,
                     content,
