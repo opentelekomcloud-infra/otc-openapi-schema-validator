@@ -98,17 +98,27 @@ function safeJoin(base: string, segment: string) {
   return resolved.slice(0, -1); // remove trailing sep we added
 }
 
-function parseGiteaUrl(rawUrl: string): { repo: string; path: string; ref: string } | null {
+function parseGiteaUrl(rawUrl: string): { repo: string; path: string; ref?: string } | null {
   try {
     const u = new URL(rawUrl);
     const seg = u.pathname.split('/').filter(Boolean);
+    if (seg.length >= 7 && seg.slice(0, 4).join('/') === 'api/v1/repos/docs' &&
+        seg[5] === 'contents') {
+      const ref = u.searchParams.get('ref');
+      if (ref === '') return null;
+      return {
+        repo: decodeURIComponent(seg[4]),
+        path: seg.slice(6).map(decodeURIComponent).join('/'),
+        ref: ref ?? undefined,
+      };
+    }
     if (seg.length >= 5 && (seg[2] === 'src' || seg[2] === 'raw')) {
       const repoName = seg[1];
       const qualifiedRef = ["branch", "tag", "commit"].includes(seg[3]);
       const refIndex = qualifiedRef ? 4 : 3;
-      const filePath = seg.slice(refIndex + 1).join('/');
+      const filePath = seg.slice(refIndex + 1).map(decodeURIComponent).join('/');
       if (!filePath || !seg[refIndex]) return null;
-      return { repo: repoName, path: filePath, ref: decodeURIComponent(seg[refIndex]) };
+      return { repo: decodeURIComponent(repoName), path: filePath, ref: decodeURIComponent(seg[refIndex]) };
     }
   } catch {
     // ignore
@@ -191,7 +201,7 @@ export default async function handler(
         if (isInternalGitea) {
           const parsed = parseGiteaUrl(specPathInput!);
           if (!parsed) {
-            return res.status(400).json({ error: 'Unable to parse Gitea URL. Provide a URL like /:owner/:repo/src/:branch/path/to/file.yaml' });
+            return res.status(400).json({ error: 'Unable to parse Gitea URL. Provide a repository file URL or /api/v1/repos/docs/:repo/contents/:path?ref=:ref' });
           }
           try {
             specText = await giteaClient.fetchRawYamlFile(parsed.repo, parsed.path, parsed.ref);
