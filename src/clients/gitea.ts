@@ -19,12 +19,13 @@ export class GiteaClient {
   }
 
   async fetchRawYamlFile(repo: string, path: string, ref?: string): Promise<string> {
-    const url = `${this.baseUrl.replace(/\/+$/, '')}/api/v1/repos/docs/${encodeURIComponent(repo)}/raw/${path.replace(/^\/+/, '')}`;
+    const filePath = path.replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/');
+    const url = `${this.baseUrl.replace(/\/+$/, '')}/api/v1/repos/docs/${encodeURIComponent(repo)}/contents/${filePath}`;
     let response;
     try {
-      response = await axios.get<Buffer>(url, {
-        responseType: 'arraybuffer',
-        headers: { Authorization: `token ${this.token}` },
+      response = await axios.get<unknown>(url, {
+        responseType: 'json',
+        headers: { Authorization: `token ${this.token}`, Accept: 'application/json' },
         proxy: this.proxy,
         httpsAgent: this.httpsAgent,
         timeout: 15000,
@@ -44,8 +45,22 @@ export class GiteaClient {
       );
     }
 
-    if (!Buffer.isBuffer(response.data)) throw new Error('Unsupported raw response from Gitea');
-    const content = response.data.toString('utf8');
+    const data = response.data;
+    if (!data || typeof data !== 'object' || Array.isArray(data) ||
+        !('type' in data) || data.type !== 'file' ||
+        !('encoding' in data) || data.encoding !== 'base64' ||
+        !('content' in data) || typeof data.content !== 'string') {
+      throw new Error('Unsupported contents response from Gitea: expected a base64-encoded file');
+    }
+    const encoded = data.content.replace(/[ \t\r\n]/g, '');
+    const decoded = Buffer.from(encoded, 'base64');
+    if (decoded.toString('base64') !== encoded) {
+      throw new Error('Invalid base64 file content from Gitea');
+    }
+    const content = decoded.toString('utf8');
+    if (!Buffer.from(content, 'utf8').equals(decoded)) {
+      throw new Error('Invalid UTF-8 file content from Gitea');
+    }
     if (!content.trim()) throw new Error('Empty response from Gitea');
     return content;
   }

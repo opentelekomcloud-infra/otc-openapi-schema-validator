@@ -205,4 +205,45 @@ describe("/api/validate catalog integrity", () => {
         }));
         expect(lint.mock.calls[0][0]).toBe(content);
     });
+
+    test.each([
+        ["docs/doc-exports/src/commit/a0f82c80034b8400463de4bbf269e45412484a30/docs/iam5/openapi/iam_v5_en.yaml",
+            "a0f82c80034b8400463de4bbf269e45412484a30"],
+        ["api/v1/repos/docs/doc-exports/contents/docs/iam5/openapi/iam_v5_en.yaml?ref=a0f82c80034b8400463de4bbf269e45412484a30",
+            "a0f82c80034b8400463de4bbf269e45412484a30"],
+        ["api/v1/repos/docs/doc-exports/contents/docs/iam5/openapi/iam_v5_en.yaml", undefined],
+    ])("Gitea file input %s uses the token-authenticated client with its ref", async (source, ref) => {
+        const content = "# decoded original\r\nopenapi: 3.0.3\r\npaths: {}\r\n";
+        jest.mocked(giteaClient.fetchRawYamlFile).mockResolvedValueOnce(content);
+        const res = await validate({
+            file_content: undefined,
+            path: `https://gitea.eco.example.invalid/${source}`,
+        });
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(giteaClient.fetchRawYamlFile).toHaveBeenCalledWith(
+            "doc-exports", "docs/iam5/openapi/iam_v5_en.yaml", ref,
+        );
+        expect(lint.mock.calls[0][0]).toBe(content);
+    });
+
+    test("contents API inputs decode path escaping once and preserve branch refs", async () => {
+        jest.mocked(giteaClient.fetchRawYamlFile).mockResolvedValueOnce("openapi: 3.0.3\n");
+        const res = await validate({
+            file_content: undefined,
+            path: "https://gitea.eco.example.invalid/api/v1/repos/docs/native/contents/spec%20%23.yaml?ref=feature%2Fnative",
+        });
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(giteaClient.fetchRawYamlFile).toHaveBeenCalledWith("native", "spec #.yaml", "feature/native");
+    });
+
+    test("malformed contents responses return a source error without executing rules or exporting", async () => {
+        jest.mocked(giteaClient.fetchRawYamlFile).mockRejectedValueOnce(new Error("Invalid base64 file content from Gitea"));
+        const res = await validate({
+            file_content: undefined, export: "xml",
+            path: "https://gitea.eco.example.invalid/api/v1/repos/docs/native/contents/spec.yaml?ref=main",
+        });
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({ error: "Failed to load spec from Gitea: Invalid base64 file content from Gitea" });
+        expect(lint).not.toHaveBeenCalled();
+    });
 });
