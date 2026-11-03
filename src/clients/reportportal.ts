@@ -1,6 +1,7 @@
 import JSZip from "jszip";
 import axios, { type AxiosProxyConfig } from "axios";
 import https from "node:https";
+import { robotReportStartTime } from "@/lib/export/robotTime";
 
 const log = {
   debug: (...args: any[]) => console.debug("[ReportPortal]", ...args),
@@ -68,6 +69,7 @@ export class ReportPortalClient {
     mode?: RPMode;
   }): Promise<string> {
     const { xml, project, launch, description, attributes, mode } = params;
+    const startTime = robotReportStartTime(xml);
     log.debug("Starting importing");
     if (!this.endpoint || !this.apiKey) {
       throw new Error('ReportPortal config missing on server: REPORTPORTAL_ENDPOINT/REPORTPORTAL_API_KEY');
@@ -88,7 +90,7 @@ export class ReportPortalClient {
       name: launch,
       description,
       mode: mode ?? 'DEFAULT',
-      // startTime: new Date().toISOString(),
+      startTime,
       attributes,
     };
     const launchBlob = new Blob([JSON.stringify(launchImportRq)], { type: 'application/json' });

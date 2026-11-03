@@ -12,7 +12,7 @@ const proxy = {
     auth: { username: "test-only-user", password: "test-only-password" },
 };
 const importOptions = {
-    xml: '<robot><suite name="Native"/></robot>',
+    xml: '<robot generated="20261103 08:26:05.477"><suite name="Native"/></robot>',
     project: "isolated", launch: "Service: Native", description: "Isolated import",
     attributes: [{ key: "dialect", value: "swagger2" }], mode: "DEBUG" as const,
 };
@@ -110,7 +110,7 @@ test("proxied imports retain the exact XML ZIP, metadata and separate API author
     expect(await zip.file("lint-report.xml")?.async("string")).toBe(importOptions.xml);
     expect(JSON.parse(await metadata.text())).toEqual({
         name: importOptions.launch, description: importOptions.description,
-        attributes: importOptions.attributes, mode: "DEBUG",
+        attributes: importOptions.attributes, mode: "DEBUG", startTime: "2026-11-03T08:26:05.477Z",
     });
 });
 
@@ -160,6 +160,15 @@ test("HTTP failures without an explicit proxy also omit private response bodies"
 test("endpoint and API key remain required", () => {
     delete process.env.REPORTPORTAL_API_KEY;
     expect(() => new Client({ proxy })).toThrow("Missing REPORTPORTAL_ENDPOINT or REPORTPORTAL_API_KEY");
+});
+
+test.each([
+    '<robot/>',
+    '<robot generated="20260230 08:26:05.477"/>',
+    '<robot generated="1970-invalid"/>',
+])("invalid report dates fail before importing rather than starting an epoch launch: %s", async (xml) => {
+    await expect(client.importLaunch({ ...importOptions, xml })).rejects.toThrow("valid generated timestamp");
+    expect(axios.request).not.toHaveBeenCalled();
 });
 
 test.each(["explicit", "HTTP_PROXY", "HTTP_PROXY without auth"])("real %s sends all operations and intact multipart data only to the owned HTTP proxy", async (configuration) => {
@@ -218,7 +227,9 @@ test.each(["explicit", "HTTP_PROXY", "HTTP_PROXY without auth"])("real %s sends 
         if (!(file instanceof Blob) || !(metadata instanceof Blob)) throw new Error("Missing multipart files");
         expect(await (await JSZip.loadAsync(await file.arrayBuffer())).file("lint-report.xml")?.async("string"))
             .toBe(importOptions.xml);
-        expect(JSON.parse(await metadata.text())).toEqual(expect.objectContaining({ name: importOptions.launch }));
+        expect(JSON.parse(await metadata.text())).toEqual(expect.objectContaining({
+            name: importOptions.launch, startTime: "2026-11-03T08:26:05.477Z",
+        }));
         expect(globalThis.fetch).not.toHaveBeenCalled();
     } finally {
         server.closeAllConnections();
