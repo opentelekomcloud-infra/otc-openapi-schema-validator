@@ -2,6 +2,7 @@ import {convertMarkdownToPlainText} from '@/utils/utils';
 import { getSeverityLabel } from '@/utils/mapSeverity';
 import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
 import { diagnosticRuleId, isDocumentError, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
+import { formatRobotTime as fmt } from "@/lib/export/robotTime";
 
 // Build Robot Framework compliant XML (schema v4) from diagnostics + rules
 export function buildRobotXml(
@@ -20,19 +21,6 @@ export function buildRobotXml(
       .replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&apos;');
-  };
-
-  const fmt = (ms: number) => {
-    const d = new Date(ms);
-    const pad = (n: number, w = 2) => String(n).padStart(w, '0');
-    const y = d.getFullYear();
-    const M = pad(d.getMonth() + 1);
-    const D = pad(d.getDate());
-    const h = pad(d.getHours());
-    const m = pad(d.getMinutes());
-    const s = pad(d.getSeconds());
-    const ms3 = pad(d.getMilliseconds(), 3);
-    return `${y}${M}${D} ${h}:${m}:${s}.${ms3}`;
   };
 
   const findRuleMeta = (id: string): any => {

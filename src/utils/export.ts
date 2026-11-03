@@ -6,6 +6,7 @@ import {getSeverityLabel} from "@/utils/mapSeverity";
 import { buildRobotXml } from "@/lib/export/buildRobotXml";
 import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
 import { diagnosticRuleId, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
+import { formatRobotTime as fmt } from "@/lib/export/robotTime";
 
 export const exportPDF = async (
   diagnostics: any[],
@@ -131,20 +132,6 @@ export const exportJUnit = async (
       .replace(/>/g, "&gt;")
       .replace(/\"/g, "&quot;")
       .replace(/'/g, "&apos;");
-  };
-
-  // Robot Framework time format: YYYYMMDD HH:MM:SS.mmm
-  const fmt = (ms: number) => {
-    const d = new Date(ms);
-    const pad = (n: number, w = 2) => String(n).padStart(w, "0");
-    const y = d.getFullYear();
-    const M = pad(d.getMonth() + 1);
-    const D = pad(d.getDate());
-    const h = pad(d.getHours());
-    const m = pad(d.getMinutes());
-    const s = pad(d.getSeconds());
-    const ms3 = pad(d.getMilliseconds(), 3);
-    return `${y}${M}${D} ${h}:${m}:${s}.${ms3}`;
   };
 
   const safePath = (s: string) =>

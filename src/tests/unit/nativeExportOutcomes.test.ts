@@ -6,6 +6,7 @@ import type { Diagnostic } from "@codemirror/lint";
 import { functionsMap, runLinter } from "@/lib/linter/runLinter";
 import { getImplementedRules, loadRuleCatalog, type AutoRule } from "@/lib/linter/ruleCatalog";
 import { buildRobotXml } from "@/lib/export/buildRobotXml";
+import { robotReportStartTime } from "@/lib/export/robotTime";
 import { diagnosticRuleId, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
 import { exportJUnit, exportPDF } from "@/utils/export";
 import type { ManualRule } from "@/components/ManualChecksSelector";
@@ -87,6 +88,43 @@ afterEach(() => {
 test("export coverage ledger matches all 67 implemented bindings", () => {
     expect(coverageLedger.map((entry) => entry.ruleId).sort()).toEqual([...rules.keys()].sort());
     expect(rules.size).toBe(67);
+});
+
+test("both XML generators use UTC and contain every child time within its suite bounds", async () => {
+    const now = Date.parse("2026-11-03T08:26:05.477Z");
+    jest.spyOn(Date, "now").mockReturnValue(now);
+    // Local-time access would shift the report on hosts outside UTC.
+    jest.spyOn(Date.prototype, "getHours").mockImplementation(() => { throw new Error("Local time is not a report timestamp"); });
+    const failed = rules.get("BAS-110-01-2507-2507-M");
+    const passed = rules.get("BAS-110-01-2507-2507-M-1");
+    if (!failed || !passed) throw new Error("Missing compliance rules");
+    const selected = { [failed.id]: failed, [passed.id]: passed };
+    const diagnostics: Diagnostic[] = [{
+        from: 0, to: 0, severity: "error", source: `Rule ${failed.id} - Failed`, message: "Violation",
+    }];
+    const manual = [{ id: "MANUAL-1", title: "Manual", verified: false }] as ManualRule[];
+    const api = parseXml(buildRobotXml(diagnostics, selected, manual, "", true));
+    const ui = await browserXml(diagnostics, selected, manual);
+    const milliseconds = (value: string | null) => {
+        if (!value) throw new Error("Missing time");
+        return Date.parse(robotReportStartTime(`<robot generated="${value}"/>`));
+    };
+    for (const report of [api, ui]) {
+        expect(report.documentElement.getAttribute("generated")).toBe("20261103 08:26:05.477");
+        expect(robotReportStartTime(report.documentElement.outerHTML)).toBe("2026-11-03T08:26:05.477Z");
+        for (const suite of report.querySelectorAll("suite")) {
+            const status = [...suite.children].find((child) => child.tagName === "status");
+            if (!status) throw new Error("Missing suite status");
+            const start = milliseconds(status.getAttribute("starttime"));
+            const end = milliseconds(status.getAttribute("endtime"));
+            expect(start).toBeGreaterThanOrEqual(now);
+            expect(end).toBeGreaterThanOrEqual(start);
+            for (const child of suite.querySelectorAll("status")) {
+                expect(milliseconds(child.getAttribute("starttime"))).toBeGreaterThanOrEqual(start);
+                expect(milliseconds(child.getAttribute("endtime"))).toBeLessThanOrEqual(end);
+            }
+        }
+    }
 });
 
 describe.each(coverageLedger)("$ruleId native report outcomes", (entry) => {
