@@ -173,16 +173,17 @@ describe.each(pairs)("native baseline %s/%s", (currentDialect, baselineDialect) 
     });
 });
 
-test.each(["mapping", "fetch", "invalid"] as const)("unavailable %s fails every selected baseline rule, not the document parser", async (failure) => {
+test.each(["mapping", "fetch", "invalid"] as const)("baseline %s distinguishes unavailable data from invalid data", async (failure) => {
     mapping.mockResolvedValue(failure === "mapping" ? null : { reponame: "native", filename: "native" });
     fetchBaseline.mockResolvedValue(failure === "invalid" ? { openapi: "3.1.0" } : null);
     const { diagnostics } = await runLinter(yaml.dump(fixture("swagger2")), rules);
     expect(diagnostics).toHaveLength(8);
     for (const diagnostic of diagnostics) {
         expect(diagnostic).toMatchObject({ from: 0, to: 0, lineNumber: 1 });
-        expect(diagnostic.severity).toBe("error");
+        expect(diagnostic.severity).toBe(failure === "invalid" ? "error" : "info");
+        expect(diagnostic.ruleOutcome).toBe(failure === "invalid" ? undefined : "skip");
         expect(diagnostic.source).not.toBe("parser");
-        expect(diagnostic.message).toMatch(/execution failed.*[Bb]aseline/);
+        expect(diagnostic.message).toMatch(failure === "invalid" ? /execution failed.*baseline/ : /Rule skipped: Baseline/);
     }
     expect(mapping).toHaveBeenCalledTimes(1);
     expect(fetchBaseline).toHaveBeenCalledTimes(failure === "mapping" ? 0 : 1);

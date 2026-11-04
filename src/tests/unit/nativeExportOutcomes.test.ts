@@ -163,7 +163,7 @@ describe.each(coverageLedger)("$ruleId native report outcomes", (entry) => {
     });
 });
 
-test.each<Dialect>(["swagger2", "openapi3"])("%s baseline failures never pass the eight affected checks", async (dialect) => {
+test.each<Dialect>(["swagger2", "openapi3"])("%s unavailable baselines skip the eight affected checks in every report", async (dialect) => {
     const selected = [...rules.values()].filter((rule) => rule.id.startsWith("BAS-080-") ||
         rule.id === "VER-030-01-2507-2507-O-5" || rule.call.function === "checkOASVersion");
     jest.mocked(fetchRepoMap).mockResolvedValue(null);
@@ -174,26 +174,35 @@ test.each<Dialect>(["swagger2", "openapi3"])("%s baseline failures never pass th
     const { api, ui, rows } = await reports(content, diagnostics, Object.fromEntries(selected.map((rule) => [rule.id, rule])));
     for (const xml of [api, ui]) {
         expect(xml.querySelectorAll('suite[name="Passed Rules"] test')).toHaveLength(1);
-        expect(xml.querySelectorAll("test > status[status=FAIL]")).toHaveLength(8);
+        expect(xml.querySelectorAll("test > status[status=FAIL]")).toHaveLength(0);
+        expect(xml.querySelectorAll("test > status[status=SKIP]")).toHaveLength(8);
+        expect(xml.querySelector('suite[id="s1"] > status')?.getAttribute("status")).toBe("PASS");
+        expect(xml.documentElement.textContent).toContain("Baseline repository mapping is unavailable");
         expect(xml.querySelector('suite[name="Passed Rules"]')?.textContent).not.toContain("BAS-080-");
     }
     expect(rows.filter((row) => row[0] === "Passed")).toHaveLength(1);
-    expect(rows.filter((row) => row[0] === 1)).toHaveLength(8);
+    expect(rows.filter((row) => row[0] === "Skipped" && row[2] === "SKIP")).toHaveLength(8);
 });
 
-test("generic execution errors fail only their own rule rather than reporting it as passed", async () => {
-    const selected = [...rules.values()].filter((rule) => ["checkOASVersion", "checkOASSpec"].includes(rule.call.function));
+test("generic execution errors remain failures alongside baseline skips and successful checks", async () => {
+    const selected = [...rules.values()].filter((rule) => ["checkOASVersion", "checkOASSpec"].includes(rule.call.function) ||
+        rule.id.startsWith("BAS-080-") || rule.id === "VER-030-01-2507-2507-O-5");
+    jest.mocked(fetchRepoMap).mockResolvedValue(null);
     jest.spyOn(functionsMap, "checkOASVersion").mockImplementation(() => { throw new Error("Controlled execution failure"); });
     const content = readFixtureContent("swagger2");
     const { diagnostics } = await runLinter(content, selected);
-    expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0].message).toContain("Controlled execution failure");
+    expect(diagnostics).toHaveLength(9);
+    expect(diagnostics.some((diagnostic) => diagnostic.message.includes("Controlled execution failure") &&
+        diagnostic.ruleOutcome !== "skip")).toBe(true);
     const { api, ui, rows } = await reports(content, diagnostics, Object.fromEntries(selected.map((rule) => [rule.id, rule])));
     for (const xml of [api, ui]) {
         expect(xml.querySelectorAll('suite[name="Passed Rules"] test')).toHaveLength(1);
         expect(xml.querySelectorAll("test > status[status=FAIL]")).toHaveLength(1);
+        expect(xml.querySelectorAll("test > status[status=SKIP]")).toHaveLength(8);
+        expect(xml.querySelector('suite[id="s1"] > status')?.getAttribute("status")).toBe("FAIL");
     }
     expect(rows.filter((row) => row[0] === "Passed")).toHaveLength(1);
+    expect(rows.filter((row) => row[0] === "Skipped")).toHaveLength(8);
 });
 
 test("global parser failures produce 67 unexecuted rules, never 67 passes", async () => {

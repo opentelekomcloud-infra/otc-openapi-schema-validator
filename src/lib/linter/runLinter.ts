@@ -53,7 +53,7 @@ import { assertRuleFunction } from "@/lib/linter/ruleCatalog";
 import { objectRange, sourceLineNumber, sourceMap } from "@/lib/openapi/sourceMap";
 import { NativeReferenceError, appendPointer } from "@/lib/openapi/references";
 import { NativeAccessorError } from "@/lib/openapi/accessorError";
-import { NativeBaselineError } from "@/lib/openapi/baselineError";
+import { BaselineUnavailableError, NativeBaselineError } from "@/lib/openapi/baselineError";
 import { NativeExampleError } from "@/lib/openapi/exampleError";
 import { createExecutionContext } from "@/lib/openapi/createExecutionContext";
 import { bindExecutionContext, type NativeExecutionContext } from "@/lib/openapi/executionContext";
@@ -128,6 +128,7 @@ export const functionsMap: {
 
 export interface SourceDiagnostic extends Diagnostic {
   readonly lineNumber: number;
+  readonly ruleOutcome?: "skip";
 }
 
 /**
@@ -168,6 +169,15 @@ export async function runLinter(
               return { ...diagnostic, lineNumber: sourceLineNumber(content, diagnostic.from) };
             });
           } catch (err: any) {
+            if (err instanceof BaselineUnavailableError) {
+              return [{
+                ...executionRange(content, err, spec),
+                severity: "info",
+                message: `Rule skipped: ${err.message}`,
+                source: getSource(rule),
+                ruleOutcome: "skip",
+              }];
+            }
             return [
               {
                 ...executionRange(content, err, spec),

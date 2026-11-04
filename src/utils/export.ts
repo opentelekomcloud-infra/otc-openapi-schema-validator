@@ -5,7 +5,7 @@ import React from "react";
 import {getSeverityLabel} from "@/utils/mapSeverity";
 import { buildRobotXml } from "@/lib/export/buildRobotXml";
 import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
-import { diagnosticRuleId, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
+import { diagnosticRuleId, isSkippedRule, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
 import { formatRobotTime as fmt } from "@/lib/export/robotTime";
 
 export const exportPDF = async (
@@ -27,19 +27,20 @@ export const exportPDF = async (
   // --- Found Issues ---
   doc.setFontSize(16);
   doc.text("Automated Compliance Validation report", 14, 40);
-  const { failedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
+  const { failedRuleIds, skippedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
   const tableColumn = ["Line #", "Summary", "Severity", "Rule ID"];
   const tableRows: (string | number)[][] = [];
 
   Object.values(selectedRules).forEach((rule: any) => {
-    if (!failedRuleIds.has(rule.id)) {
+    if (!failedRuleIds.has(rule.id) && !skippedRuleIds.has(rule.id)) {
       tableRows.push([documentFailed ? "Not executed" : "Passed", rule.message, rule.severity, rule.id]);
     }
   });
 
   diagnostics.forEach((diag) => {
     const lineNumber = diagnosticLineNumber(editorViewRef.current?.state.doc.toString(), diag);
-    tableRows.push([lineNumber, diag.message, getSeverityLabel(diag.severity), diag.source || diagnosticRuleId(diag) || ""]);
+    tableRows.push([isSkippedRule(diag) ? "Skipped" : lineNumber, diag.message,
+      isSkippedRule(diag) ? "SKIP" : getSeverityLabel(diag.severity), diag.source || diagnosticRuleId(diag) || ""]);
   });
 
   autoTable(doc, {
@@ -153,9 +154,9 @@ export const exportJUnit = async (
     grouped[key].push(diag);
   });
 
-  const { failedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
+  const { failedRuleIds, skippedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
   const passedRules: any[] = Object.values(selectedRules).filter(
-    (rule: any) => !failedRuleIds.has(rule.id)
+    (rule: any) => !failedRuleIds.has(rule.id) && !skippedRuleIds.has(rule.id)
   );
 
   // Timing model
@@ -183,6 +184,7 @@ export const exportJUnit = async (
   for (let gi = 0; gi < groupKeys.length; gi++) {
     const source = groupKeys[gi];
     const diags = grouped[source];
+    const groupSkipped = diags.every(isSkippedRule);
     autoSuiteCounter += 1;
 
     const subSuiteId = `${automatedId}-s${autoSuiteCounter}`;
@@ -191,13 +193,14 @@ export const exportJUnit = async (
 
     for (let ti = 0; ti < diags.length; ti++) {
       const diag = diags[ti];
+      const skipped = isSkippedRule(diag);
       const caseStart = runningMs;
       const caseEnd = caseStart + CASE_MS;
 
       const lineNumber = diagnosticLineNumber(editorViewRef.current?.state.doc.toString(), diag);
 
       const tName = `Line: ${lineNumber}`;
-      const severity = xmlEscape(getSeverityLabel(diag?.severity));
+      const severity = xmlEscape(skipped ? "SKIP" : getSeverityLabel(diag?.severity));
       const msgText = `${severity}: ${diag?.message ?? ""}`;
       const tId = testId(subSuiteId, ti + 1);
 
@@ -206,21 +209,21 @@ export const exportJUnit = async (
         `        <msg timestamp="${fmt(
           caseStart
         )}" level="${
-          severity === "ERROR" || severity === "CRITICAL" ? "ERROR" : "FAIL"
+          skipped ? "INFO" : severity === "ERROR" || severity === "CRITICAL" ? "ERROR" : "FAIL"
         }">${xmlEscape(msgText)}</msg>\n` +
-        `        <status status="FAIL" starttime="${fmt(
+        `        <status status="${skipped ? "SKIP" : "FAIL"}" starttime="${fmt(
           caseStart
         )}" endtime="${fmt(caseEnd)}"/>\n` +
         `      </test>\n`;
 
-      autoFailTotal += 1;
+      if (!skipped) autoFailTotal += 1;
       runningMs = caseEnd;
     }
 
     const suiteEnd = runningMs;
     autoInner +=
       `    <suite id="${subSuiteId}" name="${xmlEscape(source)}" source="${VROOT}/Automated_Compliance_Validation_Report/${safePath(source)}.robot">\n` +
-      `      <status status="FAIL" starttime="${fmt(
+      `      <status status="${groupSkipped ? "SKIP" : "FAIL"}" starttime="${fmt(
         suiteStart
       )}" endtime="${fmt(suiteEnd)}"/>\n` +
       testsXml +

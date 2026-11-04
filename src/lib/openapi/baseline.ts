@@ -2,7 +2,7 @@ import type { NativeOpenApiDocument } from "@/types/openapi";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import { executionContextFor, type NativeExecutionContext } from "./executionContext";
 import { classifyNativeOpenApiDocument } from "./parseNativeOpenApi";
-import { NativeBaselineError } from "./baselineError";
+import { BaselineUnavailableError, NativeBaselineError } from "./baselineError";
 
 const baselines = new WeakMap<NativeExecutionContext, Promise<NativeOpenApiDocument>>();
 
@@ -17,9 +17,9 @@ export function readBaseline<T>(read: () => T): T {
 
 async function loadBaseline(document: unknown): Promise<NativeOpenApiDocument> {
     const repo = await fetchRepoMap(document);
-    if (!repo) throw new NativeBaselineError("Baseline repository mapping is unavailable for this specification.");
+    if (!repo) throw new BaselineUnavailableError("Baseline repository mapping is unavailable for this specification.");
     const baseline: unknown = await fetchSpecFromGitea(repo);
-    if (baseline == null) throw new NativeBaselineError("Baseline specification could not be loaded from Gitea.");
+    if (baseline == null) throw new BaselineUnavailableError("Baseline specification could not be loaded from Gitea.");
     try {
         return classifyNativeOpenApiDocument(baseline);
     } catch (error) {
