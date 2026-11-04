@@ -297,7 +297,7 @@ test("invalid catalog bindings are explicit HTTP failures, never a partial succe
     expect(runLinter).not.toHaveBeenCalled();
 });
 
-test("missing baseline retains eight selected errors, not a document error or false successful export", async () => {
+test("missing baseline retains eight selected skips instead of failures or passes", async () => {
     jest.mocked(fetchRepoMap).mockResolvedValue(null);
     const auto = rules.filter((rule) => rule.id.startsWith("BAS-080-") || rule.id === "VER-030-01-2507-2507-O-5");
     const { status, json } = await post({
@@ -305,6 +305,9 @@ test("missing baseline retains eight selected errors, not a document error or fa
     });
     expect(status).toBe(200);
     expect(json.diagnostics).toHaveLength(8);
+    expect(json.diagnostics).toEqual(expect.arrayContaining([
+        expect.objectContaining({ ruleOutcome: "skip", message: expect.stringContaining("Rule skipped:") }),
+    ]));
     expect(json.diagnostics.every((diagnostic) => diagnostic.from === 0 && diagnostic.to === 0 && diagnostic.lineNumber === 1)).toBe(true);
     const exported = await post({
         file_content: readFixtureContent("swagger2"), auto_rules: auto.map((rule) => rule.id), export: "xml",
@@ -312,6 +315,8 @@ test("missing baseline retains eight selected errors, not a document error or fa
     expect(exported.status).toBe(200);
     const xml = jest.mocked(reportPortalClient.importLaunch).mock.calls[0][0].xml;
     expect(xml.match(/<test id="[^"]+" name="Rule /g)).toHaveLength(8);
+    expect(xml.match(/<status status="SKIP"/g)?.length).toBeGreaterThanOrEqual(8);
+    expect(xml).not.toContain('status="FAIL"');
     expect(xml.split('name="Passed Rules"')[1].split("</suite>")[0]).not.toContain("<test ");
 });
 

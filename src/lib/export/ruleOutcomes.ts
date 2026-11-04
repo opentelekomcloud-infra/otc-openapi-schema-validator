@@ -3,6 +3,11 @@ interface ExportDiagnostic {
   readonly source?: unknown;
   readonly message?: unknown;
   readonly severity?: unknown;
+  readonly ruleOutcome?: unknown;
+}
+
+export function isSkippedRule(diagnostic: ExportDiagnostic): boolean {
+  return diagnostic.ruleOutcome === "skip";
 }
 
 export function extractRuleId(raw: unknown): string | undefined {
@@ -36,7 +41,9 @@ export function isDocumentError(diagnostic: ExportDiagnostic): boolean {
 export function ruleOutcomeSummary(diagnostics: readonly ExportDiagnostic[]) {
   return {
     documentFailed: diagnostics.some(isDocumentError),
-    failedRuleIds: new Set(diagnostics.filter((diagnostic) => !isDocumentError(diagnostic))
+    skippedRuleIds: new Set(diagnostics.filter(isSkippedRule)
+      .map(diagnosticRuleId).filter((id): id is string => id !== undefined)),
+    failedRuleIds: new Set(diagnostics.filter((diagnostic) => !isDocumentError(diagnostic) && !isSkippedRule(diagnostic))
       .map(diagnosticRuleId).filter((id): id is string => id !== undefined)),
   };
 }

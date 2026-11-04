@@ -11,6 +11,7 @@ import ManualChecksSelector, { type ManualRule } from "@/components/ManualChecks
 import IssuesPanel, { type IssuesPanelHandle } from "@/components/IssuesPanel";
 import { ScaleDialog } from "@/components/ScaleControls";
 import { exportJUnit, exportPDF, exportReportPortal } from "@/utils/export";
+import { isSkippedRule } from "@/lib/export/ruleOutcomes";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
 import AuthButtons from "@/components/AuthButtons";
@@ -31,6 +32,7 @@ const HomePage = () => {
     const [editorReady, setEditorReady] = useState(false);
     const [selectedRules, setSelectedRules] = useState<Rule[]>([]);
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
+    const visibleDiagnostics = useMemo(() => diagnostics.filter((diagnostic) => !isSkippedRule(diagnostic)), [diagnostics]);
     const diagnosticsRef = useRef<readonly Diagnostic[]>([]);
     const issuesRef = useRef<IssuesPanelHandle>(null);
     const tabsRef = useRef<HTMLElement>(null);
@@ -48,7 +50,7 @@ const HomePage = () => {
     const selectedManualRulesCount = manualRules.filter((rule) => rule.verified).length;
     const hasDocument = code !== initialCode && Boolean(code.trim());
 
-    useEffect(() => { diagnosticsRef.current = diagnostics; }, [diagnostics]);
+    useEffect(() => { diagnosticsRef.current = visibleDiagnostics; }, [visibleDiagnostics]);
     useEffect(() => {
         const element = tabsRef.current;
         if (!element) return;
@@ -79,7 +81,7 @@ const HomePage = () => {
             if (!isCurrent()) return;
             setSpecTitle(result.specTitle ?? null);
             setDiagnostics(result.diagnostics);
-            view.dispatch(setEditorDiagnostics(view.state, result.diagnostics));
+            view.dispatch(setEditorDiagnostics(view.state, result.diagnostics.filter((diagnostic) => !isSkippedRule(diagnostic))));
         } catch (error: unknown) {
             if (!isCurrent()) return;
             setLintError(`Unable to validate the specification: ${error instanceof Error ? error.message : String(error)}`);
@@ -258,9 +260,9 @@ const HomePage = () => {
             <section id="results-pane" className="resultsPane" aria-label="Validation workspace" data-mobile-visible={mobileView === "results"}>
                 <scale-tab-nav ref={tabsRef} className="workspaceTabs" aria-label="Validation panels">
                     <scale-tab-header slot="tab" data-tab="issues" selected={activeTab === "issues"}
-                        onClick={() => setActiveTab("issues")}>Issues ({diagnostics.length})</scale-tab-header>
+                        onClick={() => setActiveTab("issues")}>Issues ({visibleDiagnostics.length})</scale-tab-header>
                     <scale-tab-panel slot="panel" hidden={activeTab !== "issues"}>
-                        <IssuesPanel ref={issuesRef} diagnostics={diagnostics}
+                        <IssuesPanel ref={issuesRef} diagnostics={visibleDiagnostics}
                             content={editorViewRef.current?.state.doc.toString() ?? code}
                             isLinting={isLinting} lintError={lintError} hasDocument={hasDocument}
                             rulesSelected={selectedRules.length} onNavigate={handleDiagnosticClick}
@@ -285,7 +287,7 @@ const HomePage = () => {
             v{process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
         </footer>
         {showExportModal && <ScaleDialog heading="Export" onClose={() => setShowExportModal(false)}>
-            <p className="muted">Export all {diagnostics.length} issues and the current manual checklist. Display filters do not affect the report.</p>
+            <p className="muted">Export all {visibleDiagnostics.length} issues and the current manual checklist. Display filters do not affect the report.</p>
             <div className="exportActions">
                 <scale-button variant="secondary" onClick={async () => {
                     await exportPDF(diagnostics, selectedRules, manualRules, editorViewRef);

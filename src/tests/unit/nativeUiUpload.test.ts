@@ -230,12 +230,12 @@ test.each(["yaml", "yml"])("upload and Save preserve original %s text, CRLF, com
     expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:ui-test");
 });
 
-test("unavailable baseline leaves only a point on line one without covering other validation messages", async () => {
+test.each([false, true])("unavailable baseline stays out of UI while exports retain skips (other issues: %s)", async (withOtherIssues) => {
     const actual = jest.requireActual<typeof import("@/components/Linter")>("@/components/Linter");
     lint.mockImplementation(actual.openApiLinter);
     jest.mocked(fetchRepoMap).mockResolvedValue(null);
     await select(rules.filter((rule) => rule.id.startsWith("BAS-080-") ||
-        rule.id === "VER-030-01-2507-2507-O-5" || rule.call.function === "checkSuccessResponse"));
+        rule.id === "VER-030-01-2507-2507-O-5" || (withOtherIssues && rule.call.function === "checkSuccessResponse")));
     const content = "# vendor source\nswagger: '2.0'\ninfo: {title: Native, version: v1}\npaths:\n  /v1/resources:\n    get:\n      responses:\n        '400': {description: Bad request}\n";
     await upload(content);
     await loaded(content);
@@ -248,13 +248,27 @@ test("unavailable baseline leaves only a point on line one without covering othe
             others.push({ from, to });
         }
     });
-    expect(baseline).toEqual(Array.from({ length: 8 }, () => ({ from: 0, to: 0 })));
-    expect(others).toHaveLength(1);
-    expect(others[0].from).toBeGreaterThan(0);
-    expect(container.querySelectorAll("tbody tr")).toHaveLength(9);
+    const issueCount = withOtherIssues ? 1 : 0;
+    expect(baseline).toHaveLength(0);
+    expect(others).toHaveLength(issueCount);
+    if (withOtherIssues) expect(others[0].from).toBeGreaterThan(0);
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(issueCount);
+    expect(container.textContent).toContain(`Issues (${issueCount})`);
+    expect(container.textContent).toContain(`${issueCount} of ${issueCount} issues`);
+    expect(container.textContent).not.toContain("Rule skipped:");
+    expect(container.textContent).not.toContain("Baseline repository mapping is unavailable");
     const firstLine = container.querySelector(".cm-line");
-    expect(firstLine?.querySelector(".cm-lintPoint-error")).not.toBeNull();
-    expect(firstLine?.querySelector(".cm-lintRange-error")).toBeNull();
+    expect(firstLine?.querySelector(".cm-lintPoint-info, .cm-lintRange-info")).toBeNull();
+    for (const [label, exporter] of [
+        ["Export to PDF", exportPDF], ["Export to jUnit", exportJUnit], ["Export to ReportPortal", exportReportPortal],
+    ] as const) {
+        await act(async () => button("Export").click());
+        expect(container.textContent).toContain(`Export all ${issueCount} issues`);
+        await act(async () => button(label).click());
+        const exported = jest.mocked(exporter).mock.calls.at(-1)?.[0];
+        expect(exported).toHaveLength(8 + issueCount);
+        expect(exported?.filter((diagnostic) => "ruleOutcome" in diagnostic && diagnostic.ruleOutcome === "skip")).toHaveLength(8);
+    }
 });
 
 test("reuploading exactly the same file revalidates and refreshes both the table and gutter", async () => {

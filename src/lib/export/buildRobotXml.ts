@@ -1,7 +1,7 @@
 import {convertMarkdownToPlainText} from '@/utils/utils';
 import { getSeverityLabel } from '@/utils/mapSeverity';
 import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
-import { diagnosticRuleId, isDocumentError, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
+import { diagnosticRuleId, isDocumentError, isSkippedRule, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
 import { formatRobotTime as fmt } from "@/lib/export/robotTime";
 
 // Build Robot Framework compliant XML (schema v4) from diagnostics + rules
@@ -38,7 +38,7 @@ export function buildRobotXml(
   const testId = (suiteIdStr: string, idx: number) => `${suiteIdStr}-t${idx}`;
 
   const grouped: Record<string, any[]> = {};
-  const { failedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
+  const { failedRuleIds, skippedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
   diagnostics.forEach((diag) => {
     const key = isDocumentError(diag) ? String(diag.source)
       : diagnosticRuleId(diag) || 'unknown';
@@ -46,7 +46,8 @@ export function buildRobotXml(
     grouped[key].push(diag);
   });
 
-  const passedRules: any[] = Object.values(selectedRules || {}).filter((rule: any) => !failedRuleIds.has(rule.id));
+  const passedRules: any[] = Object.values(selectedRules || {}).filter((rule: any) =>
+    !failedRuleIds.has(rule.id) && !skippedRuleIds.has(rule.id));
   // Timing model
   const CASE_MS = 200;
   const GAP_MS = 500;
@@ -77,6 +78,7 @@ export function buildRobotXml(
   for (let i = 0; i < groupKeys.length; i++) {
     const source = groupKeys[i];
     const diags = grouped[source] || [];
+    const skipped = diags.every(isSkippedRule);
 
     const meta = source === 'unknown' ? undefined : findRuleMeta(source);
     const title = meta?.title ?? meta?.name ?? '';
@@ -94,7 +96,7 @@ export function buildRobotXml(
     const breaches = diags
       .map((d: any) => {
         const ln = computeLineNumber(d);
-        const sev = getSeverityLabel(d?.severity);
+        const sev = isSkippedRule(d) ? "SKIP" : getSeverityLabel(d?.severity);
         return `- ${sev} | Line ${ln}: ${d?.message ?? ''}`;
       })
       .join('\n');
@@ -104,19 +106,21 @@ export function buildRobotXml(
     const tId = testId(failedSuiteId, i + 1);
     failedRulesInner +=
       `      <test id="${tId}" name="${xmlEscape(testName)}">\n` +
-      `        <msg timestamp="${fmt(caseStart)}" level="FAIL">${xmlEscape(fullMsg)}</msg>\n` +
-      `        <status status="FAIL" starttime="${fmt(caseStart)}" endtime="${fmt(caseEnd)}"/>\n` +
+      `        <msg timestamp="${fmt(caseStart)}" level="${skipped ? "INFO" : "FAIL"}">${xmlEscape(fullMsg)}</msg>\n` +
+      `        <status status="${skipped ? "SKIP" : "FAIL"}" starttime="${fmt(caseStart)}" endtime="${fmt(caseEnd)}"/>\n` +
       `      </test>\n`;
 
-    failedRulesCount += 1;
-    autoFailTotal += 1;
+    if (!skipped) {
+      failedRulesCount += 1;
+      autoFailTotal += 1;
+    }
     runningMs = caseEnd;
   }
 
   const failedSuiteEnd = runningMs;
   autoInner +=
-    `    <suite id="${failedSuiteId}" name="Failed Rules" source="${VROOT}/Automated_Compliance_Validation_Report/Failed_Rules.robot">\n` +
-    `      <status status="${failedRulesCount > 0 ? 'FAIL' : 'PASS'}" starttime="${fmt(failedSuiteStart)}" endtime="${fmt(failedSuiteEnd)}"/>\n` +
+    `    <suite id="${failedSuiteId}" name="${skippedRuleIds.size ? "Failed and Skipped Rules" : "Failed Rules"}" source="${VROOT}/Automated_Compliance_Validation_Report/Failed_Rules.robot">\n` +
+    `      <status status="${failedRulesCount > 0 ? 'FAIL' : skippedRuleIds.size ? 'SKIP' : 'PASS'}" starttime="${fmt(failedSuiteStart)}" endtime="${fmt(failedSuiteEnd)}"/>\n` +
     failedRulesInner +
     `    </suite>\n`;
 

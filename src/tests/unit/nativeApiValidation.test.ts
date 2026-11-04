@@ -220,7 +220,7 @@ test("file_content retains precedence over a URL without any source fetch", asyn
     expect(globalThis.fetch).not.toHaveBeenCalled();
 });
 
-test("missing baseline remains a selected-rule error on line one, not a global HTTP parser failure", async () => {
+test("missing baseline returns an explicit selected-rule skip, not a parser failure", async () => {
     jest.mocked(fetchRepoMap).mockResolvedValue(null);
     const res = await request(validate, {
         file_content: "swagger: '2.0'\ninfo: {}\npaths: {}\n",
@@ -228,7 +228,10 @@ test("missing baseline remains a selected-rule error on line one, not a global H
     });
     expect(res.status).toHaveBeenCalledWith(200);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
-        diagnostics: [expect.objectContaining({ from: 0, to: 0, lineNumber: 1, source: expect.stringContaining("BAS-080-") })],
+        diagnostics: [expect.objectContaining({
+            from: 0, to: 0, lineNumber: 1, source: expect.stringContaining("BAS-080-"),
+            ruleOutcome: "skip", severity: "Medium", message: expect.stringContaining("Rule skipped:"),
+        })],
     }));
 });
 
