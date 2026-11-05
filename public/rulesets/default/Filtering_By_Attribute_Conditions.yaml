@@ -3,12 +3,11 @@ rules:
     title: "Filter Parameter Check"
     message: Filter parameters must be the same if represented in response.
     option: optional
-    location: path
+    location: query
     call:
       function: checkURIFilterParams
       functionParams:
         methods: ["get"]
-    description: Check effective native path parameters against response 200 only, including Path Item, parameter, response and schema refs. Preserve JSON/problem+json then first-media selection, nested objects/items/maps/compositions, case-insensitive fallback and no-schema skip. Query parameters and other success statuses are not added to this rule.
+    description: Check effective native query filters against response 200 only, including Path Item, parameter, response and schema refs. URI path, header, cookie and body parameters are not filters; offset, limit, marker, sort_key and sort_dir are pagination/sorting controls and are excluded. Preserve JSON/problem+json then first-media selection, nested objects/items/maps/compositions, case-insensitive fallback and no-schema skip.
     status: implemented
     severity: medium
-
