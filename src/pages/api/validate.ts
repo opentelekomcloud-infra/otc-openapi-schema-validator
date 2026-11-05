@@ -1,7 +1,7 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import path from 'node:path';
 import fs from 'node:fs/promises';
-import { functionsMap } from '@/lib/linter/runLinter';
+import { functionsMap, type SourceDiagnostic } from '@/lib/linter/runLinter';
 import { runPreparedLinter } from '@/lib/linter/runPreparedLinter';
 import { loadAllowedAbbreviationsOnServer } from '@/lib/server/abbreviations';
 import { getImplementedRules, loadRuleCatalog } from '@/lib/linter/ruleCatalog';
@@ -11,6 +11,8 @@ import { getSeverityLabel } from "@/utils/mapSeverity";
 import { giteaClient } from '@/clients/gitea';
 import { requireApiAuth } from "@/lib/apiAuth";
 import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
+import { diagnosticRuleId } from "@/lib/export/ruleOutcomes";
+import { isRecord } from "@/lib/openapi/references";
 
 const log = {
   debug: (...args: any[]) => console.debug("[Validate]", ...args),
@@ -38,6 +40,7 @@ export const config = {
  *   auto_rules?: string[];         // optional (subset); loads ALL then filters if provided
  *   exclude_manual_rules?: string[]; // optional; rule IDs to exclude from manual rules
  *   exclude_auto_rules?: string[];   // optional; rule IDs to exclude from auto rules
+ *   exclude_issues?: Array<{ rule_id: string; line_number: number }>; // exclude matching rule findings on 1-based source lines
  *   ruleset?: string;              // optional; defaults to "default"
  *
  *   // Export
@@ -46,6 +49,16 @@ export const config = {
  * }
  */
 
+interface IssueExclusion {
+  rule_id: string;
+  line_number: number;
+}
+
+function isIssueExclusion(value: unknown): value is IssueExclusion {
+  return isRecord(value) && typeof value.rule_id === 'string' && value.rule_id.trim() !== '' &&
+    typeof value.line_number === 'number' && Number.isSafeInteger(value.line_number) && value.line_number > 0;
+}
+
 interface ValidateRequestBody {
   path?: string;
   file_content?: string;
@@ -53,6 +66,7 @@ interface ValidateRequestBody {
   auto_rules?: string[];
   exclude_manual_rules?: string[];
   exclude_auto_rules?: string[];
+  exclude_issues?: IssueExclusion[];
   ruleset?: string;
   export?: 'pdf' | 'xml' | 'robot';
   out?: string;
@@ -175,7 +189,11 @@ export default async function handler(
       }
     }
 
-    const { path: specPathInput, file_content, manual_rules, auto_rules, exclude_manual_rules, exclude_auto_rules, export: exportMode, out, ruleset = 'default' } = (body || {}) as ValidateRequestBody & Record<string, any>;
+    const { path: specPathInput, file_content, manual_rules, auto_rules, exclude_manual_rules, exclude_auto_rules, exclude_issues, export: exportMode, out, ruleset = 'default' } = (body || {}) as ValidateRequestBody & Record<string, any>;
+
+    if (exclude_issues !== undefined && (!Array.isArray(exclude_issues) || !exclude_issues.every(isIssueExclusion))) {
+      return res.status(400).json({ error: 'Parameter "exclude_issues" must be an array of { rule_id: non-empty string, line_number: positive safe integer }.' });
+    }
 
     // Validate required source: either file_content or path/url must be provided
     if ((!file_content || String(file_content).trim() === '') && (!specPathInput || String(specPathInput).trim() === '')) {
@@ -270,11 +288,12 @@ export default async function handler(
     // Run linter
     const { diagnostics, specTitle } = await runPreparedLinter(specText, auto, loadAllowedAbbreviationsOnServer);
     log.debug('lint done: ', { diagnostics_count: Array.isArray(diagnostics) ? diagnostics.length : 0, specTitle });
-    const diagnosticsWithLines = (diagnostics || []).map((d: any) => ({
-      ...d,
-      lineNumber: diagnosticLineNumber(specText, d),
-      severity: getSeverityLabel(d?.severity),
-    }));
+    const responseDiagnostic = (diagnostic: SourceDiagnostic) => ({
+      ...diagnostic,
+      lineNumber: diagnosticLineNumber(specText, diagnostic),
+      severity: getSeverityLabel(diagnostic.severity),
+    });
+    const diagnosticsWithLines = diagnostics.map(responseDiagnostic);
     const validationResult = {
       diagnostics: diagnosticsWithLines,
       conversion: { converted: false },
@@ -292,11 +311,34 @@ export default async function handler(
       return res.status(400).json({ ...validationResult, error: parserError.message });
     }
 
+    const retainedDiagnostics: typeof diagnostics = [];
+    const excludedDiagnostics: typeof diagnostics = [];
+    for (const diagnostic of diagnostics) {
+      const excluded = exclude_issues?.some((entry) =>
+        entry.rule_id.trim() === diagnosticRuleId(diagnostic) &&
+        entry.line_number === diagnosticLineNumber(specText, diagnostic));
+      (excluded ? excludedDiagnostics : retainedDiagnostics).push(diagnostic);
+    }
+    const excludedResult = exclude_issues === undefined ? {} : {
+      excluded_issues: excludedDiagnostics.map(responseDiagnostic),
+    };
+    const filteredValidationResult = {
+      ...validationResult,
+      diagnostics: retainedDiagnostics.map(responseDiagnostic),
+      ...excludedResult,
+    };
+    const excludedRuleIds = new Set(excludedDiagnostics.map(diagnosticRuleId)
+      .filter((id): id is string => id !== undefined));
+    const fullyExcludedRuleIds = new Set([...excludedRuleIds].filter((id) =>
+      !retainedDiagnostics.some((diagnostic) => diagnosticRuleId(diagnostic) === id)));
+    log.debug('issue exclusions', { excluded: excludedDiagnostics.length, retained: retainedDiagnostics.length });
+
     // Export options
     if (exportMode === 'xml' || exportMode === 'robot') {
-      const selectedRulesMap: Record<string, any> = Object.fromEntries((auto || []).filter(r => r?.id).map(r => [r.id, r]));
-      const xml = buildRobotXml(diagnostics, selectedRulesMap, manual, specText, true);
-      log.debug('export xml built: ', { xml_len: xml.length, diagnostics_count: Array.isArray(diagnostics) ? diagnostics.length : 0 });
+      const selectedRulesMap: Record<string, any> = Object.fromEntries(auto
+        .filter(rule => rule.id && !fullyExcludedRuleIds.has(rule.id)).map(rule => [rule.id, rule]));
+      const xml = buildRobotXml(retainedDiagnostics, selectedRulesMap, manual, specText, true);
+      log.debug('export xml built: ', { xml_len: xml.length, diagnostics_count: retainedDiagnostics.length });
       if (exportMode === 'robot') {
         res.setHeader('Content-Type', 'application/xml; charset=utf-8');
         res.setHeader('Content-Disposition', 'attachment; filename="robot-report.xml"');
@@ -330,6 +372,7 @@ export default async function handler(
         success: true,
         launch: payload,
         conversion: { converted: false },
+        ...excludedResult,
       });
     }
 
@@ -341,8 +384,8 @@ export default async function handler(
     }
 
     // Default JSON response
-    log.debug('response', { mode: 'json', ms: Date.now() - t0, diagnostics: diagnosticsWithLines.length });
-    return res.status(200).json(validationResult);
+    log.debug('response', { mode: 'json', ms: Date.now() - t0, diagnostics: retainedDiagnostics.length });
+    return res.status(200).json(filteredValidationResult);
   } catch (error: any) {
     console.error('Validate route error:', error);
     return res.status(500).json({ error: error?.message || 'Unknown error' });

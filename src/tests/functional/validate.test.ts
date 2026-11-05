@@ -198,6 +198,46 @@ test("Robot response mode retains JSON errors for unauthenticated requests and i
     expect(reportPortalClient.importLaunch).not.toHaveBeenCalled();
 });
 
+test("excluded issues and fully excluded rules never appear in Robot or ReportPortal XML", async () => {
+    const successId = "STC-010-01-2507-2507-M-2";
+    const content = "swagger: '2.0'\ninfo: {title: Exclusions, version: v1}\npaths:\n  /one:\n    get:\n      responses: {'400': {description: Bad request}}\n  /two:\n    get:\n      responses: {'400': {description: Bad request}}\n";
+    const body = { file_content: content, auto_rules: [versionId, successId], manual_rules: ["not-selected"] };
+    const exclude_issues = [{ rule_id: successId, line_number: 5 }];
+    const filtered = await post({ ...body, exclude_issues });
+    expect(filtered.status).toBe(200);
+    expect(filtered.json.diagnostics).toEqual([expect.objectContaining({ lineNumber: 8 })]);
+    const download = async (exclusions: typeof exclude_issues) => {
+        const response = await fetch(`${origin}/api/validate`, {
+            method: "POST", headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ ...body, exclude_issues: exclusions, export: "robot" }),
+        });
+        expect(response.status).toBe(200);
+        return response.text();
+    };
+    const partial = await download(exclude_issues);
+    expect(partial).toContain("Line 8:");
+    expect(partial).not.toContain("Line 5:");
+    expect(partial).toContain('status="FAIL"');
+    expect((await post({ ...body, exclude_issues, export: "xml" })).status).toBe(200);
+    const partialImport = jest.mocked(reportPortalClient.importLaunch).mock.calls.at(-1)?.[0].xml;
+    expect(partialImport).not.toContain("Line 5:");
+    expect(partialImport).toContain("Line 8:");
+    exclude_issues.push({ rule_id: successId, line_number: 8 });
+    jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-05T11:00:00Z"));
+    const waived = await download(exclude_issues);
+    expect(waived).not.toContain(successId);
+    expect(waived).not.toContain("Issues explicitly excluded");
+    expect(waived).not.toContain("Missing: 200");
+    expect(waived).not.toContain("Line 5:");
+    expect(waived).not.toContain("Line 8:");
+    expect(waived.match(/<test /g)).toHaveLength(1);
+    expect(waived).not.toContain('status="FAIL"');
+    expect(waived.split('name="Passed Rules"')[1]).not.toContain(successId);
+    const imported = await post({ ...body, exclude_issues, export: "xml" });
+    expect(imported.status).toBe(200);
+    expect(jest.mocked(reportPortalClient.importLaunch).mock.calls.at(-1)?.[0].xml).toBe(waived);
+});
+
 describe.each<Dialect>(["swagger2", "openapi3"])("%s isolated native HTTP sources", (dialect) => {
     test.each(sources)("%s preserves CCE-shaped flow examples and executes the selected rules", async (source) => {
         const content = flowExampleContent(dialect);

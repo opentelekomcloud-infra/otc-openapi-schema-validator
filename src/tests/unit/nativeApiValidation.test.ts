@@ -255,6 +255,66 @@ test("missing baseline returns an explicit selected-rule skip, not a parser fail
     }));
 });
 
+describe("rule and source-line issue exclusions", () => {
+    const successId = "STC-010-01-2507-2507-M-2";
+    const content = "swagger: '2.0'\r\ninfo: {title: Exclusions, version: v1}\r\npaths:\r\n  /one:\r\n    get:\r\n      responses: {'400': {description: Bad request}}\r\n  /two:\r\n    get:\r\n      responses: {'400': {description: Bad request}}\r\n";
+    const body = { file_content: content, auto_rules: [versionId, successId], manual_rules: ["not-selected"] };
+    test.each(["swagger2", "openapi3"] as const)("%s excludes only the matching rule/line and keeps other breaches", async (dialect) => {
+        const source = dialect === "swagger2" ? content : content.replace("swagger: '2.0'", "openapi: 3.0.3");
+        const exclusion = { rule_id: successId, line_number: 5 };
+        const res = await request(validate, { ...body, file_content: source, exclude_issues: [exclusion, exclusion] });
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            diagnostics: [expect.objectContaining({ lineNumber: 8, source: expect.stringContaining(successId) })],
+            excluded_issues: [expect.objectContaining({ lineNumber: 5, source: expect.stringContaining(successId) })],
+            rules: expect.objectContaining({ auto_selected: 2 }),
+        }));
+    });
+    test("unmatched rule/line pairs have no effect and an empty audit list", async () => {
+        const res = await request(validate, { ...body,
+            exclude_issues: [{ rule_id: versionId, line_number: 5 }, { rule_id: successId, line_number: 6 }],
+        });
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            diagnostics: expect.arrayContaining([
+                expect.objectContaining({ lineNumber: 5 }), expect.objectContaining({ lineNumber: 8 }),
+            ]), excluded_issues: [],
+        }));
+    });
+    test("excluding one rule does not suppress another rule on the same JSON source line", async () => {
+        const source = JSON.stringify({ openapi: "3.1.0", info: {}, paths: { "/one": { get: { responses: {} } } } });
+        const res = await request(validate, { ...body, file_content: source,
+            exclude_issues: [{ rule_id: successId, line_number: 1 }],
+        });
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            diagnostics: [expect.objectContaining({ lineNumber: 1, source: expect.stringContaining(versionId) })],
+            excluded_issues: [expect.objectContaining({ lineNumber: 1, source: expect.stringContaining(successId) })],
+        }));
+    });
+    test.each([
+        null, {}, "5", [null], [{ rule_id: "", line_number: 5 }],
+        [{ rule_id: successId, line_number: "5" }], [{ rule_id: successId, line_number: 0 }],
+        [{ rule_id: successId, line_number: -1 }], [{ rule_id: successId, line_number: 1.5 }],
+    ])("invalid selector %j returns 400 before source I/O or validation", async (exclude_issues) => {
+        const res = await request(validate, { path: "https://specs.example.invalid/unused.yaml", exclude_issues });
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith({ error: expect.stringContaining('exclude_issues') });
+        expect(globalThis.fetch).not.toHaveBeenCalled();
+        expect(fs.readFile).not.toHaveBeenCalled();
+        expect(runLinter).not.toHaveBeenCalled();
+    });
+    test("parser errors cannot be excluded or exported", async () => {
+        const res = await request(validate, { file_content: "swagger: [", export: "robot",
+            exclude_issues: [{ rule_id: "parser", line_number: 1 }],
+        });
+        expect(res.status).toHaveBeenCalledWith(400);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            diagnostics: [expect.objectContaining({ source: "parser" })],
+        }));
+        expect(res.send).not.toHaveBeenCalled();
+        expect(reportPortalClient.importLaunch).not.toHaveBeenCalled();
+    });
+});
+
 test.each([validate, convert])("authentication and method checks precede source I/O for %p", async (handler) => {
     jest.mocked(requireApiAuth).mockResolvedValueOnce(null);
     expect((await request(handler, {})).status).toHaveBeenCalledWith(401);
