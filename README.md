@@ -158,6 +158,7 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
   "auto_rules": ["RULE_ID", "…"],
   "exclude_manual_rules": ["RULE_ID", "…"],
   "exclude_auto_rules": ["RULE_ID", "…"],
+  "exclude_issues": [{"rule_id": "FIL-010-01-2507-2507-O", "line_number": 358}],
   "ruleset": "string (default: \"default\")",
   "export": "robot | xml | pdf",
   "out": "string (required only when export=pdf)"
@@ -173,6 +174,7 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
 - If `path` is a **server path**, the file is read from disk (if accessible to the server).
 - `ruleset` directory is read from `public/rulesets/<ruleset>`; only auto‑rules with `status: implemented` are used.
 - Rule catalogs load atomically: unreadable or malformed YAML, duplicate IDs, and invalid implemented function bindings produce an error instead of partial validation. The UI displays catalog errors; the validation API returns HTTP 500 for a broken server-side catalog. Rules explicitly marked `unsupported` are not executed.
+- `exclude_issues` excludes findings matching both `rule_id` and a 1-based source `line_number`; other rules on that line and other lines for that rule remain checked. Invalid selectors return **400**. JSON responses include excluded findings in `excluded_issues` for audit, but they are not sent to ReportPortal or included in Robot XML. XML exports retain remaining failures; a rule whose findings are all explicitly excluded is omitted entirely, not reported as PASS or SKIP. Parser errors cannot be excluded. Line numbers refer to the submitted source and may change after editing it.
 - `export: "xml"` builds **Robot XML** and imports a launch to **ReportPortal** (defaults used in server: project `openapi`, dynamic launch name/description). Response includes the created launch payload.
 - `export: "robot"` returns **Robot Framework XML** directly in the response body (`Content-Type: application/xml; charset=utf-8`, attachment filename `robot-report.xml`), without importing to ReportPortal. It uses the same report builder as the UI download and ReportPortal export; manual checks are **SKIP** in API reports.
 - `export: "pdf"` requires `out`; without it the API returns **400**. With `out`, it currently returns **501** (use the UI PDF export instead).
