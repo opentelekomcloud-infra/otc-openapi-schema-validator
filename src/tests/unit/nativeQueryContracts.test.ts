@@ -72,6 +72,45 @@ async function check(spec: Doc, id: string, params: Doc = {}, format: Format = "
 }
 
 describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s native query contracts", (dialect) => {
+    test.each(formats)("%s does not treat required enterprise-router URI parameters as filters", async (format) => {
+        const spec = document(dialect, {});
+        spec.paths = {
+            "/v3/{project_id}/enterprise-router/instances/{er_id}": {
+                parameters: [{ ...parameter(dialect, "project_id", {}, "path"), required: true }],
+                get: {
+                    parameters: [{ ...parameter(dialect, "er_id", {}, "path"), required: true }],
+                    responses: { "200": response(dialect, { type: "object", properties: {
+                        enterprise_router: { type: "object", properties: { id: { type: "string" } } },
+                    } }) },
+                },
+            },
+        };
+        expect((await check(spec, filter, {}, format)).diagnostics).toEqual([]);
+    });
+    test.each(formats)("%s checks real query filters but excludes pagination, sorting and non-query parameters", async (format) => {
+        for (const valid of [true, false]) {
+            const controls = ["offset", "limit", "marker", "sort_key", "SORT_DIR"].map((name) => parameter(dialect, name));
+            const spec = document(dialect, {
+                parameters: [...controls, parameter(dialect, "er_id", {}, "path"),
+                    parameter(dialect, "X-Request-Id", {}, "header"), parameter(dialect, "status")],
+                responses: { "200": response(dialect, { type: "object", properties: {
+                    [valid ? "STATUS" : "other"]: { type: "string" },
+                } }) },
+            });
+            const { diagnostics } = await check(spec, filter, {}, format);
+            expect(diagnostics).toHaveLength(valid ? 0 : 1);
+            if (!valid) expect(diagnostics[0].message).toMatch(/Missing in response schema: status\.$/);
+        }
+    });
+    test("a query filter is still checked when a URI parameter has the same name", async () => {
+        const spec = document(dialect, {
+            parameters: [parameter(dialect, "er_id")],
+            responses: { "200": response(dialect, { type: "object" }) },
+        }, { parameters: [parameter(dialect, "er_id", {}, "path")] });
+        const { diagnostics } = await check(spec, filter);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing in response schema: er_id.");
+    });
     test.each(formats)("%s checks inherited native limit default and string-equivalent configuration", async (format) => {
         for (const value of [1000, "1000", 25, null, undefined]) {
             const field = parameter(dialect, "limit", value === undefined ? {} : { default: value });
@@ -95,13 +134,13 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s native query con
         expect((await check(document(dialect, { parameters: [parameter(dialect, "order_by")] }),
             sorting, {}, format)).diagnostics).toEqual([]);
     });
-    test.each(formats)("%s filters effective path parameters against native response 200", async (format) => {
+    test.each(formats)("%s filters effective query parameters against native response 200", async (format) => {
         for (const valid of [true, false]) {
             const schema = { type: "object", properties: { items: { type: "array", items: {
                 type: "object", properties: { [valid ? "USER_ID" : "other_id"]: { type: "string" } },
             } } } };
             const spec = document(dialect, { responses: { "200": response(dialect, schema) } },
-                { parameters: [parameter(dialect, "user_id", {}, "path")] });
+                { parameters: [parameter(dialect, "user_id")] });
             expect((await check(spec, filter, {}, format)).diagnostics).toHaveLength(valid ? 0 : 1);
         }
     });
@@ -142,14 +181,14 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s native query con
         expect((await check(absent, sorting, { defaultDirNotAllowed: true })).diagnostics).toEqual([]);
         expect((await check(absent, sorting)).diagnostics).toHaveLength(1);
     });
-    test("filter remains path-only, response-200-only and schema-optional", async () => {
-        const path = parameter(dialect, "user_id", {}, "path");
+    test("filter remains query-only, response-200-only and schema-optional", async () => {
+        const query = parameter(dialect, "user_id");
         const missing = response(dialect, { type: "object" });
         for (const output of [{ "201": missing }, { "200": { description: "No body" } }]) {
-            expect((await check(document(dialect, { parameters: [path], responses: output }), filter)).diagnostics).toEqual([]);
+            expect((await check(document(dialect, { parameters: [query], responses: output }), filter)).diagnostics).toEqual([]);
         }
         expect((await check(document(dialect, {
-            parameters: [parameter(dialect, "user_id")], responses: { "200": missing },
+            parameters: [parameter(dialect, "user_id", {}, "path")], responses: { "200": missing },
         }), filter)).diagnostics).toEqual([]);
     });
     test("Path Item and parameter references are checked without metadata pseudo-operations", async () => {
@@ -171,7 +210,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s native query con
             const namespace = dialect === "swagger2" ? "" : "components/";
             const shared = id === sorting
                 ? parameter(dialect, "sort_dir", { enum: [valid ? "asc" : "sideways"], default: valid ? "asc" : "sideways" })
-                : parameter(dialect, "user_id", {}, "path");
+                : parameter(dialect, "user_id");
             const parameters = { Shared: shared };
             const schemas = { Shared: { type: "object", properties: {
                 [valid ? "USER_ID" : "other_id"]: { type: "string" },
@@ -204,7 +243,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s native query con
     test("filter preserves short-circuit recursion, arrays, maps and composition semantics", async () => {
         const namespace = dialect === "swagger2" ? "definitions" : "components/schemas";
         const schema = { type: "object", properties: { user_id: { type: "string" }, ignored: { $ref: "#/missing" } } };
-        const parameters = [parameter(dialect, "user_id", {}, "path")];
+        const parameters = [parameter(dialect, "user_id")];
         expect((await check(document(dialect, { parameters, responses: { "200": response(dialect, schema) } }),
             filter)).diagnostics).toEqual([]);
         const schemas: Doc = { Recursive: { type: "object", properties: { child: { $ref: `#/${namespace}/Recursive` } },
@@ -255,7 +294,7 @@ test("filter preserves JSON/problem+json preference and skips a selected media w
         "text/plain": { schema: { type: "object" } },
         "application/problem+json": { schema: { type: "object", properties: { user_id: { type: "string" } } } },
     };
-    const spec = document("openapi3", { parameters: [parameter("openapi3", "user_id", {}, "path")],
+    const spec = document("openapi3", { parameters: [parameter("openapi3", "user_id")],
         responses: { "200": { description: "OK", content } } });
     expect((await check(spec, filter)).diagnostics).toEqual([]);
     content["application/json"] = {};
@@ -289,7 +328,7 @@ test("query checks do not mutate frozen documents", async () => {
     for (const dialect of ["swagger2", "openapi3"] satisfies Dialect[]) {
         const spec = document(dialect, {
             parameters: [parameter(dialect, "limit", { default: 1000 }), ...sortParams(dialect),
-                parameter(dialect, "user_id", {}, "path")],
+                parameter(dialect, "user_id")],
             responses: { "200": response(dialect, { type: "object", properties: { user_id: { type: "string" } } }) },
         });
         freeze(spec);
