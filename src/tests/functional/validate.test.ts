@@ -161,6 +161,43 @@ test("the HTTP catalog matches all 67 ledger IDs, 47 functions and 28 manual che
     expect(new Set(json.rules.auto.map((rule) => rule.call.function)).size).toBe(47);
 });
 
+test.each<Dialect>(["swagger2", "openapi3"])("%s Robot response is identical to imported XML and preserves skips, failures and passes", async (dialect) => {
+    jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-04T14:00:00.000Z"));
+    jest.mocked(fetchRepoMap).mockResolvedValue(null);
+    const baselineId = "BAS-080-01-2507-2507-M";
+    const marker = dialect === "swagger2" ? "swagger: '2.0'" : "openapi: 3.0.3";
+    const content = `${marker}\ninfo: {title: Native API, version: v1}\npaths:\n  /v1/resources:\n    get: {}\n    get: {}\n`;
+    const body = { ...sourceBody("file_content", content, dialect), auto_rules: [versionId, structureId, baselineId] };
+    const response = await fetch(`${origin}/api/validate`, {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ...body, export: "robot" }),
+    });
+    expect(response.status).toBe(200);
+    expect(response.headers.get("content-type")).toBe("application/xml; charset=utf-8");
+    expect(response.headers.get("content-disposition")).toBe('attachment; filename="robot-report.xml"');
+    const xml = await response.text();
+    expect(xml).toContain('schemaversion="4"');
+    expect(xml.match(/<test /g)).toHaveLength(31);
+    expect(xml.match(/<status status="SKIP"/g)).toHaveLength(30); // 28 manual checks, baseline and manual suite.
+    expect(xml).toContain("Baseline repository mapping is unavailable");
+    expect(xml).toContain("Line 4:");
+    expect(xml).toContain("GET (2 declarations; lines 5, 6)");
+    expect(reportPortalClient.importLaunch).not.toHaveBeenCalled();
+    const imported = await post({ ...body, export: "xml" });
+    expect(imported.status).toBe(200);
+    expect(jest.mocked(reportPortalClient.importLaunch).mock.calls[0][0].xml).toBe(xml);
+});
+
+test("Robot response mode retains JSON errors for unauthenticated requests and invalid source syntax", async () => {
+    jest.mocked(requireApiAuth).mockResolvedValueOnce(null);
+    const body = { file_content: "swagger: [", auto_rules: [versionId], export: "robot" };
+    expect((await post(body)).status).toBe(401);
+    const invalid = await post(body);
+    expect(invalid.status).toBe(400);
+    expect(invalid.json.error).toContain("Specification parsing error");
+    expect(reportPortalClient.importLaunch).not.toHaveBeenCalled();
+});
+
 describe.each<Dialect>(["swagger2", "openapi3"])("%s isolated native HTTP sources", (dialect) => {
     test.each(sources)("%s preserves CCE-shaped flow examples and executes the selected rules", async (source) => {
         const content = flowExampleContent(dialect);

@@ -159,7 +159,7 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
   "exclude_manual_rules": ["RULE_ID", "…"],
   "exclude_auto_rules": ["RULE_ID", "…"],
   "ruleset": "string (default: \"default\")",
-  "export": "xml | pdf",
+  "export": "robot | xml | pdf",
   "out": "string (required only when export=pdf)"
 }
 ```
@@ -167,13 +167,14 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
 **Behavior**
 - If `file_content` is provided, it takes precedence.
 - Swagger 2.0 and OpenAPI 3.0.x inputs are validated in their original structure. The original source text is used for diagnostics, without conversion or YAML reserialization.
-- JSON validation and XML-export responses temporarily retain the deprecated `conversion: {"converted": false}` field for compatibility.
+- JSON validation and ReportPortal-import responses temporarily retain the deprecated `conversion: {"converted": false}` field for compatibility.
 - Invalid specification syntax returns **400** with `error`, `diagnostics`, `conversion`, and `rules`. Such documents are not exported to ReportPortal. Validation findings, including format-version violations reported by selected rules, return **200** in `diagnostics`.
 - If `path` is an **HTTP/HTTPS URL**, the API loads the document from that URL. Gitea URLs support `/:owner/:repo/src/:ref/path/to/file.yaml` and explicit `branch`, `tag`, or `commit` forms such as `/:owner/:repo/src/branch/:ref/path/to/file.yaml`.
 - If `path` is a **server path**, the file is read from disk (if accessible to the server).
 - `ruleset` directory is read from `public/rulesets/<ruleset>`; only auto‑rules with `status: implemented` are used.
 - Rule catalogs load atomically: unreadable or malformed YAML, duplicate IDs, and invalid implemented function bindings produce an error instead of partial validation. The UI displays catalog errors; the validation API returns HTTP 500 for a broken server-side catalog. Rules explicitly marked `unsupported` are not executed.
 - `export: "xml"` builds **Robot XML** and imports a launch to **ReportPortal** (defaults used in server: project `openapi`, dynamic launch name/description). Response includes the created launch payload.
+- `export: "robot"` returns **Robot Framework XML** directly in the response body (`Content-Type: application/xml; charset=utf-8`, attachment filename `robot-report.xml`), without importing to ReportPortal. It uses the same report builder as the UI download and ReportPortal export; manual checks are **SKIP** in API reports.
 - `export: "pdf"` requires `out`; without it the API returns **400**. With `out`, it currently returns **501** (use the UI PDF export instead).
 
 The former POST `/api/convert` endpoint now returns **410 Gone** after authentication, with a migration message directing clients to `/api/validate`. Submit the original specification instead of requesting conversion.

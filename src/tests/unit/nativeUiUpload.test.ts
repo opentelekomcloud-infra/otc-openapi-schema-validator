@@ -13,7 +13,7 @@ import { getImplementedRules, loadRuleCatalog, type AutoRule } from "@/lib/linte
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import { setAllowedAbbreviations } from "@/utils/englishWords";
 import { parseAllowedAbbreviations } from "@/lib/abbreviations";
-import { exportJUnit, exportPDF, exportReportPortal } from "@/utils/export";
+import { exportRobotFramework, exportPDF, exportReportPortal } from "@/utils/export";
 import { coverageLedger } from "@/tests/fixtures/dual-version/coverageLedger";
 import { flowExampleContent, readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
 
@@ -29,7 +29,7 @@ jest.mock("@/components/RulesetsSelector", () => ({
     __esModule: true, default: (props: typeof mockSelector) => { mockSelector = props; return null; },
 }));
 jest.mock("@/utils/export", () => ({
-    exportJUnit: jest.fn(), exportPDF: jest.fn(), exportReportPortal: jest.fn(async () => undefined),
+    exportRobotFramework: jest.fn(), exportPDF: jest.fn(), exportReportPortal: jest.fn(async () => undefined),
 }));
 jest.mock("@/components/Linter", () => ({ openApiLinter: jest.fn() }));
 jest.mock("@/utils/utils", () => ({ fetchRepoMap: jest.fn(), fetchSpecFromGitea: jest.fn() }));
@@ -176,7 +176,7 @@ test.each<Dialect>(["swagger2", "openapi3"])("%s upload runs all 67 real native 
     const tableMessages = [...container.querySelectorAll("tbody tr")].map((row) => row.children[2].textContent);
     expect(gutterMessages.sort()).toEqual(tableMessages.sort());
     for (const [label, exporter] of [
-        ["Export to PDF", exportPDF], ["Export to jUnit", exportJUnit], ["Export to ReportPortal", exportReportPortal],
+        ["Export to PDF", exportPDF], ["Export to Robot Framework", exportRobotFramework], ["Export to ReportPortal", exportReportPortal],
     ] as const) {
         await act(async () => button("Export").click());
         await act(async () => button(label).click());
@@ -260,7 +260,7 @@ test.each([false, true])("unavailable baseline stays out of UI while exports ret
     const firstLine = container.querySelector(".cm-line");
     expect(firstLine?.querySelector(".cm-lintPoint-info, .cm-lintRange-info")).toBeNull();
     for (const [label, exporter] of [
-        ["Export to PDF", exportPDF], ["Export to jUnit", exportJUnit], ["Export to ReportPortal", exportReportPortal],
+        ["Export to PDF", exportPDF], ["Export to Robot Framework", exportRobotFramework], ["Export to ReportPortal", exportReportPortal],
     ] as const) {
         await act(async () => button("Export").click());
         expect(container.textContent).toContain(`Export all ${issueCount} issues`);
@@ -449,8 +449,8 @@ test("issue display filters and pagination never truncate exports or editor diag
     forEachDiagnostic(editor().state, (diagnostic) => editorDiagnostics.push(diagnostic));
     expect(editorDiagnostics).toHaveLength(105);
     await act(async () => button("Export").click());
-    await act(async () => button("Export to jUnit").click());
-    expect(jest.mocked(exportJUnit).mock.calls.at(-1)?.[0]).toEqual(all);
+    await act(async () => button("Export to Robot Framework").click());
+    expect(jest.mocked(exportRobotFramework).mock.calls.at(-1)?.[0]).toEqual(all);
 });
 
 test("issue navigation retains exact EOF positions", async () => {

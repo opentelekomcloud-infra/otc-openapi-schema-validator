@@ -41,7 +41,7 @@ export const config = {
  *   ruleset?: string;              // optional; defaults to "default"
  *
  *   // Export
- *   export?: "pdf" | "xml";     // optional; xml pushes Robot XML to ReportPortal; pdf not implemented server-side
+ *   export?: "pdf" | "xml" | "robot"; // robot returns Robot XML; xml imports to ReportPortal; pdf not implemented server-side
  *   out?: string;                  // required only for export=pdf (currently returns 501)
  * }
  */
@@ -54,7 +54,7 @@ interface ValidateRequestBody {
   exclude_manual_rules?: string[];
   exclude_auto_rules?: string[];
   ruleset?: string;
-  export?: 'pdf' | 'xml';
+  export?: 'pdf' | 'xml' | 'robot';
   out?: string;
 }
 
@@ -293,11 +293,15 @@ export default async function handler(
     }
 
     // Export options
-    if (exportMode === 'xml') {
-      // Build Robot XML and send to ReportPortal with default settings (no extra API params)
+    if (exportMode === 'xml' || exportMode === 'robot') {
       const selectedRulesMap: Record<string, any> = Object.fromEntries((auto || []).filter(r => r?.id).map(r => [r.id, r]));
       const xml = buildRobotXml(diagnostics, selectedRulesMap, manual, specText, true);
       log.debug('export xml built: ', { xml_len: xml.length, diagnostics_count: Array.isArray(diagnostics) ? diagnostics.length : 0 });
+      if (exportMode === 'robot') {
+        res.setHeader('Content-Type', 'application/xml; charset=utf-8');
+        res.setHeader('Content-Disposition', 'attachment; filename="robot-report.xml"');
+        return res.status(200).send(xml);
+      }
       const project = 'openapi';
       const launch = `Service: ${specTitle ?? 'OpenAPI'}`;
       const description = `Latest launch for ${specTitle ?? 'OpenAPI'} - ${new Date().toISOString()}`;
