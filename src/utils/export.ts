@@ -6,7 +6,6 @@ import {getSeverityLabel} from "@/utils/mapSeverity";
 import { buildRobotXml } from "@/lib/export/buildRobotXml";
 import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
 import { diagnosticRuleId, isSkippedRule, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
-import { formatRobotTime as fmt } from "@/lib/export/robotTime";
 
 export const exportPDF = async (
   diagnostics: any[],
@@ -118,238 +117,20 @@ export const exportPDF = async (
 
 };
 
-export const exportJUnit = async (
+export const exportRobotFramework = async (
   diagnostics: any[],
   selectedRules: Record<string, any>,
   manualRules: ManualRule[],
   editorViewRef: React.RefObject<EditorView | null>
 ) => {
-  // Helpers
-  const xmlEscape = (value: any) => {
-    const s = String(value ?? "");
-    return s
-      .replace(/&/g, "&amp;")
-      .replace(/</g, "&lt;")
-      .replace(/>/g, "&gt;")
-      .replace(/\"/g, "&quot;")
-      .replace(/'/g, "&apos;");
-  };
-
-  const safePath = (s: string) =>
-    String(s ?? "")
-      .trim()
-      .replace(/\s+/g, "_")
-      .replace(/[^\w\-\.]/g, "");
-  const VROOT = "virtual:///Compliance_Validation";
-
-  // ID helpers in Robot format
-  const suiteId = (...segments: number[]) => `s${segments.join("-s")}`;
-  const testId = (suiteIdStr: string, idx: number) => `${suiteIdStr}-t${idx}`;
-
-  // Group diagnostics by source
-  const grouped: Record<string, any[]> = {};
-  diagnostics.forEach((diag) => {
-    const key = diag?.source ? String(diag.source) : diagnosticRuleId(diag) || "unknown";
-    if (!grouped[key]) grouped[key] = [];
-    grouped[key].push(diag);
-  });
-
-  const { failedRuleIds, skippedRuleIds, documentFailed } = ruleOutcomeSummary(diagnostics);
-  const passedRules: any[] = Object.values(selectedRules).filter(
-    (rule: any) => !failedRuleIds.has(rule.id) && !skippedRuleIds.has(rule.id)
-  );
-
-  // Timing model
-  const CASE_MS = 200;
-  const GAP_MS = 500;
-  const baseMs = Date.now();
-
-  // Root suite
-  const rootName = "Compliance Validation";
-  const rootId = suiteId(1);
-
-  // Child suite IDs
-  const automatedName = "Automated Compliance Validation Report";
-  const automatedId = suiteId(1, 1);
-  const manualName = "Manual Checklist";
-  const manualId = suiteId(1, 2);
-
-  // Build Automated subtree
-  let autoInner = "";
-  let autoSuiteCounter = 0;
-  let autoFailTotal = 0;
-  let runningMs = baseMs;
-
-  const groupKeys = Object.keys(grouped);
-  for (let gi = 0; gi < groupKeys.length; gi++) {
-    const source = groupKeys[gi];
-    const diags = grouped[source];
-    const groupSkipped = diags.every(isSkippedRule);
-    autoSuiteCounter += 1;
-
-    const subSuiteId = `${automatedId}-s${autoSuiteCounter}`;
-    const suiteStart = runningMs;
-    let testsXml = "";
-
-    for (let ti = 0; ti < diags.length; ti++) {
-      const diag = diags[ti];
-      const skipped = isSkippedRule(diag);
-      const caseStart = runningMs;
-      const caseEnd = caseStart + CASE_MS;
-
-      const lineNumber = diagnosticLineNumber(editorViewRef.current?.state.doc.toString(), diag);
-
-      const tName = `Line: ${lineNumber}`;
-      const severity = xmlEscape(skipped ? "SKIP" : getSeverityLabel(diag?.severity));
-      const msgText = `${severity}: ${diag?.message ?? ""}`;
-      const tId = testId(subSuiteId, ti + 1);
-
-      testsXml +=
-        `      <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-        `        <msg timestamp="${fmt(
-          caseStart
-        )}" level="${
-          skipped ? "INFO" : severity === "ERROR" || severity === "CRITICAL" ? "ERROR" : "FAIL"
-        }">${xmlEscape(msgText)}</msg>\n` +
-        `        <status status="${skipped ? "SKIP" : "FAIL"}" starttime="${fmt(
-          caseStart
-        )}" endtime="${fmt(caseEnd)}"/>\n` +
-        `      </test>\n`;
-
-      if (!skipped) autoFailTotal += 1;
-      runningMs = caseEnd;
-    }
-
-    const suiteEnd = runningMs;
-    autoInner +=
-      `    <suite id="${subSuiteId}" name="${xmlEscape(source)}" source="${VROOT}/Automated_Compliance_Validation_Report/${safePath(source)}.robot">\n` +
-      `      <status status="${groupSkipped ? "SKIP" : "FAIL"}" starttime="${fmt(
-        suiteStart
-      )}" endtime="${fmt(suiteEnd)}"/>\n` +
-      testsXml +
-      `    </suite>\n`;
-
-    runningMs += GAP_MS;
-  }
-
-  // Rules without individual failures may not have executed after a document failure.
-  if (passedRules.length > 0) {
-    autoSuiteCounter += 1;
-    const subSuiteId = `${automatedId}-s${autoSuiteCounter}`;
-    const suiteStart = runningMs;
-    let testsXml = "";
-
-    for (let i = 0; i < passedRules.length; i++) {
-      const rule = passedRules[i];
-      const caseStart = runningMs;
-      const caseEnd = caseStart + CASE_MS;
-      const tName = `Rule ${rule.id} - ${rule.title ?? rule.message ?? ""}`;
-      const tId = testId(subSuiteId, i + 1);
-
-      testsXml +=
-        `      <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-        `        <msg timestamp="${fmt(
-          caseStart
-        )}" level="INFO">${documentFailed ? "Not executed: document parsing/version failure" : "Passed"}</msg>\n` +
-        `        <status status="${documentFailed ? "SKIP" : "PASS"}" starttime="${fmt(
-          caseStart
-        )}" endtime="${fmt(caseEnd)}"/>\n` +
-        `      </test>\n`;
-
-      runningMs = caseEnd;
-    }
-
-    const suiteEnd = runningMs;
-    autoInner +=
-      `    <suite id="${subSuiteId}" name="${documentFailed ? "Not Executed Rules" : "Passed Rules"}" source="${VROOT}/Automated_Compliance_Validation_Report/${documentFailed ? "Not_Executed" : "Passed"}_Rules.robot">\n` +
-      `      <status status="${documentFailed ? "SKIP" : "PASS"}" starttime="${fmt(
-        suiteStart
-      )}" endtime="${fmt(suiteEnd)}"/>\n` +
-      testsXml +
-      `    </suite>\n`;
-
-    runningMs += GAP_MS;
-  }
-
-  const automatedStart = baseMs;
-  const automatedEnd = runningMs;
-  const automatedSuiteXml =
-    `  <suite id="${automatedId}" name="${xmlEscape(automatedName)}" source="${VROOT}/Automated_Compliance_Validation_Report">\n` +
-    `    <status status="${
-      autoFailTotal > 0 ? "FAIL" : "PASS"
-    }" starttime="${fmt(automatedStart)}" endtime="${fmt(automatedEnd)}"/>\n` +
-    autoInner +
-    `  </suite>\n`;
-
-  // --- Manual suite ---
-  let manualInner = "";
-  let manualFailTotal = 0;
-  const manualStart = runningMs;
-
-  for (let i = 0; i < manualRules.length; i++) {
-    const rule = manualRules[i];
-    const caseStart = runningMs;
-    const caseEnd = caseStart + CASE_MS;
-    const tName = `${rule.id} - ${rule.title}`;
-    const isPass = !!rule?.verified;
-    const rawMsg = convertMarkdownToPlainText(rule?.message ?? "");
-    const tId = testId(manualId, i + 1);
-
-    if (isPass) {
-      manualInner +=
-        `    <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-        `      <msg timestamp="${fmt(caseStart)}" level="INFO">Verified</msg>\n` +
-        `      <status status="PASS" starttime="${fmt(
-          caseStart
-        )}" endtime="${fmt(caseEnd)}"/>\n` +
-        `    </test>\n`;
-    } else {
-      manualInner +=
-        `    <test id="${tId}" name="${xmlEscape(tName)}">\n` +
-        `      <msg timestamp="${fmt(
-          caseStart
-        )}" level="FAIL">Manual rule not verified: ${xmlEscape(
-          rule?.option ?? ""
-        )} — ${xmlEscape(rawMsg)}</msg>\n` +
-        `      <status status="FAIL" starttime="${fmt(
-          caseStart
-        )}" endtime="${fmt(caseEnd)}"/>\n` +
-        `    </test>\n`;
-      manualFailTotal += 1;
-    }
-    runningMs = caseEnd;
-  }
-
-  const manualEnd = runningMs;
-  const manualSuiteXml =
-    `  <suite id="${manualId}" name="${xmlEscape(manualName)}" source="${VROOT}/Manual_Checklist">\n` +
-    `    <status status="${
-      manualFailTotal > 0 ? "FAIL" : "PASS"
-    }" starttime="${fmt(manualStart)}" endtime="${fmt(manualEnd)}"/>\n` +
-    manualInner +
-    `  </suite>\n`;
-
-  // Root suite
-  const rootStart = baseMs;
-  const rootEnd = runningMs;
-  const generated = fmt(baseMs);
-  const robotXml =
-    `<?xml version="1.0" encoding="UTF-8"?>\n` +
-    `<robot generator="api-validator" generated="${generated}" rpa="false" schemaversion="4">\n` +
-    `  <suite id="${rootId}" name="${xmlEscape(rootName)}" source="${VROOT}">\n` +
-    `    <status status="${
-      autoFailTotal + manualFailTotal > 0 ? "FAIL" : "PASS"
-    }" starttime="${fmt(rootStart)}" endtime="${fmt(rootEnd)}"/>\n` +
-    automatedSuiteXml +
-    manualSuiteXml +
-    `  </suite>\n` +
-    `</robot>`;
-
+  const content = editorViewRef.current?.state.doc.toString() ?? "";
+  const robotXml = buildRobotXml(diagnostics, selectedRules, manualRules, content);
   const blob = new Blob([robotXml], { type: "application/xml" });
   const link = document.createElement("a");
   link.href = URL.createObjectURL(blob);
   link.download = "robot-report.xml";
   link.click();
+  URL.revokeObjectURL(link.href);
 };
 
 export const exportReportPortal = async (

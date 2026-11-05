@@ -8,7 +8,7 @@ import { getImplementedRules, loadRuleCatalog, type AutoRule } from "@/lib/linte
 import { buildRobotXml } from "@/lib/export/buildRobotXml";
 import { robotReportStartTime } from "@/lib/export/robotTime";
 import { diagnosticRuleId, ruleOutcomeSummary } from "@/lib/export/ruleOutcomes";
-import { exportJUnit, exportPDF } from "@/utils/export";
+import { exportRobotFramework, exportPDF } from "@/utils/export";
 import type { ManualRule } from "@/components/ManualChecksSelector";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import { coverageLedger } from "@/tests/fixtures/dual-version/coverageLedger";
@@ -39,7 +39,7 @@ function parseXml(xml: string): Document {
 }
 
 async function browserXml(diagnostics: Diagnostic[], selected: Record<string, AutoRule>, manual: ManualRule[] = []) {
-    await exportJUnit(diagnostics, selected, manual, { current: null });
+    await exportRobotFramework(diagnostics, selected, manual, { current: null });
     const text = await new Promise<string>((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("Not XML"));
@@ -68,6 +68,7 @@ beforeAll(async () => {
         savedBlob = blob;
         return "blob:native-export";
     }) });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: jest.fn() });
 });
 beforeEach(() => {
     jest.clearAllMocks();
@@ -90,7 +91,25 @@ test("export coverage ledger matches all 67 implemented bindings", () => {
     expect(rules.size).toBe(67);
 });
 
-test("both XML generators use UTC and contain every child time within its suite bounds", async () => {
+test("downloaded Robot XML uses the shared ReportPortal builder and groups all breaches into one test per rule", async () => {
+    jest.spyOn(Date, "now").mockReturnValue(Date.parse("2026-11-04T14:00:00.000Z"));
+    const failed = rules.get("BAS-110-01-2507-2507-M");
+    const passed = rules.get("BAS-110-01-2507-2507-M-1");
+    if (!failed || !passed) throw new Error("Missing compliance rules");
+    const selected = { [failed.id]: failed, [passed.id]: passed };
+    const findings = ["First <breach>", "Second & breach"].map((message) => ({
+        from: 0, to: 0, severity: "error" as const, source: `Rule ${failed.id} - Failed`, message,
+    }));
+    const downloaded = await browserXml(findings, selected);
+    expect(downloaded.documentElement.outerHTML).toBe(parseXml(buildRobotXml(findings, selected, [], "")).documentElement.outerHTML);
+    expect(downloaded.querySelectorAll("test > status[status=FAIL]")).toHaveLength(1);
+    expect(downloaded.querySelectorAll("test > status[status=PASS]")).toHaveLength(1);
+    expect(downloaded.querySelector("msg")?.textContent).toContain("First <breach>");
+    expect(downloaded.querySelector("msg")?.textContent).toContain("Second & breach");
+    expect(URL.revokeObjectURL).toHaveBeenCalledWith("blob:native-export");
+});
+
+test("API and downloaded XML use UTC and contain every child time within its suite bounds", async () => {
     const now = Date.parse("2026-11-03T08:26:05.477Z");
     jest.spyOn(Date, "now").mockReturnValue(now);
     // Local-time access would shift the report on hosts outside UTC.
@@ -157,7 +176,8 @@ describe.each(coverageLedger)("$ruleId native report outcomes", (entry) => {
                 expect(rows[0][0]).toBe(diagnostics[0].lineNumber);
                 expect(rows[0][3]).toContain(rule.id);
                 expect(api.documentElement.textContent).toContain(`Line ${diagnostics[0].lineNumber}:`);
-                expect(ui.querySelector("test")?.getAttribute("name")).toBe(`Line: ${diagnostics[0].lineNumber}`);
+                expect(ui.documentElement.textContent).toContain(`Line ${diagnostics[0].lineNumber}:`);
+                expect(ui.querySelector("test")?.getAttribute("name")).toContain(`Rule ${rule.id}`);
             }
         }
     });

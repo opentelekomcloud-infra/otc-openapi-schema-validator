@@ -1,4 +1,4 @@
-import { exportJUnit, exportPDF } from "@/utils/export";
+import { exportRobotFramework, exportPDF } from "@/utils/export";
 import { buildRobotXml } from "@/lib/export/buildRobotXml";
 import { sourceMap } from "@/lib/openapi/sourceMap";
 
@@ -74,11 +74,12 @@ test("browser Robot export uses the same mapped line, including without a live e
     });
     const createObjectURL = jest.spyOn(URL, "createObjectURL").mockReturnValue("blob:source-map-test");
     try {
-        await exportJUnit([diagnostic], {}, [], { current: null });
+        await exportRobotFramework([diagnostic], {}, [], { current: null });
         expect(anchor.click).toHaveBeenCalledTimes(1);
         const blob = createObjectURL.mock.calls[0][0];
         if (!(blob instanceof Blob)) throw new Error("Expected an XML Blob");
-        expect(await blob.text()).toContain('name="Line: 3"');
+        expect(await blob.text()).toContain("Line 3:");
+        expect(anchor.download).toBe("robot-report.xml");
     } finally {
         if (previous) Object.defineProperty(globalThis, "document", previous);
         else Reflect.deleteProperty(globalThis, "document");

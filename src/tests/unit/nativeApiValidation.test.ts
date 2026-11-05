@@ -21,7 +21,10 @@ jest.mock("node:fs/promises", () => {
 jest.mock("@/lib/apiAuth", () => ({ requireApiAuth: jest.fn(async () => ({ mode: "disabled" })) }));
 jest.mock("@/clients/gitea", () => ({ giteaClient: { fetchRawYamlFile: jest.fn(), fetchYamlFile: jest.fn() } }));
 jest.mock("@/clients/reportportal", () => ({ reportPortalClient: { importLaunch: jest.fn() } }));
-jest.mock("@/utils/utils", () => ({ fetchRepoMap: jest.fn(), fetchSpecFromGitea: jest.fn() }));
+jest.mock("@/utils/utils", () => ({
+    fetchRepoMap: jest.fn(), fetchSpecFromGitea: jest.fn(),
+    convertMarkdownToPlainText: (value: string) => value,
+}));
 jest.mock("@/lib/linter/runLinter", () => {
     const actual = jest.requireActual<typeof import("@/lib/linter/runLinter")>("@/lib/linter/runLinter");
     return { ...actual, runLinter: jest.fn(actual.runLinter) };
@@ -94,6 +97,23 @@ afterEach(() => {
 });
 
 describe.each<Dialect>(["swagger2", "openapi3"])("%s original API sources", (dialect) => {
+    test.each(sources)("%s returns Robot XML as the response body without a ReportPortal import", async (source) => {
+        const content = readFixtureContent(dialect);
+        const res = await request(validate, {
+            ...sourceBody(source, content, dialect), auto_rules: [versionId], export: "robot",
+        });
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.getHeader("Content-Type")).toBe("application/xml; charset=utf-8");
+        expect(res.getHeader("Content-Disposition")).toBe('attachment; filename="robot-report.xml"');
+        expect(res.send).toHaveBeenCalledWith(expect.stringContaining('<robot generator="api-validator"'));
+        const xml = jest.mocked(res.send).mock.calls[0][0];
+        expect(xml).toContain(`Rule ${versionId}`);
+        expect(xml).toContain('schemaversion="4"');
+        expect(xml).toContain('status="SKIP"');
+        expect(res.json).not.toHaveBeenCalled();
+        expect(reportPortalClient.importLaunch).not.toHaveBeenCalled();
+    });
+
     test.each(sources)("%s CCE-shaped flow examples return rule findings rather than a global parser failure", async (source) => {
         const content = flowExampleContent(dialect);
         const successId = "STC-010-01-2507-2507-M-2";

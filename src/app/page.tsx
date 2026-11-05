@@ -10,7 +10,7 @@ import RulesetsSelector, { type Rule } from "@/components/RulesetsSelector";
 import ManualChecksSelector, { type ManualRule } from "@/components/ManualChecksSelector";
 import IssuesPanel, { type IssuesPanelHandle } from "@/components/IssuesPanel";
 import { ScaleDialog } from "@/components/ScaleControls";
-import { exportJUnit, exportPDF, exportReportPortal } from "@/utils/export";
+import { exportRobotFramework, exportPDF, exportReportPortal } from "@/utils/export";
 import { isSkippedRule } from "@/lib/export/ruleOutcomes";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
@@ -294,9 +294,9 @@ const HomePage = () => {
                     setShowExportModal(false);
                 }}><scale-icon-user-file-pdf-file aria-hidden="true" />Export to PDF</scale-button>
                 <scale-button variant="secondary" onClick={async () => {
-                    await exportJUnit(diagnostics, selectedRules, manualRules, editorViewRef);
+                    await exportRobotFramework(diagnostics, selectedRules, manualRules, editorViewRef);
                     setShowExportModal(false);
-                }}><scale-icon-action-download aria-hidden="true" />Export to jUnit</scale-button>
+                }}><scale-icon-action-download aria-hidden="true" />Export to Robot Framework</scale-button>
                 <scale-button variant="secondary" onClick={handleExportReportPortal} disabled={isExporting}>
                     <scale-icon-action-export aria-hidden="true" />{isExporting ? "Exporting…" : "Export to ReportPortal"}
                 </scale-button>
