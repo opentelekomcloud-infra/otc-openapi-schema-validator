@@ -45,7 +45,7 @@ export function ScaleSearch({ label, value, onChange }: {
         };
     }, [onChange]);
     return <scale-text-field ref={ref} label={label} value={value}
-        inputModeType="search" experimentalControlled />;
+        inputModeType="search" />;
 }
 
 export function ScaleCheckbox({ label, checked, onChange }: {
