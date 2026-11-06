@@ -160,7 +160,13 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
                             ref={(element) => { if (element) rows.current.set(diagnostic, element); else rows.current.delete(diagnostic); }}
                             data-active={active === diagnostic}
                             aria-selected={active === diagnostic}
-                            onClick={() => select(diagnostic)}>
+                            onClick={(event) => {
+                                const selection = event.currentTarget.ownerDocument.getSelection();
+                                if (selection && !selection.isCollapsed &&
+                                    (event.currentTarget.contains(selection.anchorNode) ||
+                                        event.currentTarget.contains(selection.focusNode))) return;
+                                select(diagnostic);
+                            }}>
                             <td><button className="textAction" onClick={(event) => {
                                 event.stopPropagation(); select(diagnostic);
                             }} aria-label={`Go to line ${line(diagnostic)}`}>{line(diagnostic)}</button></td>

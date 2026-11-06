@@ -117,6 +117,38 @@ test("nullable and enum constraints are both honored, including object enum key 
     expect(issues({ a: 1, b: 2 }, { type: "object", additionalProperties: true, enum: [{ b: 2, a: 1 }] })).toEqual([]);
 });
 
+test.each([undefined, false])("null type errors explain nullable when nullable is %s", (nullable) => {
+    const found = issues(null, { type: "string", ...(nullable === undefined ? {} : { nullable }) });
+    expect(found)
+        .toEqual([expect.objectContaining({
+            code: "type", detail: expect.stringContaining("Received null, but the schema does not allow null."),
+        })]);
+    expect(found[0].detail)
+        .toContain("In OpenAPI 3.0, declare nullable: true if null is a valid API value.");
+    expect(issues(1, { type: "string", nullable })).toEqual([{ code: "type", path: [], detail: "Expected string." }]);
+});
+
+test("referenced response properties show the nullability hint without treating optional as nullable", () => {
+    const schema = { type: "string" };
+    const operation = { responses: { "201": { content: { "application/json": {
+        schema: { type: "object", properties: { agency: { $ref: "#/components/schemas/Agency" } } },
+        example: { agency: { trust_domain_name: null } },
+    } } } } };
+    const document = { openapi: "3.0.3", components: { schemas: { Agency: {
+        type: "object", properties: { trust_domain_name: schema },
+    } } } };
+    const examples = collectResponseExamples(operation, ["201"], document, {});
+    const problems = validateResponseExamples(operation, examples, ["201"], document, new Map(), config);
+    expect(problems).toHaveLength(1);
+    expect(problems[0]).toContain("agency.trust_domain_name");
+    expect(problems[0]).toContain("nullable: true");
+    expect(validateResponseExamples(operation, examples, ["201"], {
+        ...document, components: { schemas: { Agency: {
+            type: "object", properties: { trust_domain_name: { ...schema, nullable: true } },
+        } } },
+    }, new Map(), config)).toEqual([]);
+});
+
 test.each(["serializedWhenStructured", "value"] as const)("JSON string mode %s preserves the original value", (mode) => {
     const value = '{"name":"sample"}';
     const schema = { type: "object", required: ["name"], properties: { name: { type: "string" } } };
