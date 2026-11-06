@@ -89,6 +89,35 @@ test("revealing an issue from the editor clears filters and opens its exact page
     expect(container.querySelector("tr[data-active=true]")?.textContent).toContain("Issue 204");
 });
 
+test("copying selected issue ID/message does not navigate or clear selection, but explicit navigation still works", async () => {
+    const selection = document.getSelection();
+    if (!selection) throw new Error("Missing text selection");
+    const navigate = jest.fn(() => selection.removeAllRanges());
+    await act(async () => root.render(panel({ diagnostics: [diagnostics[0]], onNavigate: navigate })));
+    const row = container.querySelector<HTMLElement>("tbody tr");
+    if (!row) throw new Error("Missing issue row");
+    await act(async () => row.click());
+    expect(row.dataset.active).toBe("true");
+    for (const selector of [".ruleId", ".issuePreview"]) {
+        const element = row.querySelector(selector);
+        if (!element) throw new Error("Missing selectable issue text");
+        const range = document.createRange();
+        range.selectNodeContents(element);
+        selection.removeAllRanges();
+        selection.addRange(range);
+        await act(async () => row.click());
+        expect(selection.toString()).toBe(element.textContent);
+        expect(navigate).toHaveBeenCalledTimes(1);
+    }
+    const line = row.querySelector<HTMLElement>('button[aria-label="Go to line 1"]');
+    if (!line) throw new Error("Missing source navigation");
+    await act(async () => line.click());
+    expect(navigate).toHaveBeenCalledTimes(2);
+    expect(selection.isCollapsed).toBe(true);
+    await act(async () => row.click());
+    expect(navigate).toHaveBeenCalledTimes(3);
+});
+
 test("full issue details use Scale modal close events and keep the original message intact", async () => {
     const message = "Long response context ".repeat(100);
     await act(async () => root.render(panel({ diagnostics: [{ ...diagnostics[0], message }] })));

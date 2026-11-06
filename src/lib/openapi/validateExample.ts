@@ -169,7 +169,12 @@ export function validateExampleValue(
                 if (type !== undefined && !["object", "array", "string", "boolean", "number", "integer"].includes(type)) {
                     throw new NativeExampleError(pointer, `Unsupported example schema type "${type}"`);
                 }
-                if (!matches) issues.push({ code: "type", path, detail: `Expected ${type}.` });
+                if (!matches) issues.push({
+                    code: "type", path,
+                    detail: `Expected ${type}.${current === null
+                        ? " Received null, but the schema does not allow null. In OpenAPI 3.0, declare nullable: true if null is a valid API value."
+                        : ""}`,
+                });
                 if (node.enum !== undefined) {
                     if (!Array.isArray(node.enum)) throw new NativeExampleError(pointer, "Expected a schema enum array");
                     if (!node.enum.some((entry: unknown) => equalJson(entry, current))) {
