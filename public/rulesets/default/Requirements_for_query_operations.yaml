@@ -41,7 +41,7 @@ rules:
 
   - id: "QUE-060-01-2507-2507-M"
     title: "Querying resource details requires returning creation and modification time parameters"
-    message: Resource detail query APIs must return 'create_time' and 'update_time' fields in the response.
+    message: Resource detail query APIs must return the configured creation and modification time fields in the response.
     option: Mandatory
     description: Check native response schemas for detail endpoints, preserving identifier matching, project-only and tags exclusions, aliases and nested field traversal. No-body responses are skipped; a declared body without a selected schema cannot verify the time fields.
     location: paths
@@ -53,8 +53,6 @@ rules:
         pathMustContainPathParameter: "id"
         responseCode: "200"
         requiredFields:
-          - "create_time"
-          - "update_time"
           - "created_at"
           - "updated_at"
     severity: high

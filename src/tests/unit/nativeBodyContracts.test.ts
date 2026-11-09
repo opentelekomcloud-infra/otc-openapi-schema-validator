@@ -244,6 +244,45 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         expect((await check(doc, time)).diagnostics).toHaveLength(1);
     });
 
+    test.each([
+        { present: ["updated_at"], missing: "'created_at'" },
+        { present: ["created_at"], missing: "'updated_at'" },
+        { present: [], missing: "'created_at', 'updated_at'" },
+        { present: ["create_time", "update_time"], missing: "'created_at', 'updated_at'" },
+    ])("time diagnostics identify missing configured fields: $missing", async ({ present, missing }) => {
+        const schema = { type: "object", properties: Object.fromEntries(
+            present.map((name) => [name, { type: "string" }]),
+        ) };
+        const doc = document(dialect, "/items/{resource_id}", "get",
+            operation(dialect, schemaRef(dialect, "Resource")), definitions(dialect, { Resource: schema }));
+        const { diagnostics } = await check(doc, time, { requiredFields: ["created_at", "updated_at"] });
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toBe(`${ruleFor(time).message} Missing in response schema for status '200': ${missing}.`);
+        expect(diagnostics[0].message).not.toContain("'create_time'");
+        expect(diagnostics[0].message).not.toContain("'update_time'");
+    });
+
+    test("time diagnostics retain configured alternatives and report the configured status", async () => {
+        const params = { requiredFields: ["create_time", "created_at", "update_time", "updated_at"], responseCode: "201" };
+        const schema: Doc = { type: "object", properties: { updated_at: { type: "string" } } };
+        const doc = document(dialect, "/items/{id}", "get",
+            { responses: { "201": responseBody(dialect, schema) } });
+        const { diagnostics } = await check(doc, time, params);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing in response schema for status '201': 'create_time' or 'created_at'.");
+        object(schema.properties).created_at = { type: "string" };
+        expect((await check(doc, time, params)).diagnostics).toEqual([]);
+    });
+
+    test("time diagnostics explain default alternatives when requiredFields is absent", async () => {
+        const doc = document(dialect, "/items/{id}", "get", operation(dialect, { type: "object" }));
+        const { diagnostics } = await check(doc, time, { requiredFields: undefined });
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain(
+            "Missing in response schema for status '200': 'create_time' or 'created_at', 'update_time' or 'updated_at'.",
+        );
+    });
+
     test("path filters precede Path Item refs, including tag/project/status exclusions", async () => {
         for (const path of ["/items/{project_id}", "/items/{id}/tags", "/items/tags/{id}"]) {
             const doc = document(dialect, "/unused", "get", {});
@@ -320,7 +359,7 @@ test.each([detail, list, count, time])("OAS3 body without schema fails %s; no-bo
 
 test.each([count, time])("exact JSON preference and unselected media refs are preserved for %s", async (id) => {
     const schema = id === count ? wrapper() : { type: "object", properties: {
-        create_time: { type: "string" }, update_time: { type: "string" },
+        created_at: { type: "string" }, updated_at: { type: "string" },
     } };
     const path = id === count ? "/items" : "/items/{id}";
     const doc = document("openapi3", path, "get", { responses: { "200": { description: "OK", content: {

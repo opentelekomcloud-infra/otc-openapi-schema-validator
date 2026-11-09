@@ -159,6 +159,9 @@ rules:
           - "cancel"
           - "execute"
           - "run"
+          - "delete"
+          - "switch"
+          - "remove"
         endsWithSButSingular:
           - "status"
           - "dns"
