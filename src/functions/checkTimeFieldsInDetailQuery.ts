@@ -73,8 +73,14 @@ export function checkTimeFieldsInDetailQuery(spec: unknown, content: string, rul
         const schema = selectedResponseSchema(response, spec, cache);
         if (!schema) {
             diagnostics.push(ruleDiagnostic(content, rule, op.pointer, "The declared response body has no schema to verify time fields."));
-        } else if (!hasField(schema.node, created) || !hasField(schema.node, updated)) {
-            diagnostics.push(ruleDiagnostic(content, rule, op.pointer));
+        } else {
+            const missing = [created, updated]
+                .filter((candidates) => !hasField(schema.node, candidates))
+                .map((candidates) => [...candidates].map((name) => `'${name}'`).join(" or "));
+            if (missing.length) {
+                diagnostics.push(ruleDiagnostic(content, rule, op.pointer,
+                    `Missing in response schema for status '${status}': ${missing.join(", ")}.`));
+            }
         }
     }
     return diagnostics;
