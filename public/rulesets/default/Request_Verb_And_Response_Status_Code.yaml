@@ -8,17 +8,57 @@ rules:
     element: path
     call:
       function: checkCRUD
-      functionParams: 
-        createMethod: 
+      functionParams:
+        createMethod:
           - "post"
         requiredMethods:
           - "get"
           - "put"
           - "delete"
-    description: Check real native operations and local Path Item references for same-path CRUD coverage, preserving configured creation, required, optional and exception policies.
+        nonCrudActions:
+          - "action"
+          - "actions"
+          - "add"
+          - "associate"
+          - "disassociate"
+          - "attach"
+          - "detach"
+          - "bind"
+          - "unbind"
+          - "enable"
+          - "disable"
+          - "set"
+          - "start"
+          - "stop"
+          - "restart"
+          - "reset"
+          - "resize"
+          - "promote"
+          - "demote"
+          - "import"
+          - "export"
+          - "sync"
+          - "validate"
+          - "check"
+          - "approve"
+          - "reject"
+          - "rollback"
+          - "commit"
+          - "migrate"
+          - "recover"
+          - "restore"
+          - "rotate"
+          - "cancel"
+          - "execute"
+          - "run"
+          - "delete"
+          - "switch"
+          - "remove"
+          - "create"
+    description: Check real native operations and local Path Item references for CRUD coverage across the creation path and its immediate parameterized item paths. Exclude paths whose final literal segment matches nonCrudActions exactly or contains a configured action as a whole hyphen/underscore-delimited word, before reference resolution. Parameter names, unrelated paths and deeper subresources do not count. Preserve configured creation, required, optional and exception policies.
     status: implemented
     severity: high
-  
+
   - id: "STC-010-01-2507-2507-M-2"
     title: GET operations must return 200 on success
     message: |
@@ -100,4 +140,3 @@ rules:
     description: Check native response schemas for all 2xx bodies, retaining the existing array-like wrapper and plural-required fallback heuristics. This is not strict top-level-array-only validation or new allOf type inference.
     status: implemented
     severity: critical
-    

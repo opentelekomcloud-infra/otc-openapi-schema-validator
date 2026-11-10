@@ -141,12 +141,129 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native URI/operation contra
             expect((await check(spec, rule)).diagnostics).toHaveLength(1);
         },
     );
-    test("CRUD requires actual operation objects, retaining same-path and optional-method policies", async () => {
+    test("CRUD requires actual operation objects, retaining optional-method policies", async () => {
         const spec = document(dialect, { "/v1/resources": { post: {}, get: null, put: null, delete: null } });
         expect((await check(spec, ruleFor("checkCRUD"))).diagnostics[0].message).toContain("Missing: get, put, delete");
         expect((await check(spec, ruleFor("checkCRUD", { optionalMethods: ["GET", "PUT", "DELETE"] }))).diagnostics).toEqual([]);
         object(spec.paths)["/v1/resources/{id}"] = { get: {}, put: {}, delete: {} };
+        expect((await check(spec, ruleFor("checkCRUD"))).diagnostics).toEqual([]);
+    });
+    test.each(formats)("CRUD combines OIDC collection and referenced item operations in %s", async (format) => {
+        const spec = document(dialect, {
+            "/v5/oidc-providers": { post: {}, get: {} },
+            "/v5/oidc-providers/{provider_id}": { $ref: "#/x-path-items/Provider" },
+        }, { "x-path-items": { Provider: { get: {}, put: {}, delete: {} } } });
+        expect((await check(spec, ruleFor("checkCRUD"), format)).diagnostics).toEqual([]);
+        delete object(object(spec["x-path-items"]).Provider).put;
+        const { diagnostics, content } = await check(spec, ruleFor("checkCRUD"), format);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing: put");
+        expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toContain("/v5/oidc-providers");
+    });
+    test.each([
+        "/v5/oidc-providers/{provider_id}/tags",
+        "/v5/oidc-providers/{provider_id}/tags/{tag_id}",
+        "/v5/oidc-providers/{provider_id}/action",
+        "/v5/oidc-providers/configuration",
+        "/v5/oidc-providers-extra/{provider_id}",
+        "/v5/other-providers/{provider_id}",
+    ])("CRUD does not borrow missing methods from unrelated or deeper path %s", async (path) => {
+        const spec = document(dialect, {
+            "/v5/oidc-providers": { post: {}, get: {} },
+            "/v5/oidc-providers/{provider_id}": { delete: {} },
+            [path]: { put: {} },
+        });
+        const { diagnostics } = await check(spec, ruleFor("checkCRUD"));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing: put");
+    });
+    test("CRUD respects nested collection boundaries, custom methods and trailing slashes", async () => {
+        const spec = document(dialect, {
+            "/v5/projects/{project_id}/oidc-providers/": { put: {} },
+            "/v5/projects/{project_id}/oidc-providers/{provider_id}/": { get: {}, patch: {}, delete: null },
+            "/v5/projects/{other_project_id}/oidc-providers/{provider_id}": { delete: {} },
+        });
+        const rule = ruleFor("checkCRUD", { createMethod: [" PUT "], requiredMethods: ["GET", "PATCH", "DELETE"] });
+        expect((await check(spec, rule)).diagnostics[0].message).toContain("Missing: delete");
+        expect((await check(spec, ruleFor("checkCRUD", {
+            ...rule.call.functionParams, optionalMethods: ["DELETE"],
+        }))).diagnostics).toEqual([]);
+    });
+    test("CRUD excluded item paths do not satisfy collection coverage or resolve refs", async () => {
+        const spec = document(dialect, {
+            "/v5/oidc-providers": { post: {}, get: {} },
+            "/v5/oidc-providers/{provider_id}": { $ref: "excluded.yaml#/Provider" },
+        });
+        const { diagnostics } = await check(spec, ruleFor("checkCRUD", {
+            exceptionPaths: ["/v5/oidc-providers/{provider_id}"],
+        }));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing: put, delete");
+    });
+    test.each(formats)("CRUD does not treat non-CRUD action POSTs as resource creation in %s", async (format) => {
+        const spec = document(dialect, {
+            "/v1/resources": { post: {}, get: {} },
+            "/v1/resources/{id}": { get: {}, put: {}, delete: {} },
+            "/v1/resources/{id}/action": { post: {} },
+            "/v1/resources/actions": { post: {} },
+            "/v1/resources/{id}/START/": { post: {} },
+            "/v1/resources/{id}/restart": { post: {} },
+            "/v1/resources/{id}/attach": { post: {} },
+        });
+        expect((await check(spec, ruleFor("checkCRUD"), format)).diagnostics).toEqual([]);
+        delete object(object(spec.paths)["/v1/resources/{id}"]).put;
+        const { diagnostics, content } = await check(spec, ruleFor("checkCRUD"), format);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing: put");
+        expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toContain("/v1/resources");
+    });
+    test.each(formats)("CRUD recognizes action words inside compound names in %s", async (format) => {
+        const spec = document(dialect, {
+            "/v1/resources/{id}/remove-client-id": { post: {} },
+            "/v1/resources/{id}/force-remove-client-id": { post: {} },
+            "/v1/resources/{id}/client_remove_id": { post: {} },
+            "/v1/resources/{id}/client-id-remove": { post: {} },
+            "/v1/resources/{id}/REMOVE-CLIENT-ID/": { post: {} },
+        });
+        expect((await check(spec, ruleFor("checkCRUD"), format)).diagnostics).toEqual([]);
+        const { diagnostics } = await check(spec, ruleFor("checkCRUD", { nonCrudActions: [] }), format);
+        expect(diagnostics).toHaveLength(5);
+    });
+    test("CRUD action exclusions do not match substrings, ancestors or parameter names", async () => {
+        const spec = document(dialect, {
+            "/v1/transaction-logs": { post: {} },
+            "/v1/removed-clients": { post: {} },
+            "/v1/actions/{action_id}/logs": { post: {} },
+            "/v1/resources/{client_remove_id}": { post: {} },
+        });
+        const { diagnostics } = await check(spec, ruleFor("checkCRUD"));
+        expect(diagnostics).toHaveLength(4);
+        for (const diagnostic of diagnostics) expect(diagnostic.message).toContain("Missing: get, put, delete");
+    });
+    test("CRUD action names can be configured or disabled", async () => {
+        const spec = document(dialect, { "/v1/resources/{id}/reconcile": { post: {} } });
         expect((await check(spec, ruleFor("checkCRUD"))).diagnostics).toHaveLength(1);
+        expect((await check(spec, ruleFor("checkCRUD", { nonCrudActions: [" RECONCILE "] }))).diagnostics).toEqual([]);
+        spec.paths = { "/v1/resources/{id}/remove-client-id": { post: {} } };
+        expect((await check(spec, ruleFor("checkCRUD", { nonCrudActions: ["remove-client-id"] }))).diagnostics).toEqual([]);
+        spec.paths = { "/v1/resources/{id}/action": { post: {} } };
+        expect((await check(spec, ruleFor("checkCRUD", { nonCrudActions: [] }))).diagnostics).toHaveLength(1);
+        const rule = ruleFor("checkCRUD");
+        delete rule.call.functionParams?.nonCrudActions;
+        expect((await check(spec, rule)).diagnostics).toEqual([]);
+    });
+    test("CRUD excludes action paths before resolving their Path Item refs", async () => {
+        const spec = document(dialect, {
+            "/v1/resources/{id}/remove-client-id": { $ref: "excluded.yaml#/Action" },
+        });
+        expect((await check(spec, ruleFor("checkCRUD"))).diagnostics).toEqual([]);
+    });
+    test("CRUD reports invalid action-name configuration explicitly", async () => {
+        const spec = document(dialect, { "/v1/resources": { post: {} } });
+        const { diagnostics } = await check(spec, ruleFor("checkCRUD", {
+            nonCrudActions: ["action", 1],
+        }), "json", true);
+        expect(diagnostics[0].message).toContain("functionParams.nonCrudActions must be an array of strings.");
     });
     test.each(["/v1/resources", "/v1/*"])("CRUD exception %s excludes paths before ref resolution", async (exception) => {
         const spec = document(dialect, { "/v1/resources": { $ref: "excluded.yaml#/Path" } });
@@ -197,7 +314,7 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native URI/operation contra
         { path: "/v1/resource/{id}/remove-client-id", segment: "resource" },
     ])("plural resource does not bypass $segment for $path", async ({ path, segment }) => {
         const spec = document(dialect, { [path]: { get: {} } });
-        const { diagnostics, content } = await check(spec, ruleFor("checkURIResourceFormat"));
+        const { diagnostics, content } = await check(spec, ruleFor("checkURIResourceFormat", { exceptionPaths: [] }));
         expect(diagnostics).toHaveLength(1);
         expect(diagnostics[0].message).toContain(`Resource segment "${segment}"`);
         expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toContain(path);
