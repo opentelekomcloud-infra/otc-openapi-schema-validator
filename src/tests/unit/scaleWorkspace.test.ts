@@ -129,6 +129,36 @@ test("full issue details use Scale modal close events and keep the original mess
     expect(container.querySelector("scale-modal")).toBeNull();
 });
 
+test("issue URLs are clickable in previews and details without altering text or navigating to source", async () => {
+    const url = "https://spec.openapis.org/oas/v3.0.0.html#schemaNullable";
+    const otherUrl = "http://example.test/schema?type=string&nullable=true";
+    const message = `Received null. See: ${url}. More: ${otherUrl}! javascript:alert(1) <img src=x onerror=alert(1)>`;
+    const diagnostic = { ...diagnostics[0], message };
+    const navigate = jest.fn();
+    await act(async () => root.render(panel({ diagnostics: [diagnostic], onNavigate: navigate })));
+    const preview = container.querySelector(".issuePreview");
+    expect(preview?.textContent).toBe(message);
+    const links = preview?.querySelectorAll<HTMLAnchorElement>("a");
+    expect(links).toHaveLength(2);
+    for (const [index, href] of [url, otherUrl].entries()) {
+        expect(links?.[index].getAttribute("href")).toBe(href);
+        expect(links?.[index].getAttribute("target")).toBe("_blank");
+        expect(links?.[index].getAttribute("rel")).toBe("noopener noreferrer");
+    }
+    const link = links?.[0];
+    if (!link) throw new Error("Missing documentation link");
+    link.addEventListener("click", (event) => event.preventDefault(), { once: true });
+    await act(async () => link.click());
+    expect(navigate).not.toHaveBeenCalled();
+    await click("Details");
+    const details = container.querySelector("scale-modal .fullMessage");
+    expect(details?.textContent).toBe(message);
+    expect([...details?.querySelectorAll("a") ?? []].map((anchor) => anchor.getAttribute("href"))).toEqual([url, otherUrl]);
+    expect(container.querySelector("img, script")).toBeNull();
+    await click("Go to source");
+    expect(navigate).toHaveBeenCalledWith(diagnostic);
+});
+
 test.each([
     { extra: { hasDocument: false, rulesSelected: 0 }, expected: "Start with a specification" },
     { extra: { rulesSelected: 0 }, expected: "Choose rules to validate" },
