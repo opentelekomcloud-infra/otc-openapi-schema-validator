@@ -172,7 +172,7 @@ export function validateExampleValue(
                 if (!matches) issues.push({
                     code: "type", path,
                     detail: `Expected ${type}.${current === null
-                        ? " Received null, but the schema does not allow null. In OpenAPI 3.0, declare nullable: true if null is a valid API value."
+                        ? " Received null, but the schema does not allow null. In OpenAPI 3.0, declare nullable: true if null is a valid API value. See: https://spec.openapis.org/oas/v3.0.0.html#schemaNullable."
                         : ""}`,
                 });
                 if (node.enum !== undefined) {

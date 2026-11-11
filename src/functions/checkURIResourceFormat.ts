@@ -2,7 +2,7 @@ import { pathRange } from "@/lib/openapi/sourceMap";
 import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
-import { ruleOperations } from "@/utils/nativeRule";
+import { isRulePathExcluded, ruleOperations, ruleStrings } from "@/utils/nativeRule";
 
 export function checkURIResourceFormat(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -10,6 +10,7 @@ export function checkURIResourceFormat(spec: any, content: string, rule: any): D
     if (!spec?.paths) return diagnostics;
 
     const params = rule?.call?.functionParams ?? rule?.functionParams ?? {};
+    const exceptionPaths = ruleStrings(params.exceptionPaths, "exceptionPaths");
 
     // Common non-crud action/verb segments that may appear at the end of a URI
     const verbLikeTailArr: string[] = Array.isArray(params?.verbLikeTail) ? params.verbLikeTail : [];
@@ -32,7 +33,7 @@ export function checkURIResourceFormat(spec: any, content: string, rule: any): D
 
     function isVerbTail(seg: string, method: string): boolean {
         const s = seg.toLowerCase();
-        if (verbLikeTail.has(s)) return true;
+        if (verbLikeTail.has(s) || s.split(/[-_]+/).some(word => verbLikeTail.has(word))) return true;
         return ["post", "put", "patch"].includes(method.toLowerCase()) && !isPluralResource(s);
     }
 
@@ -72,7 +73,8 @@ export function checkURIResourceFormat(spec: any, content: string, rule: any): D
         return { segment: filtered[idx], reason: "ok" };
     }
 
-    for (const { path: pathKey, method } of ruleOperations(spec, { methods: ["get", "post", "put", "patch", "delete"] })) {
+    for (const { path: pathKey, method } of ruleOperations(spec,
+        { methods: ["get", "post", "put", "patch", "delete"] }, (path) => !isRulePathExcluded(path, exceptionPaths))) {
         const leaf = findLeafResourceSegment(pathKey, method);
         if (!leaf.segment) continue;
 

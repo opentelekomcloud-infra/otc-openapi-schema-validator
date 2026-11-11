@@ -24,6 +24,12 @@ export function ruleStrings(value: unknown, field: string): readonly string[] {
     return value;
 }
 
+export function isRulePathExcluded(path: string, exceptions: readonly string[]): boolean {
+    return exceptions.some((pattern) => pattern.endsWith("*")
+        ? path.startsWith(pattern.slice(0, -1))
+        : path === pattern);
+}
+
 export function ruleDocument(spec: unknown): Record<string, unknown> {
     if (!isDocumentObject(spec)) throw new NativeAccessorError("INVALID_DECLARATION", "#", "Expected a specification object");
     if (spec.paths !== undefined && !isRecord(spec.paths)) {

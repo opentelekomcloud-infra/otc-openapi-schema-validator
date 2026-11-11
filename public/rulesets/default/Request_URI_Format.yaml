@@ -125,6 +125,8 @@ rules:
     call:
       function: checkURIResourceFormat
       functionParams:
+        exceptionPaths:
+          - "/v5/service-linked-agencies/deletion-task/*"
         verbLikeTail:
           - "action"
           - "actions"
@@ -169,7 +171,7 @@ rules:
           - "kms"
           - "oss"
         exception: "Non-CRUD operations which use verb at the end of URI. Mostly POST or PUT HTTP methods"
-    description: Check resource plurals for real native CRUD operations, including local Path Item references. Preserve verb-tail and singular exceptions and the existing five-method scope.
+    description: Check resource plurals for real native CRUD operations, including local Path Item references. Exclude exceptionPaths before reference resolution using exact paths or prefix patterns ending in '*'. Match configured verbLikeTail names exactly or as whole hyphen/underscore-delimited words in the leaf resource/action segment, excluding a trailing path parameter. Preserve parent-resource plural checks, singular exceptions and the existing five-method scope.
     status: implemented
     severity: critical
 

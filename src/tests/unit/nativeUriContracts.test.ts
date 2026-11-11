@@ -296,6 +296,73 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native URI/operation contra
         object(spec.paths)["/v1/status"] = { get: {} };
         expect((await check(spec, ruleFor("checkURIResourceFormat", { endsWithSButSingular: ["status"] }))).diagnostics).toHaveLength(1);
     });
+    test.each(formats)("plural resource recognizes configured action words in compound tails in %s", async (format) => {
+        const spec = document(dialect, {
+            "/v1/resources/{id}/remove-client-id": { get: {} },
+            "/v1/resources/{id}/client_remove_id": { delete: {} },
+            "/v1/resources/{id}/force-remove-client-id": { get: {} },
+            "/v1/resources/{id}/client-id-REMOVE/": { get: {} },
+            "/v1/resources/remove-client-id/{task_id}": { $ref: "#/x-path-items/Task" },
+        }, { "x-path-items": { Task: { get: {} } } });
+        expect((await check(spec, ruleFor("checkURIResourceFormat"), format)).diagnostics).toEqual([]);
+    });
+    test.each([
+        { path: "/v1/resources/{id}/removed-client", segment: "removed-client" },
+        { path: "/v5/service-linked-agencies/deletion-task/{deletion_task_id}", segment: "deletion-task" },
+        { path: "/v1/resources/{id}/remove-client-id/detail", segment: "detail" },
+        { path: "/v1/resource/{client_remove_id}", segment: "resource" },
+        { path: "/v1/resource/{id}/remove-client-id", segment: "resource" },
+    ])("plural resource does not bypass $segment for $path", async ({ path, segment }) => {
+        const spec = document(dialect, { [path]: { get: {} } });
+        const { diagnostics, content } = await check(spec, ruleFor("checkURIResourceFormat", { exceptionPaths: [] }));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain(`Resource segment "${segment}"`);
+        expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toContain(path);
+    });
+    test("plural resource retains exact compound exceptions and uses only configured action words", async () => {
+        const spec = document(dialect, { "/v1/resources/{id}/force-reconcile-client": { get: {} } });
+        expect((await check(spec, ruleFor("checkURIResourceFormat"))).diagnostics).toHaveLength(1);
+        expect((await check(spec, ruleFor("checkURIResourceFormat", { verbLikeTail: ["RECONCILE"] }))).diagnostics).toEqual([]);
+        expect((await check(spec, ruleFor("checkURIResourceFormat", {
+            verbLikeTail: ["force-reconcile-client"],
+        }))).diagnostics).toEqual([]);
+        expect((await check(spec, ruleFor("checkURIResourceFormat", { verbLikeTail: [] }))).diagnostics).toHaveLength(1);
+    });
+    test.each(formats)("plural resource supports exact IAM path exclusions without excluding descendants in %s", async (format) => {
+        const path = "/v5/service-linked-agencies/deletion-task/{deletion_task_id}";
+        const spec = document(dialect, {
+            [path]: { get: {}, delete: {} },
+            [`${path}/detail`]: { get: {} },
+        });
+        expect((await check(spec, ruleFor("checkURIResourceFormat", { exceptionPaths: [] }), format)).diagnostics).toHaveLength(3);
+        const { diagnostics, content } = await check(spec, ruleFor("checkURIResourceFormat", {
+            exceptionPaths: [path],
+        }), format);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain('Resource segment "detail"');
+        expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toContain(`${path}/detail`);
+    });
+    test.each([
+        "/v5/service-linked-agencies/deletion-task/{deletion_task_id}",
+        "/v5/service-linked-agencies/deletion-task/*",
+    ])("plural resource exception %s skips refs but retains adjacent path checks", async (exception) => {
+        const spec = document(dialect, {
+            "/v5/service-linked-agencies/deletion-task/{deletion_task_id}": { $ref: "excluded.yaml#/Path" },
+            "/v5/service-linked-agencies/deletion-task-extra/{id}": { get: {} },
+        });
+        const { diagnostics } = await check(spec, ruleFor("checkURIResourceFormat", { exceptionPaths: [exception] }));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain('Resource segment "deletion-task-extra"');
+    });
+    test.each([
+        { exceptionPaths: null },
+        { exceptionPaths: "/v1/*" },
+        { exceptionPaths: ["/v1/*", 1] },
+    ])("plural resource rejects malformed exceptionPaths: $exceptionPaths", async (params) => {
+        const spec = document(dialect, { "/v1/resource": { get: {} } });
+        const { diagnostics } = await check(spec, ruleFor("checkURIResourceFormat", params), "json", true);
+        expect(diagnostics[0].message).toContain("functionParams.exceptionPaths must be an array of strings.");
+    });
     test("URI byte-length checks use the encoded path and exact configured threshold", async () => {
         const spec = document(dialect, { "/v1/\u00e9": {} });
         expect((await check(spec, ruleFor("checkURILength", { maxLength: 10 }))).diagnostics).toEqual([]);

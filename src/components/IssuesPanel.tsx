@@ -27,6 +27,18 @@ const severityOptions = ["all", "critical", "high", "medium", "low"].map((value)
 }));
 const rank: Record<string, number> = { error: 3, warning: 2, info: 1, hint: 0 };
 
+function renderMessage(message: string): React.ReactNode {
+    return message.split(/(https?:\/\/[^\s<>"']+)/gi).map((part, index) => {
+        if (!/^https?:\/\//i.test(part)) return part;
+        const href = part.replace(/[.,;:!?]+$/, "");
+        return <React.Fragment key={index}>
+            <a className="textAction" href={href} target="_blank" rel="noopener noreferrer"
+                onClick={(event) => event.stopPropagation()}>{href}</a>
+            {part.slice(href.length)}
+        </React.Fragment>;
+    });
+}
+
 const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
     diagnostics, content, isLinting, lintError, hasDocument, rulesSelected, onNavigate, onConfigureRules,
 }, ref) {
@@ -171,7 +183,7 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
                                 event.stopPropagation(); select(diagnostic);
                             }} aria-label={`Go to line ${line(diagnostic)}`}>{line(diagnostic)}</button></td>
                             <td><span className="ruleId" title={diagnostic.source}>{diagnosticRuleId(diagnostic) ?? diagnostic.source ?? "Document"}</span></td>
-                            <td><span className="issuePreview" title={diagnostic.message}>{diagnostic.message}</span></td>
+                            <td><span className="issuePreview" title={diagnostic.message}>{renderMessage(diagnostic.message)}</span></td>
                             <td><span className="severityLabel" data-severity={diagnostic.severity}>
                                 <span aria-hidden="true" className="severityDot" />{getSeverityLabel(diagnostic.severity)}</span></td>
                             <td><button className="textAction" onClick={(event) => {
@@ -188,7 +200,7 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
         </nav>}
         {detail && <ScaleDialog heading="Issue details" onClose={() => setDetail(null)}>
             <p className="muted">{detail.source} · Line {sourceLineNumber(content, detail.from)} · {getSeverityLabel(detail.severity)}</p>
-            <p className="fullMessage">{detail.message}</p>
+            <p className="fullMessage">{renderMessage(detail.message)}</p>
             <scale-button slot="action" variant="secondary" onClick={() => { select(detail); setDetail(null); }}>Go to source</scale-button>
         </ScaleDialog>}
     </div>;

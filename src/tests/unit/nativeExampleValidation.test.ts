@@ -125,6 +125,7 @@ test.each([undefined, false])("null type errors explain nullable when nullable i
         })]);
     expect(found[0].detail)
         .toContain("In OpenAPI 3.0, declare nullable: true if null is a valid API value.");
+    expect(found[0].detail).toContain("https://spec.openapis.org/oas/v3.0.0.html#schemaNullable");
     expect(issues(1, { type: "string", nullable })).toEqual([{ code: "type", path: [], detail: "Expected string." }]);
 });
 
@@ -142,6 +143,7 @@ test("referenced response properties show the nullability hint without treating 
     expect(problems).toHaveLength(1);
     expect(problems[0]).toContain("agency.trust_domain_name");
     expect(problems[0]).toContain("nullable: true");
+    expect(problems[0]).toContain("https://spec.openapis.org/oas/v3.0.0.html#schemaNullable");
     expect(validateResponseExamples(operation, examples, ["201"], {
         ...document, components: { schemas: { Agency: {
             type: "object", properties: { trust_domain_name: { ...schema, nullable: true } },
