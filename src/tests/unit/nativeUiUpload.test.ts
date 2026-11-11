@@ -5,6 +5,7 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import * as yamlParser from "js-yaml";
 import { EditorView } from "@codemirror/view";
+import { foldedRanges, foldEffect } from "@codemirror/language";
 import { diagnosticCount, forEachDiagnostic, type Diagnostic } from "@codemirror/lint";
 import HomePage from "@/app/page";
 import { openApiLinter } from "@/components/Linter";
@@ -84,6 +85,29 @@ async function upload(content: string, name = "native.yaml") {
 async function loaded(content: string) {
     await waitFor(() => editor().state.doc.toString() === content.replace(/\r\n/g, "\n") &&
         !container.textContent?.includes("Validating specification..."));
+}
+function referenceContent(dialect: Dialect, format: "yaml" | "flow" | "json") {
+    const reference = dialect === "swagger2" ? "#/parameters/UserIdInQuery" : "#/components/parameters/UserIdInQuery";
+    const parameter = { name: "user_id", in: "query", ...(dialect === "swagger2"
+        ? { type: "string" } : { schema: { type: "string" } }) };
+    const spec = {
+        ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+        info: { title: "Reference navigation", version: "v1" },
+        paths: { "/users": { get: { parameters: [{ $ref: reference }], responses: { "200": { description: "OK" } } } } },
+        ...(dialect === "swagger2" ? { parameters: { UserIdInQuery: parameter } }
+            : { components: { parameters: { UserIdInQuery: parameter } } }),
+    };
+    return format === "json" ? JSON.stringify(spec, null, 2)
+        : yamlParser.dump(spec, { noRefs: true, ...(format === "flow" ? { flowLevel: 0 } : {}) });
+}
+async function followReference(modifier: "ctrlKey" | "metaKey" = "ctrlKey") {
+    const link = editor().dom.querySelector<HTMLElement>(".cm-openapi-ref");
+    if (!link) throw new Error("Missing editor reference link");
+    for (const type of ["mousedown", "click"]) {
+        const event = new MouseEvent(type, { bubbles: true, cancelable: true, button: 0, [modifier]: true });
+        await act(async () => { link.dispatchEvent(event); });
+        expect(event.defaultPrevented).toBe(true);
+    }
 }
 function finding(message: string): Diagnostic {
     return { from: 0, to: 1, severity: "error", source: "UI regression", message };
@@ -203,6 +227,81 @@ test.each<Dialect>(["swagger2", "openapi3"])("%s pasted into the real editor use
     expect(container.querySelectorAll("tbody tr")).toHaveLength(0);
     expect(editor().state.doc.toString()).toContain(dialect === "swagger2" ? "definitions:" : "components:");
     expect(container.textContent).not.toContain("Converted Swagger");
+});
+
+describe.each<Dialect>(["swagger2", "openapi3"])("%s editor reference navigation", (dialect) => {
+    const cases = (["yaml", "flow", "json"] as const).flatMap((format) =>
+        (["ctrlKey", "metaKey"] as const).map((modifier) => ({ format, modifier })));
+    test.each(cases)("$format $modifier+click navigates without changing or revalidating the document", async ({ format, modifier }) => {
+        const content = referenceContent(dialect, format);
+        await act(async () => editor().dispatch({ changes: { from: 0, to: editor().state.doc.length, insert: content } }));
+        await loaded(content);
+        const view = editor();
+        const lintCalls = lint.mock.calls.length;
+        const before = view.state.selection;
+        const link = view.dom.querySelector<HTMLElement>(".cm-openapi-ref");
+        if (!link) throw new Error("Missing editor reference link");
+        await act(async () => link.click());
+        expect(view.state.selection.eq(before)).toBe(true);
+        await followReference(modifier);
+        const anchor = view.state.selection.main.anchor;
+        const key = format === "json" ? '"UserIdInQuery"' : "UserIdInQuery";
+        expect(anchor).toBe(view.state.doc.toString().lastIndexOf(key));
+        expect(view.hasFocus).toBe(true);
+        expect(view.state.doc.toString()).toBe(content);
+        expect(lint).toHaveBeenCalledTimes(lintCalls);
+    });
+});
+
+test("reference navigation decodes escaped and percent-encoded JSON Pointer tokens", async () => {
+    const name = "User/Id~ \u00e9";
+    const content = JSON.stringify({
+        openapi: "3.0.3",
+        paths: { "/users": { get: { parameters: [{ $ref: "#/components/parameters/User~1Id~0%20%C3%A9" }] } } },
+        components: { parameters: { [name]: { name: "user_id", in: "query", schema: { type: "string" } } } },
+    }, null, 2);
+    await act(async () => editor().dispatch({ changes: { from: 0, to: editor().state.doc.length, insert: content } }));
+    await loaded(content);
+    await followReference();
+    expect(editor().state.selection.main.anchor).toBe(content.lastIndexOf(JSON.stringify(name)));
+});
+
+test("reference navigation refreshes offsets after edits and reveals folded definitions", async () => {
+    const content = referenceContent("openapi3", "yaml");
+    await upload(content);
+    await loaded(content);
+    const view = editor();
+    const shifted = `# added source context\n${content}`;
+    await act(async () => view.dispatch({ changes: { from: 0, insert: "# added source context\n" } }));
+    await loaded(shifted);
+    await act(async () => view.dispatch({ effects: foldEffect.of({
+        from: shifted.indexOf("components:") + "components:".length, to: view.state.doc.length,
+    }) }));
+    expect(foldedRanges(view.state).size).toBe(1);
+    await followReference();
+    expect(foldedRanges(view.state).size).toBe(0);
+    expect(view.state.selection.main.anchor).toBe(shifted.lastIndexOf("UserIdInQuery"));
+});
+
+test("missing, invalid, external and malformed references do not create navigation links or disable recovery", async () => {
+    const content = referenceContent("openapi3", "yaml");
+    const reference = "#/components/parameters/UserIdInQuery";
+    for (const replacement of [
+        "#/components/parameters/Missing", "#/components/parameters/Invalid~2",
+        "other.yaml#/parameters/UserIdInQuery", "https://example.invalid/spec.yaml#/parameters/UserIdInQuery",
+    ]) {
+        const changed = content.replace(reference, replacement);
+        await act(async () => editor().dispatch({ changes: { from: 0, to: editor().state.doc.length, insert: changed } }));
+        await loaded(changed);
+        expect(editor().dom.querySelector(".cm-openapi-ref")).toBeNull();
+    }
+    await act(async () => editor().dispatch({ changes: { from: 0, to: editor().state.doc.length, insert: "paths: [" } }));
+    await loaded("paths: [");
+    expect(editor().dom.querySelector(".cm-openapi-ref")).toBeNull();
+    await act(async () => editor().dispatch({ changes: { from: 0, to: editor().state.doc.length, insert: content } }));
+    await loaded(content);
+    await followReference();
+    expect(editor().state.selection.main.anchor).toBe(content.lastIndexOf("UserIdInQuery"));
 });
 
 test.each<Dialect>(["swagger2", "openapi3"])("%s CCE-shaped upload displays rule findings instead of stopping at the parser", async (dialect) => {
