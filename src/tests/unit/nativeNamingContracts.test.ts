@@ -17,7 +17,7 @@ const formats: Format[] = ["yaml", "json", "flow"];
 const common = "COM-010-01-2507-2509-M";
 const naming = "ARG-010-01-2507-2509-M";
 const scope = "ARG-040-01-2507-2507-O";
-const redundant = "ARG-050-01-2507-2507-O";
+const redundant = "ARG-050-02-2507-2607-O";
 const root = "ARG-060-01-2507-2507-O";
 const rules = new Map<string, AutoRule>();
 const bodyCases = [
@@ -209,8 +209,28 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s naming contracts
             page_size: { description: "Maximum number of resources returned in one response page today." },
         } };
         const pair = document(dialect, request(dialect, similar), "post");
-        expect((await check(pair, redundant)).diagnostics).toHaveLength(1);
+        expect((await check(pair, redundant)).diagnostics).toEqual([]);
+        expect((await check(pair, redundant, { minDescriptionSimilarityThreshold: 0.85 })).diagnostics).toHaveLength(1);
         expect((await check(pair, redundant, { minDescriptionSimilarityThreshold: 1 })).diagnostics).toEqual([]);
+    });
+
+    test("distinct MFA code descriptions pass at 0.95 while identical descriptions still fail", async () => {
+        const firstDescription = "The first authentication code used for verification.";
+        const second: Doc = { type: "string", description: "The second authentication code used for verification." };
+        const schema = { type: "object", properties: {
+            authentication_code_first: { type: "string", description: firstDescription },
+            authentication_code_second: second,
+        } };
+        const doc = document(dialect, request(dialect, schema), "post", "/v5/mfa-devices/enable");
+        expect((await check(doc, redundant)).diagnostics).toEqual([]);
+        expect((await check(doc, redundant, { minDescriptionSimilarityThreshold: undefined })).diagnostics).toEqual([]);
+        const stricter = await check(doc, redundant, { minDescriptionSimilarityThreshold: 0.85 });
+        expect(stricter.diagnostics).toHaveLength(1);
+        expect(stricter.diagnostics[0].message).toContain("description similarity (0.86)");
+        second.description = firstDescription;
+        const identical = await check(doc, redundant);
+        expect(identical.diagnostics).toHaveLength(1);
+        expect(identical.diagnostics[0].message).toContain("description similarity (1.00)");
     });
 
     test("no-body and schema-less bodies retain skips instead of new parser errors", async () => {

@@ -153,7 +153,7 @@ function checkDuplicates(fields: FieldDescriptor[], cfg: RedundancyConfig): stri
     const problems: string[] = [];
     if (!cfg.checkDuplicateNamesWithinSameContainer) return problems;
 
-    const threshold = Number(cfg.minDescriptionSimilarityThreshold ?? 0.85);
+    const threshold = Number(cfg.minDescriptionSimilarityThreshold ?? 0.95);
     const byGroup = new Map<string, FieldDescriptor[]>();
 
     for (const field of fields) {
@@ -192,7 +192,7 @@ function checkDuplicates(fields: FieldDescriptor[], cfg: RedundancyConfig): stri
 }
 
 /**
- * ARG-050-01-2507-2507-O
+ * ARG-050-02-2507-2607-O
  * Reserved and Redundant Parameter Design.
  *
  * Implementation covers:

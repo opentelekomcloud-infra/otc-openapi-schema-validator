@@ -1,8 +1,8 @@
 import { checkNoRedundantParameters } from "@/functions/checkNoRedundantParameters";
 
-describe("checkNoRedundantParameters (ARG-050-01-2507-2507-O)", () => {
+describe("checkNoRedundantParameters (ARG-050-02-2507-2607-O)", () => {
   const rule: any = {
-    id: "ARG-050-01-2507-2507-O",
+    id: "ARG-050-02-2507-2607-O",
     title: "Reserved and Redundant Parameter Design",
     message: "Parameters must not expose undocumented reserved fields or duplicate semantics without explicit documentation.",
     description:
@@ -16,7 +16,7 @@ describe("checkNoRedundantParameters (ARG-050-01-2507-2507-O)", () => {
         reservedDescriptionRequired: true,
         checkDuplicateNamesWithinSameContainer: true,
         semanticDuplicateDetectionMode: "descriptionBased",
-        minDescriptionSimilarityThreshold: 0.85,
+        minDescriptionSimilarityThreshold: 0.95,
         compareScopesSeparately: true,
       },
     },
