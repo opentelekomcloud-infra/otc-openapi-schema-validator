@@ -265,6 +265,15 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native URI/operation contra
         }), "json", true);
         expect(diagnostics[0].message).toContain("functionParams.nonCrudActions must be an array of strings.");
     });
+    test.each([
+        { exceptionPaths: null },
+        { exceptionPaths: "/v1/*" },
+        { exceptionPaths: ["/v1/*", 1] },
+    ])("CRUD reports malformed exceptionPaths explicitly: $exceptionPaths", async (params) => {
+        const spec = document(dialect, { "/v1/resources": { post: {} } });
+        const { diagnostics } = await check(spec, ruleFor("checkCRUD", params), "json", true);
+        expect(diagnostics[0].message).toContain("functionParams.exceptionPaths must be an array of strings.");
+    });
     test.each(["/v1/resources", "/v1/*"])("CRUD exception %s excludes paths before ref resolution", async (exception) => {
         const spec = document(dialect, { "/v1/resources": { $ref: "excluded.yaml#/Path" } });
         expect((await check(spec, ruleFor("checkCRUD", { exceptionPaths: [exception] }))).diagnostics).toEqual([]);
@@ -327,6 +336,12 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native URI/operation contra
             verbLikeTail: ["force-reconcile-client"],
         }))).diagnostics).toEqual([]);
         expect((await check(spec, ruleFor("checkURIResourceFormat", { verbLikeTail: [] }))).diagnostics).toHaveLength(1);
+    });
+    test("shipped YAML excludes the IAM deletion-task path without parameter overrides", async () => {
+        const spec = document(dialect, {
+            "/v5/service-linked-agencies/deletion-task/{deletion_task_id}": { get: {} },
+        });
+        expect((await check(spec, ruleFor("checkURIResourceFormat"))).diagnostics).toEqual([]);
     });
     test.each(formats)("plural resource supports exact IAM path exclusions without excluding descendants in %s", async (format) => {
         const path = "/v5/service-linked-agencies/deletion-task/{deletion_task_id}";

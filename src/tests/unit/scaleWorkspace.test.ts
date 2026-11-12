@@ -160,6 +160,22 @@ test("issue URLs are clickable in previews and details without altering text or 
 });
 
 test.each([
+    { message: "See (https://example.test/foo).", urls: ["https://example.test/foo"] },
+    { message: "See [https://example.test/foo] and {https://example.test/bar}.",
+        urls: ["https://example.test/foo", "https://example.test/bar"] },
+    { message: "See (https://example.test/Foo_(bar(baz))).", urls: ["https://example.test/Foo_(bar(baz))"] },
+    { message: "See [http://[::1]].", urls: ["http://[::1]"] },
+])("issue links exclude surrounding brackets but preserve balanced URL brackets: $message", async ({ message, urls }) => {
+    await act(async () => root.render(panel({ diagnostics: [{ ...diagnostics[0], message }] })));
+    await click("Details");
+    for (const selector of [".issuePreview", "scale-modal .fullMessage"]) {
+        const element = container.querySelector(selector);
+        expect(element?.textContent).toBe(message);
+        expect(Array.from(element?.querySelectorAll("a") ?? [], (anchor) => anchor.getAttribute("href"))).toEqual(urls);
+    }
+});
+
+test.each([
     { extra: { hasDocument: false, rulesSelected: 0 }, expected: "Start with a specification" },
     { extra: { rulesSelected: 0 }, expected: "Choose rules to validate" },
     { extra: { isLinting: true }, expected: "Validating specification..." },

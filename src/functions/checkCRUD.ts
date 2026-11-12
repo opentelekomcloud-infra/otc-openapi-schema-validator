@@ -12,7 +12,7 @@ export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
 
     if (!spec?.paths) return diagnostics;
 
-    const exceptionPaths: string[] = rule.call.functionParams.exceptionPaths || [];
+    const exceptionPaths = ruleStrings(rule.call.functionParams.exceptionPaths, "exceptionPaths");
     const configuredActions = rule.call.functionParams.nonCrudActions;
     const nonCrudActions = new Set(ruleStrings(
         configuredActions === undefined ? ["action", "actions"] : configuredActions, "nonCrudActions",

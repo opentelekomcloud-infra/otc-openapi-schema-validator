@@ -12,6 +12,7 @@ import IssuesPanel, { type IssuesPanelHandle } from "@/components/IssuesPanel";
 import { ScaleDialog } from "@/components/ScaleControls";
 import { exportRobotFramework, exportPDF, exportReportPortal } from "@/utils/export";
 import { isSkippedRule } from "@/lib/export/ruleOutcomes";
+import { referenceNavigation } from "@/lib/editor/referenceNavigation";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
 import AuthButtons from "@/components/AuthButtons";
@@ -111,7 +112,7 @@ const HomePage = () => {
         return { destroy: () => view.dom.removeEventListener("click", click, true) };
     }), []);
     const codeMirrorExtensions = useMemo(
-        () => [yaml(), linter(null), lintGutter(), diagnosticsListenerExtension, gutterNavigation],
+        () => [yaml(), linter(null), lintGutter(), diagnosticsListenerExtension, gutterNavigation, referenceNavigation],
         [diagnosticsListenerExtension, gutterNavigation],
     );
     useEffect(() => {

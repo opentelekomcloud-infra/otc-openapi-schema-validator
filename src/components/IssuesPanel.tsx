@@ -30,7 +30,19 @@ const rank: Record<string, number> = { error: 3, warning: 2, info: 1, hint: 0 };
 function renderMessage(message: string): React.ReactNode {
     return message.split(/(https?:\/\/[^\s<>"']+)/gi).map((part, index) => {
         if (!/^https?:\/\//i.test(part)) return part;
-        const href = part.replace(/[.,;:!?]+$/, "");
+        const extraClosers = new Map<string, number>();
+        for (const [open, close] of [["(", ")"], ["[", "]"], ["{", "}"]]) {
+            extraClosers.set(close, part.split(close).length - part.split(open).length);
+        }
+        let end = part.length;
+        while (end > 0) {
+            const last = part[end - 1];
+            const extra = extraClosers.get(last) ?? 0;
+            if (!/[.,;:!?]/.test(last) && extra <= 0) break;
+            if (extra > 0) extraClosers.set(last, extra - 1);
+            end--;
+        }
+        const href = part.slice(0, end);
         return <React.Fragment key={index}>
             <a className="textAction" href={href} target="_blank" rel="noopener noreferrer"
                 onClick={(event) => event.stopPropagation()}>{href}</a>
