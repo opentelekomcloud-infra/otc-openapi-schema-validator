@@ -91,6 +91,49 @@ async function check(doc: Doc, id: string, params: Doc = {}, format: Format = "y
 }
 
 describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s naming contracts", (dialect) => {
+    test.each(["parameter", "request", "response"])("URI words do not invalidate %s names", async (location) => {
+        for (const path of ["/api/v3/addons", "/api/v3/mysterycontext"]) {
+            for (const name of ["cluster_id", "mysteryword_id"]) {
+                const schema = { type: "object", properties: { [name]: { type: "string" } } };
+                const op = location === "parameter" ? { parameters: [parameter(dialect, name)], responses: {} }
+                    : location === "request" ? request(dialect, schema)
+                        : { responses: { "200": response(dialect, schema) } };
+                const doc = document(dialect, op, location === "request" ? "post" : "get", path);
+                const { diagnostics } = await check(doc, naming);
+                expect(diagnostics).toHaveLength(name === "cluster_id" ? 0 : 1);
+                if (name !== "cluster_id") {
+                    expect(diagnostics[0].message).toContain(
+                        "Token 'mysteryword' in 'mysteryword_id' is not a recognized English word or approved abbreviation.");
+                    expect(diagnostics[0].message).not.toContain("Token 'mysterycontext'");
+                    expect(diagnostics[0].message).not.toContain("Token 'addons'");
+                }
+            }
+        }
+    });
+
+    test.each([
+        { path: "/v5/mfa-devices", method: "get", good: "mfa_devices", bad: "mfa_device" },
+        { path: "/v5/mfa-devices/{device_id}", method: "get", good: "mfa_device", bad: "mfa_devices" },
+        { path: "/v5/mfa-devices", method: "post", good: "mfa_device", bad: "mfa_devices" },
+        { path: "/v5/mfa_devices/{device_id}", method: "put", good: "mfa_device", bad: "other_device" },
+        { path: "/v5/{project_id}/virtual-mfa-devices", method: "get", good: "virtual_mfa_devices", bad: "project_mfa_devices" },
+        { path: "/v5/mfa/devices", method: "get", good: "devices", bad: "mfa_devices" },
+        { path: "/v5/mfa-devices", method: "get", good: "devices", bad: "other_devices" },
+    ])("compound root matching respects resource boundaries and number: $method $path", async ({ path, method, good, bad }) => {
+        for (const [name, count] of [[good, 0], [bad, 1]] as const) {
+            const schema = { type: "object", properties: { [name]: { type: "object" } } };
+            const op = method === "get"
+                ? { responses: { "200": response(dialect, reference(dialect, "Root")) } }
+                : request(dialect, reference(dialect, "Root"));
+            const doc = document(dialect, op, method, path, {}, definitions(dialect, { Root: schema }));
+            for (const splitPathTokensUsingUtils of [true, false]) {
+                const { diagnostics } = await check(doc, root, { splitPathTokensUsingUtils });
+                expect(diagnostics).toHaveLength(count);
+                if (count) expect(diagnostics[0].message).toContain(`'${good}'`);
+            }
+        }
+    });
+
     test.each(formats)("%s body properties work through escaped/chained schema references", async (format) => {
         for (const entry of bodyCases) {
             for (const valid of [true, false]) {

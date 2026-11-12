@@ -50,6 +50,20 @@ function deriveResourceName(path: string, cfg: RootNodeConfig): string | null {
     return tokens[tokens.length - 1] ?? null;
 }
 
+function resourceRootNames(path: string, resourceName: string, cfg: RootNodeConfig, expectation: BodyExpectation): string[] {
+    const mode = String(cfg.pluralizationMode ?? "simpleEnglish");
+    const singular = toSingular(resourceName, mode);
+    const name = expectation === "collection" ? toPlural(singular, mode) : singular;
+    const segment = path.split("/").filter((part) =>
+        part && !/^\{.*\}$/.test(part) && !/^v\d+(?:\.\d+)?$/i.test(part)).at(-1);
+    if (!segment) return [name];
+    const tokens = cfg.splitPathTokensUsingUtils !== false
+        ? splitPathIntoTokens(segment)
+        : segment.toLowerCase().split(/[-_]/).filter(Boolean);
+    if (tokens.length < 2 || tokens.at(-1) !== resourceName) return [name];
+    return [name, [...tokens.slice(0, -1), name].join("_")];
+}
+
 /**
  * Returns true if the path looks like a single-resource endpoint.
  */
@@ -177,9 +191,10 @@ function validateRequestBody(
     if (!isEnglishWordSafeForStrictCheck(resourceName, cfg) || !isEnglishWordSafeForStrictCheck(singular, cfg)) {
         return problems;
     }
-    if (rootKeys.includes(singular)) return problems;
+    const expected = resourceRootNames(operation.path, resourceName, cfg, expectation);
+    if (rootKeys.some((key) => expected.includes(key))) return problems;
 
-    problems.push(`Request body root field should use singular resource name '${singular}', but found [${rootKeys.join(", ")}].`);
+    problems.push(`Request body root field should use singular resource name ${expected.map((name) => `'${name}'`).join(" or ")}, but found [${rootKeys.join(", ")}].`);
     return problems;
 }
 
@@ -210,6 +225,8 @@ function validateResponses(
     ) {
         return problems;
     }
+    const expected = resourceRootNames(path, resourceName, cfg, expectation);
+    const expectedNames = expected.map((name) => `'${name}'`).join(" or ");
 
     for (const code of responseStatuses(operation)) {
         if (!/^2\d\d$/.test(String(code))) continue;
@@ -223,18 +240,18 @@ function validateResponses(
         const rootKeySet = new Set(rootKeys.map((k) => String(k).toLowerCase()));
 
         if (expectation === "collection") {
-            if (rootKeySet.has(plural) || rootKeys.some((k) => genericWrappers.has(String(k).toLowerCase()))) {
+            if (expected.some((name) => rootKeySet.has(name)) || rootKeys.some((k) => genericWrappers.has(String(k).toLowerCase()))) {
                 continue;
             }
 
-            problems.push(`Response body for status '${code}' should use plural resource name '${plural}' or one of the allowed generic wrappers [${Array.from(genericWrappers).join(", ")}], but found [${rootKeys.join(", ")}].`);
+            problems.push(`Response body for status '${code}' should use plural resource name ${expectedNames} or one of the allowed generic wrappers [${Array.from(genericWrappers).join(", ")}], but found [${rootKeys.join(", ")}].`);
             continue;
         }
 
         if (expectation === "single") {
-            if (rootKeySet.has(singular)) continue;
+            if (expected.some((name) => rootKeySet.has(name))) continue;
 
-            problems.push(`Response body for status '${code}' should use singular resource name '${singular}', but found [${rootKeys.join(", ")}].`);
+            problems.push(`Response body for status '${code}' should use singular resource name ${expectedNames}, but found [${rootKeys.join(", ")}].`);
         }
     }
 
