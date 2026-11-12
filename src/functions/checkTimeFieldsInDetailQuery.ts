@@ -17,8 +17,8 @@ export function checkTimeFieldsInDetailQuery(spec: unknown, content: string, rul
     const fields = ruleStrings(params.requiredFields, "requiredFields").map((name) => name.trim()).filter(Boolean);
     const created = new Set(fields.filter((name) => /create|created/i.test(name)));
     const updated = new Set(fields.filter((name) => /update|updated/i.test(name)));
-    if (!created.size) ["create_time", "created_at"].forEach((name) => created.add(name));
-    if (!updated.size) ["update_time", "updated_at"].forEach((name) => updated.add(name));
+    if (!created.size) created.add("created_at");
+    if (!updated.size) updated.add("updated_at");
     const cache = new Map<string, unknown>();
     const diagnostics: Diagnostic[] = [];
     const pathMatches = (path: string): boolean => {

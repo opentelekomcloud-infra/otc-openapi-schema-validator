@@ -255,7 +255,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         ) };
         const doc = document(dialect, "/items/{resource_id}", "get",
             operation(dialect, schemaRef(dialect, "Resource")), definitions(dialect, { Resource: schema }));
-        const { diagnostics } = await check(doc, time, { requiredFields: ["created_at", "updated_at"] });
+        const { diagnostics } = await check(doc, time);
         expect(diagnostics).toHaveLength(1);
         expect(diagnostics[0].message).toBe(`${ruleFor(time).message} Missing in response schema for status '200': ${missing}.`);
         expect(diagnostics[0].message).not.toContain("'create_time'");
@@ -274,13 +274,23 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         expect((await check(doc, time, params)).diagnostics).toEqual([]);
     });
 
-    test("time diagnostics explain default alternatives when requiredFields is absent", async () => {
-        const doc = document(dialect, "/items/{id}", "get", operation(dialect, { type: "object" }));
+    test.each([
+        { present: [], missing: "'created_at', 'updated_at'" },
+        { present: ["create_time", "update_time"], missing: "'created_at', 'updated_at'" },
+        { present: ["created_at", "updated_at"], missing: null },
+    ])("time defaults use canonical names without requiredFields: $present", async ({ present, missing }) => {
+        const schema = { type: "object", properties: Object.fromEntries(
+            present.map((name) => [name, { type: "string" }]),
+        ) };
+        const doc = document(dialect, "/items/{id}", "get", operation(dialect, schema));
         const { diagnostics } = await check(doc, time, { requiredFields: undefined });
+        if (missing === null) {
+            expect(diagnostics).toEqual([]);
+            return;
+        }
         expect(diagnostics).toHaveLength(1);
-        expect(diagnostics[0].message).toContain(
-            "Missing in response schema for status '200': 'create_time' or 'created_at', 'update_time' or 'updated_at'.",
-        );
+        expect(diagnostics[0].message).toBe(
+            `${ruleFor(time).message} Missing in response schema for status '200': ${missing}.`);
     });
 
     test("path filters precede Path Item refs, including tag/project/status exclusions", async () => {
