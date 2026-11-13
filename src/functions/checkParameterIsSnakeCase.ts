@@ -1,7 +1,4 @@
 import { Diagnostic } from "@codemirror/lint";
-import {
-    splitPathIntoTokens,
-} from "@/utils/englishWords";
 import { pushMethodDiagnostic, dedupeDiagnostics } from "@/utils/diagnostic";
 import {SnakeCaseConfig, validateFieldNameTokens} from "@/utils/naming";
 import type { NativeOperation } from "@/types/openapi";
@@ -17,7 +14,7 @@ interface LocatedProblem {
     readonly location?: SourceRange;
 }
 
-function checkParameters(op: NativeOperation, spec: any, pathTokens: string[], cfg: SnakeCaseConfig, content: string): LocatedProblem[] {
+function checkParameters(op: NativeOperation, spec: any, cfg: SnakeCaseConfig, content: string): LocatedProblem[] {
     const problems: LocatedProblem[] = [];
     for (const { parameter: param } of ruleParameterNodes(op, spec, new Map())) {
         if (isSwagger2Root(spec) && (param.in === "body" || param.in === "formData")) continue;
@@ -30,7 +27,7 @@ function checkParameters(op: NativeOperation, spec: any, pathTokens: string[], c
         // so they must be excluded from the snake_case parameter rule.
         if (paramIn === "header") continue;
 
-        const issues = validateFieldNameTokens(name, cfg, pathTokens);
+        const issues = validateFieldNameTokens(name, cfg);
 
         for (const issue of issues) {
             problems.push({ message: `Parameter '${name}' in '${paramIn}' is invalid. ${issue}`, location: objectRange(spec, content, param, "name", "value") });
@@ -40,7 +37,7 @@ function checkParameters(op: NativeOperation, spec: any, pathTokens: string[], c
     return problems;
 }
 
-function checkRequestBody(op: NativeOperation, spec: any, pathTokens: string[], cfg: SnakeCaseConfig, content: string): LocatedProblem[] {
+function checkRequestBody(op: NativeOperation, spec: any, cfg: SnakeCaseConfig, content: string): LocatedProblem[] {
     const problems: LocatedProblem[] = [];
     const cache = new Map<string, unknown>();
     const payload = ruleRequest(op, spec, cache);
@@ -51,7 +48,7 @@ function checkRequestBody(op: NativeOperation, spec: any, pathTokens: string[], 
         : namingSchemas(payload, spec, cache).flatMap((schema) => schemaNameFields(schema, spec, cache))
             .map((field) => ({ name: field.name, location: objectRange(spec, content, field.owner, field.name) }));
     for (const { name: fieldName, location } of fields) {
-        const issues = validateFieldNameTokens(fieldName, cfg, pathTokens);
+        const issues = validateFieldNameTokens(fieldName, cfg);
         for (const issue of issues) {
             problems.push({
                 message: `Request body field '${fieldName}' is invalid. ${issue}`,
@@ -63,14 +60,14 @@ function checkRequestBody(op: NativeOperation, spec: any, pathTokens: string[], 
     return problems;
 }
 
-function checkResponses(op: NativeOperation, spec: any, pathTokens: string[], cfg: SnakeCaseConfig, content: string): LocatedProblem[] {
+function checkResponses(op: NativeOperation, spec: any, cfg: SnakeCaseConfig, content: string): LocatedProblem[] {
     const problems: LocatedProblem[] = [];
     const cache = new Map<string, unknown>();
     for (const code of responseStatuses(op)) {
         const response = responseFor(op, code, spec, cache);
         for (const field of namingSchemas(response, spec, cache).flatMap((schema) => schemaNameFields(schema, spec, cache))) {
             const fieldName = field.name;
-            const issues = validateFieldNameTokens(fieldName, cfg, pathTokens);
+            const issues = validateFieldNameTokens(fieldName, cfg);
             for (const issue of issues) {
                 problems.push({
                     message: `Response field '${fieldName}' in status '${code}' is invalid. ${issue}`,
@@ -102,19 +99,18 @@ export function checkParameterIsSnakeCase(spec: any, content: string, rule: any)
 
     for (const op of operations) {
         const { path, method } = op;
-        const pathTokens = splitPathIntoTokens(path);
         const problems: LocatedProblem[] = [];
 
         if (fp.checkRequestParameters !== false) {
-            problems.push(...checkParameters(op, spec, pathTokens, fp, content));
+            problems.push(...checkParameters(op, spec, fp, content));
         }
 
         if (fp.checkRequestBodyFields) {
-            problems.push(...checkRequestBody(op, spec, pathTokens, fp, content));
+            problems.push(...checkRequestBody(op, spec, fp, content));
         }
 
         if (fp.checkResponseBodyFields) {
-            problems.push(...checkResponses(op, spec, pathTokens, fp, content));
+            problems.push(...checkResponses(op, spec, fp, content));
         }
 
         for (const problem of problems) {

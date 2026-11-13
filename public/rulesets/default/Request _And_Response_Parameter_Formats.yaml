@@ -45,7 +45,7 @@ rules:
     severity: high
     status: implemented
 
-  - id: "ARG-050-01-2507-2507-O"
+  - id: "ARG-050-02-2507-2607-O"
     title: "Reserved and Redundant Parameter Design"
     message: "Parameters must not expose undocumented reserved fields or duplicate semantics without explicit documentation."
     description: "Check native effective parameters and top-level request/response fields, including Swagger body/formData and local reusable bodies. Preserve reserved markers, descriptions, scope grouping and similarity thresholds. Operation overrides are not duplicates; repeated names within one parameter list still fail."
@@ -63,7 +63,7 @@ rules:
         reservedDescriptionRequired: true
         checkDuplicateNamesWithinSameContainer: true
         semanticDuplicateDetectionMode: "descriptionBased"
-        minDescriptionSimilarityThreshold: 0.85
+        minDescriptionSimilarityThreshold: 0.95
         compareScopesSeparately: true
     severity: high
     status: implemented

@@ -56,19 +56,14 @@ export function splitSnakeCaseTokens(name: string): string[] {
  * - snake_case validation
  * - abbreviation validation using allowed abbreviations set
  * - English dictionary validation for tokens
- * - contextual validation using path tokens
- *
- * It combines tokens from the field name and path context to improve validation accuracy.
  *
  * @param name Field name to validate.
  * @param cfg Configuration controlling validation behavior.
- * @param pathTokens Tokens derived from the API path for contextual validation.
  * @returns Array of validation error messages (empty if valid).
  */
 export function validateFieldNameTokens(
   name: string,
-  cfg: SnakeCaseConfig,
-  pathTokens: string[]
+  cfg: SnakeCaseConfig
 ): string[] {
   const problems: string[] = [];
   const allowedAbbreviations = getAllowedAbbreviations();
@@ -78,13 +73,7 @@ export function validateFieldNameTokens(
     return problems;
   }
 
-  const tokens = splitSnakeCaseTokens(name);
-  const allContextTokens = new Set<string>([
-    ...tokens,
-    ...pathTokens.map((t) => t.toLowerCase()),
-  ]);
-
-  for (const token of allContextTokens) {
+  for (const token of new Set(splitSnakeCaseTokens(name))) {
     if (!token) continue;
 
     if (cfg.validateAllowedAbbreviations && looksLikeAbbreviation(token, allowedAbbreviations)) {

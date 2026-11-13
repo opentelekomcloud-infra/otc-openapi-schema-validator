@@ -17,7 +17,7 @@ const formats: Format[] = ["yaml", "json", "flow"];
 const common = "COM-010-01-2507-2509-M";
 const naming = "ARG-010-01-2507-2509-M";
 const scope = "ARG-040-01-2507-2507-O";
-const redundant = "ARG-050-01-2507-2507-O";
+const redundant = "ARG-050-02-2507-2607-O";
 const root = "ARG-060-01-2507-2507-O";
 const rules = new Map<string, AutoRule>();
 const bodyCases = [
@@ -91,6 +91,49 @@ async function check(doc: Doc, id: string, params: Doc = {}, format: Format = "y
 }
 
 describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s naming contracts", (dialect) => {
+    test.each(["parameter", "request", "response"])("URI words do not invalidate %s names", async (location) => {
+        for (const path of ["/api/v3/addons", "/api/v3/mysterycontext"]) {
+            for (const name of ["cluster_id", "mysteryword_id"]) {
+                const schema = { type: "object", properties: { [name]: { type: "string" } } };
+                const op = location === "parameter" ? { parameters: [parameter(dialect, name)], responses: {} }
+                    : location === "request" ? request(dialect, schema)
+                        : { responses: { "200": response(dialect, schema) } };
+                const doc = document(dialect, op, location === "request" ? "post" : "get", path);
+                const { diagnostics } = await check(doc, naming);
+                expect(diagnostics).toHaveLength(name === "cluster_id" ? 0 : 1);
+                if (name !== "cluster_id") {
+                    expect(diagnostics[0].message).toContain(
+                        "Token 'mysteryword' in 'mysteryword_id' is not a recognized English word or approved abbreviation.");
+                    expect(diagnostics[0].message).not.toContain("Token 'mysterycontext'");
+                    expect(diagnostics[0].message).not.toContain("Token 'addons'");
+                }
+            }
+        }
+    });
+
+    test.each([
+        { path: "/v5/mfa-devices", method: "get", good: "mfa_devices", bad: "mfa_device" },
+        { path: "/v5/mfa-devices/{device_id}", method: "get", good: "mfa_device", bad: "mfa_devices" },
+        { path: "/v5/mfa-devices", method: "post", good: "mfa_device", bad: "mfa_devices" },
+        { path: "/v5/mfa_devices/{device_id}", method: "put", good: "mfa_device", bad: "other_device" },
+        { path: "/v5/{project_id}/virtual-mfa-devices", method: "get", good: "virtual_mfa_devices", bad: "project_mfa_devices" },
+        { path: "/v5/mfa/devices", method: "get", good: "devices", bad: "mfa_devices" },
+        { path: "/v5/mfa-devices", method: "get", good: "devices", bad: "other_devices" },
+    ])("compound root matching respects resource boundaries and number: $method $path", async ({ path, method, good, bad }) => {
+        for (const [name, count] of [[good, 0], [bad, 1]] as const) {
+            const schema = { type: "object", properties: { [name]: { type: "object" } } };
+            const op = method === "get"
+                ? { responses: { "200": response(dialect, reference(dialect, "Root")) } }
+                : request(dialect, reference(dialect, "Root"));
+            const doc = document(dialect, op, method, path, {}, definitions(dialect, { Root: schema }));
+            for (const splitPathTokensUsingUtils of [true, false]) {
+                const { diagnostics } = await check(doc, root, { splitPathTokensUsingUtils });
+                expect(diagnostics).toHaveLength(count);
+                if (count) expect(diagnostics[0].message).toContain(`'${good}'`);
+            }
+        }
+    });
+
     test.each(formats)("%s body properties work through escaped/chained schema references", async (format) => {
         for (const entry of bodyCases) {
             for (const valid of [true, false]) {
@@ -166,8 +209,28 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s naming contracts
             page_size: { description: "Maximum number of resources returned in one response page today." },
         } };
         const pair = document(dialect, request(dialect, similar), "post");
-        expect((await check(pair, redundant)).diagnostics).toHaveLength(1);
+        expect((await check(pair, redundant)).diagnostics).toEqual([]);
+        expect((await check(pair, redundant, { minDescriptionSimilarityThreshold: 0.85 })).diagnostics).toHaveLength(1);
         expect((await check(pair, redundant, { minDescriptionSimilarityThreshold: 1 })).diagnostics).toEqual([]);
+    });
+
+    test("distinct MFA code descriptions pass at 0.95 while identical descriptions still fail", async () => {
+        const firstDescription = "The first authentication code used for verification.";
+        const second: Doc = { type: "string", description: "The second authentication code used for verification." };
+        const schema = { type: "object", properties: {
+            authentication_code_first: { type: "string", description: firstDescription },
+            authentication_code_second: second,
+        } };
+        const doc = document(dialect, request(dialect, schema), "post", "/v5/mfa-devices/enable");
+        expect((await check(doc, redundant)).diagnostics).toEqual([]);
+        expect((await check(doc, redundant, { minDescriptionSimilarityThreshold: undefined })).diagnostics).toEqual([]);
+        const stricter = await check(doc, redundant, { minDescriptionSimilarityThreshold: 0.85 });
+        expect(stricter.diagnostics).toHaveLength(1);
+        expect(stricter.diagnostics[0].message).toContain("description similarity (0.86)");
+        second.description = firstDescription;
+        const identical = await check(doc, redundant);
+        expect(identical.diagnostics).toHaveLength(1);
+        expect(identical.diagnostics[0].message).toContain("description similarity (1.00)");
     });
 
     test("no-body and schema-less bodies retain skips instead of new parser errors", async () => {

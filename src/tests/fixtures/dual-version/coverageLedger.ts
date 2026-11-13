@@ -37,7 +37,7 @@ export const coverageLedger = [
     { ruleId: "FIL-020-01-2507-2507-M-1", functionName: "checkDefaultLimitValue", scenario: "limitDefault" },
     { ruleId: "ARG-010-01-2507-2509-M", functionName: "checkParameterIsSnakeCase", scenario: "snakeCase" },
     { ruleId: "ARG-040-01-2507-2507-O", functionName: "checkProjectIdByTagScope", scenario: "projectScope" },
-    { ruleId: "ARG-050-01-2507-2507-O", functionName: "checkNoRedundantParameters", scenario: "reservedParameter" },
+    { ruleId: "ARG-050-02-2507-2607-O", functionName: "checkNoRedundantParameters", scenario: "reservedParameter" },
     { ruleId: "ARG-060-01-2507-2507-O", functionName: "checkRootNodeMatchesResource", scenario: "rootName" },
     { ruleId: "HDR-010-01-2507-2507-M-1", functionName: "checkContentType", scenario: "requestMimeDeclaration" },
     { ruleId: "HDR-010-01-2507-2507-M-2", functionName: "checkParamElementPresence", scenario: "requiredHeader" },
@@ -79,7 +79,7 @@ export const coverageLedger = [
 export const additionalCoverage = [
     { ruleId: "COM-010-01-2507-2509-M", functionName: "checkCommonParameters", scenario: "commonBodyName" },
     { ruleId: "ARG-010-01-2507-2509-M", functionName: "checkParameterIsSnakeCase", scenario: "bodySnakeCase" },
-    { ruleId: "ARG-050-01-2507-2507-O", functionName: "checkNoRedundantParameters", scenario: "reservedBodyField" },
+    { ruleId: "ARG-050-02-2507-2607-O", functionName: "checkNoRedundantParameters", scenario: "reservedBodyField" },
     {
         ruleId: "BAS-100-01-2507-2507-M",
         functionName: "checkElementSensitiveData",
