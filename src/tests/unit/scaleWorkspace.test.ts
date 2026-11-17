@@ -89,6 +89,81 @@ test("revealing an issue from the editor clears filters and opens its exact page
     expect(container.querySelector("tr[data-active=true]")?.textContent).toContain("Issue 204");
 });
 
+test.each(["none", "rule", "line"])("page changes focus and reveal the first %s-grouped issue without moving the editor", async (groupBy) => {
+    const scrollIntoView = jest.fn();
+    const original = Object.getOwnPropertyDescriptor(HTMLElement.prototype, "scrollIntoView");
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", { configurable: true, value: scrollIntoView });
+    try {
+        const navigate = jest.fn();
+        await act(async () => root.render(panel({ onNavigate: navigate })));
+        await choice("Group by", groupBy);
+        for (const direction of ["Next page", "Next page", "Previous page"]) {
+            await click(direction);
+            const firstRow = container.querySelector("tbody tr");
+            expect(firstRow?.getAttribute("data-active")).toBe("true");
+            expect(document.activeElement).toBe(firstRow?.querySelector("button"));
+            expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "start" });
+            expect(scrollIntoView.mock.contexts.at(-1)).toBe(firstRow);
+            expect(navigate).not.toHaveBeenCalled();
+        }
+        const secondMessage = container.querySelectorAll(".issuePreview")[1]?.textContent;
+        await click("Next issue");
+        expect(container.querySelector("tr[data-active=true] .issuePreview")?.textContent).toBe(secondMessage);
+        expect(navigate).toHaveBeenCalledTimes(1);
+        expect(scrollIntoView).toHaveBeenLastCalledWith({ block: "nearest" });
+    } finally {
+        if (original) Object.defineProperty(HTMLElement.prototype, "scrollIntoView", original);
+        else Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+    }
+});
+
+test.each(["rule", "line"])("%s grouping spans the full list before pagination and issue navigation", async (groupBy) => {
+    const issues: Diagnostic[] = Array.from({ length: 205 }, (_, index) => ({
+        from: groupBy === "rule" ? index * 2 : (index % 2) * 2,
+        to: groupBy === "rule" ? index * 2 + 1 : (index % 2) * 2 + 1,
+        severity: "error",
+        source: groupBy === "rule" ? `Rule TEST-00${index % 2 + 1}-M - Example rule`
+            : `Rule TEST-${String(index).padStart(3, "0")}-M - Example rule`,
+        message: `Issue ${index}`,
+    }));
+    const navigate = jest.fn();
+    await act(async () => root.render(panel({ diagnostics: issues, onNavigate: navigate })));
+    await choice("Sort by", groupBy === "rule" ? "line" : "rule");
+    await choice("Group by", groupBy);
+    const messages = () => [...container.querySelectorAll(".issuePreview")].map((element) => element.textContent);
+    const headings = () => [...container.querySelectorAll(".issueGroupHeading")].map((element) => element.textContent);
+    const firstGroup = groupBy === "rule" ? "TEST-001-M" : "Line 1";
+    const secondGroup = groupBy === "rule" ? "TEST-002-M" : "Line 2";
+    expect(messages()).toEqual(issues.filter((_, index) => index % 2 === 0).slice(0, 100).map((issue) => issue.message));
+    expect(headings()).toEqual([`${firstGroup} (103 total · 100 on this page)`]);
+    const lastRow = container.querySelectorAll<HTMLElement>("tbody tr")[99];
+    await act(async () => lastRow.click());
+    await click("Next issue");
+    expect(navigate).toHaveBeenLastCalledWith(issues[200]);
+    expect(container.textContent).toContain("Page 2 of 3");
+    expect(container.querySelector("tr[data-active=true] .issuePreview")?.textContent).toBe("Issue 200");
+    expect(messages()).toEqual([
+        ...[200, 202, 204].map((index) => `Issue ${index}`),
+        ...issues.filter((_, index) => index % 2 === 1).slice(0, 97).map((issue) => issue.message),
+    ]);
+    expect(headings()).toEqual([
+        `${firstGroup} (103 total · 3 on this page)`,
+        `${secondGroup} (102 total · 97 on this page)`,
+    ]);
+    await click("Previous issue");
+    expect(navigate).toHaveBeenLastCalledWith(issues[198]);
+    expect(container.textContent).toContain("Page 1 of 3");
+    await click("Next page");
+    await click("Next page");
+    expect(messages()).toEqual([195, 197, 199, 201, 203].map((index) => `Issue ${index}`));
+    expect(headings()).toEqual([`${secondGroup} (102 total · 5 on this page)`]);
+    await click("Previous page");
+    expect(headings()[0]).toBe(`${firstGroup} (103 total · 3 on this page)`);
+    await search("Search issues", "Issue 204");
+    expect(messages()).toEqual(["Issue 204"]);
+    expect(headings()).toEqual([`${firstGroup} (1 total · 1 on this page)`]);
+});
+
 test("copying selected issue ID/message does not navigate or clear selection, but explicit navigation still works", async () => {
     const selection = document.getSelection();
     if (!selection) throw new Error("Missing text selection");

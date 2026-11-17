@@ -62,6 +62,7 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
     const [active, setActive] = useState<Diagnostic | null>(null);
     const [detail, setDetail] = useState<Diagnostic | null>(null);
     const rows = useRef(new Map<Diagnostic, HTMLTableRowElement>());
+    const focusPageStart = useRef(false);
     const lineStarts = useMemo(() => {
         const starts = [0];
         for (let index = 0; index < content.length; index++) {
@@ -90,11 +91,21 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
     }, [diagnostics, query, severity, sort]);
     const maxPage = Math.max(0, Math.ceil(filtered.length / pageSize) - 1);
     const currentPage = Math.min(page, maxPage);
-    const visible = filtered.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
+    const groupKey = (diagnostic: Diagnostic) =>
+        groupBy === "rule" ? diagnosticRuleId(diagnostic) ?? diagnostic.source ?? "Other"
+            : groupBy === "line" ? `Line ${line(diagnostic)}` : "";
+    const allGroups = new Map<string, Diagnostic[]>();
+    for (const diagnostic of filtered) {
+        const key = groupKey(diagnostic);
+        const entries = allGroups.get(key) ?? [];
+        entries.push(diagnostic);
+        allGroups.set(key, entries);
+    }
+    const ordered = [...allGroups.values()].flat();
+    const visible = ordered.slice(currentPage * pageSize, (currentPage + 1) * pageSize);
     const groups = new Map<string, Diagnostic[]>();
     for (const diagnostic of visible) {
-        const key = groupBy === "rule" ? diagnosticRuleId(diagnostic) ?? diagnostic.source ?? "Other"
-            : groupBy === "line" ? `Line ${line(diagnostic)}` : "";
+        const key = groupKey(diagnostic);
         const entries = groups.get(key) ?? [];
         entries.push(diagnostic);
         groups.set(key, entries);
@@ -109,8 +120,21 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
         setPage(0);
     };
     useEffect(() => {
-        if (active) rows.current.get(active)?.scrollIntoView?.({ block: "nearest" });
+        const row = active ? rows.current.get(active) : undefined;
+        if (focusPageStart.current) {
+            row?.scrollIntoView?.({ block: "start" });
+            row?.querySelector<HTMLButtonElement>("button")?.focus({ preventScroll: true });
+            focusPageStart.current = false;
+        } else {
+            row?.scrollIntoView?.({ block: "nearest" });
+        }
     }, [active, currentPage, groupBy]);
+    const changePage = (nextPage: number) => {
+        if (nextPage < 0 || nextPage > maxPage || nextPage === currentPage) return;
+        focusPageStart.current = true;
+        setPage(nextPage);
+        setActive(ordered[nextPage * pageSize]);
+    };
     useImperativeHandle(ref, () => ({
         reveal(diagnostic) {
             setQuery("");
@@ -126,11 +150,11 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
         setActive(diagnostic);
         onNavigate(diagnostic);
     };
-    const activeIndex = active ? filtered.indexOf(active) : -1;
+    const activeIndex = active ? ordered.indexOf(active) : -1;
     const move = (offset: number) => {
-        const index = activeIndex < 0 ? (offset > 0 ? 0 : filtered.length - 1)
-            : (activeIndex + offset + filtered.length) % filtered.length;
-        const diagnostic = filtered[index];
+        const index = activeIndex < 0 ? (offset > 0 ? 0 : ordered.length - 1)
+            : (activeIndex + offset + ordered.length) % ordered.length;
+        const diagnostic = ordered[index];
         if (!diagnostic) return;
         setPage(Math.floor(index / pageSize));
         select(diagnostic);
@@ -175,7 +199,7 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
         <div className="panelScroll" aria-label="Validation results">
             {empty ? <div className="emptyState">{empty}</div> : [...groups].map(([key, entries]) =>
                 <section key={key} className="issueGroup">
-                    {key && <h3 className="issueGroupHeading">{key} <span>({entries.length} on this page)</span></h3>}
+                    {key && <h3 className="issueGroupHeading">{key} <span>({allGroups.get(key)?.length} total · {entries.length} on this page)</span></h3>}
                     <table className="workspaceTable issuesTable">
                         <caption className="visuallyHidden">{key || "Lint issues"}</caption>
                         <thead><tr><th scope="col">Line</th><th scope="col">Rule</th><th scope="col">Issue</th>
@@ -206,9 +230,9 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
                 </section>)}
         </div>
         {!empty && filtered.length > pageSize && <nav className="pagination" aria-label="Issue pages">
-            <scale-button variant="secondary" size="small" disabled={currentPage === 0} onClick={() => setPage(currentPage - 1)}>Previous page</scale-button>
+            <scale-button variant="secondary" size="small" disabled={currentPage === 0} onClick={() => changePage(currentPage - 1)}>Previous page</scale-button>
             <span>Page {currentPage + 1} of {maxPage + 1} · {pageSize} per page</span>
-            <scale-button variant="secondary" size="small" disabled={currentPage === maxPage} onClick={() => setPage(currentPage + 1)}>Next page</scale-button>
+            <scale-button variant="secondary" size="small" disabled={currentPage === maxPage} onClick={() => changePage(currentPage + 1)}>Next page</scale-button>
         </nav>}
         {detail && <ScaleDialog heading="Issue details" onClose={() => setDetail(null)}>
             <p className="muted">{detail.source} · Line {sourceLineNumber(content, detail.from)} · {getSeverityLabel(detail.severity)}</p>

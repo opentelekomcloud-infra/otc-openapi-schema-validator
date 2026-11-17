@@ -70,7 +70,7 @@ button:focus-visible, summary:focus-visible {
 .settingsFilters { margin-top: var(--scl-spacing-12); }
 .panelSummary { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: var(--scl-spacing-8); margin-top: var(--scl-spacing-12); font-size: var(--scl-font-size-12); }
 .inlineActions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--scl-spacing-8); }
-.panelScroll { flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
+.panelScroll { position: relative; flex: 1; min-height: 0; overflow: auto; overscroll-behavior: contain; }
 .emptyState { padding: var(--scl-spacing-32); max-width: 36rem; }
 .emptyState h2 { font-size: var(--scl-font-size-20); font-weight: var(--scl-font-weight-bold); margin-bottom: var(--scl-spacing-12); }
 .emptyState p { margin-bottom: var(--scl-spacing-16); color: var(--telekom-color-text-and-icon-additional); line-height: 1.5; }
