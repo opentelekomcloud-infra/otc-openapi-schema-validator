@@ -19,7 +19,11 @@ import { coverageLedger } from "@/tests/fixtures/dual-version/coverageLedger";
 import { flowExampleContent, readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
 
 type LintResult = Awaited<ReturnType<ReturnType<typeof openApiLinter>>>;
-let mockSelector: { onSelectionChange: (rules: AutoRule[]) => void };
+let mockSelector: {
+    onSelectionChange: (rules: AutoRule[]) => void;
+    onRulesLoaded: (rules: AutoRule[] | null) => void;
+    onRulesetChange: (name: string) => void;
+};
 jest.mock("@telekom/scale-components/dist/scale-components/scale-components.css", () => ({}));
 jest.mock("@telekom/scale-components/loader", () => ({
     applyPolyfills: jest.fn(async () => undefined), defineCustomElements: jest.fn(),
@@ -61,8 +65,8 @@ function fileInput(): HTMLInputElement {
     return input;
 }
 function button(text: string): HTMLElement {
-    const found = [...container.querySelectorAll<HTMLElement>("scale-button")]
-        .find((element) => element.textContent?.trim() === text);
+    const found = [...container.querySelectorAll<HTMLElement>("scale-button,button")]
+        .find((element) => element.textContent?.trim() === text || element.getAttribute("aria-label") === text);
     if (!found) throw new Error(`Missing button: ${text}`);
     return found;
 }
@@ -144,6 +148,7 @@ beforeAll(async () => {
     Object.defineProperty(Range.prototype, "getClientRects", { configurable: true, value: () => [] });
     Object.defineProperty(Range.prototype, "getBoundingClientRect", { configurable: true, value: () => new DOMRect() });
     Object.defineProperty(HTMLElement.prototype, "scrollTo", { configurable: true, value: jest.fn() });
+    Object.defineProperty(navigator, "clipboard", { configurable: true, value: { writeText: jest.fn(async () => undefined) } });
     Object.defineProperty(URL, "createObjectURL", { configurable: true, writable: true,
         value: jest.fn((blob: Blob) => { savedBlob = blob; return "blob:ui-test"; }) });
     Object.defineProperty(URL, "revokeObjectURL", { configurable: true, writable: true, value: jest.fn() });
@@ -168,6 +173,10 @@ beforeEach(async () => {
     await act(async () => root.render(React.createElement(HomePage)));
     await waitFor(() => Boolean(container.querySelector(".cm-editor")) &&
         !container.textContent?.includes("Validating specification..."));
+    await act(async () => {
+        mockSelector.onRulesLoaded(rules);
+        mockSelector.onRulesetChange("default");
+    });
 });
 afterEach(async () => {
     await act(async () => root.unmount());
@@ -177,6 +186,148 @@ afterEach(async () => {
     expect(converter.convertStr).not.toHaveBeenCalled();
     expect(converter.convertObj).not.toHaveBeenCalled();
     jest.restoreAllMocks();
+});
+
+function exclusionsJson(): { ruleset: string; exclude_auto_rules: string[]; exclude_issues: { rule_id: string; line_number: number }[] } {
+    const textarea = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="API exclusions JSON"]');
+    if (!textarea) throw new Error("Missing API exclusions JSON");
+    return JSON.parse(textarea.value);
+}
+async function closeDialog() {
+    await act(async () => container.querySelector("scale-modal")?.dispatchEvent(new CustomEvent("scale-close")));
+}
+
+test("muting uses rule and line across UI, gutter and all reports; exports unchecked rules and reversible API selectors", async () => {
+    const [first, second] = rules;
+    const source = "openapi: 3.0.3\ninfo: {}\npaths: {}\n";
+    const entries: Diagnostic[] = [
+        { ...finding("first finding"), source: `Rule ${first.id}`, from: 0, to: 1 },
+        { ...finding("same rule and line"), source: `Rule ${first.id}`, from: 1, to: 2 },
+        { ...finding("same rule, another line"), source: `Rule ${first.id}`, from: source.indexOf("info:"), to: source.indexOf("info:") + 1 },
+        { ...finding("another rule"), source: `Rule ${second.id}`, from: 0, to: 1 },
+    ];
+    lint.mockImplementation(() => async () => ({ diagnostics: entries }));
+    await select([first, second]);
+    await upload(source);
+    await loaded(source);
+    const lintCalls = lint.mock.calls.length;
+    const selection = editor().state.selection;
+    await act(async () => button(`Mute ${first.id} on line 1`).click());
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
+    expect(diagnosticCount(editor().state)).toBe(2);
+    expect(editor().state.selection.eq(selection)).toBe(true);
+    expect(lint).toHaveBeenCalledTimes(lintCalls);
+    for (const [label, exporter] of [
+        ["Export to PDF", exportPDF], ["Export to Robot Framework", exportRobotFramework], ["Export to ReportPortal", exportReportPortal],
+    ] as const) {
+        await act(async () => button("Export").click());
+        await act(async () => button(label).click());
+        const call = jest.mocked(exporter).mock.calls.at(-1);
+        expect(call?.[0].map((diagnostic: Diagnostic) => diagnostic.message)).toEqual(["same rule, another line", "another rule"]);
+        expect(Object.values(call?.[1] ?? {}).map((rule: AutoRule) => rule.id)).toEqual([first.id, second.id]);
+    }
+    await act(async () => button(`Mute ${first.id} on line 2`).click());
+    await act(async () => button("Export").click());
+    await act(async () => button("API exclusions JSON").click());
+    const config = exclusionsJson();
+    expect(config).toEqual({
+        ruleset: "default",
+        exclude_auto_rules: rules.filter((rule) => ![first.id, second.id].includes(rule.id)).map((rule) => rule.id),
+        exclude_issues: [{ rule_id: first.id, line_number: 1 }, { rule_id: first.id, line_number: 2 }],
+    });
+    expect(config.exclude_auto_rules).toContain(rules.find((rule) =>
+        rule.option.toLowerCase() !== "mandatory" && rule.id !== first.id && rule.id !== second.id)?.id);
+    const mutedRows = container.querySelectorAll(".mutedIssuesTable tbody tr");
+    expect(mutedRows).toHaveLength(2);
+    expect([...mutedRows].map((row) => [row.children[0].textContent, row.children[1].textContent]))
+        .toEqual([[first.id, "1"], [first.id, "2"]]);
+    await act(async () => button("Copy JSON").click());
+    expect(navigator.clipboard.writeText).toHaveBeenLastCalledWith(JSON.stringify(config, null, 2));
+    expect(container.textContent).toContain("Exclusions copied.");
+    await closeDialog();
+    for (const [label, exporter] of [
+        ["Export to PDF", exportPDF], ["Export to Robot Framework", exportRobotFramework], ["Export to ReportPortal", exportReportPortal],
+    ] as const) {
+        await act(async () => button("Export").click());
+        await act(async () => button(label).click());
+        const call = jest.mocked(exporter).mock.calls.at(-1);
+        expect(call?.[0].map((diagnostic: Diagnostic) => diagnostic.message)).toEqual(["another rule"]);
+        expect(Object.values(call?.[1] ?? {}).map((rule: AutoRule) => rule.id)).toEqual([second.id]);
+    }
+    await act(async () => button("Muted issues (3)").click());
+    await act(async () => button(`Unmute ${first.id} on line 1`).click());
+    expect(document.activeElement).toBe(container.querySelector('textarea[aria-label="API exclusions JSON"]'));
+    expect(exclusionsJson().exclude_issues).toEqual([{ rule_id: first.id, line_number: 2 }]);
+    const restoredMessages: string[] = [];
+    forEachDiagnostic(editor().state, (diagnostic) => restoredMessages.push(diagnostic.message));
+    expect(restoredMessages.sort()).toEqual(["first finding", "same rule and line", "another rule"].sort());
+    await act(async () => button("Unmute all issues").click());
+    expect(exclusionsJson().exclude_issues).toEqual([]);
+    await closeDialog();
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(4);
+    const allMessages: string[] = [];
+    forEachDiagnostic(editor().state, (diagnostic) => allMessages.push(diagnostic.message));
+    expect(allMessages.sort()).toEqual(entries.map((diagnostic) => diagnostic.message).sort());
+    expect(lint).toHaveBeenCalledTimes(lintCalls);
+});
+
+test.each(["edit", "same file", "another file", "ruleset"])("issue mutes reset on %s, but not on rule selection", async (change) => {
+    const rule = rules[0];
+    const source = "openapi: 3.0.3\ninfo: {}\npaths: {}\n";
+    lint.mockImplementation(() => async () => ({ diagnostics: [{ ...finding("mutable issue"), source: `Rule ${rule.id}` }] }));
+    await select([rule]);
+    await upload(source);
+    await loaded(source);
+    await act(async () => button("Details").click());
+    await act(async () => button("Mute this rule on this line").click());
+    expect(container.textContent).toContain("No unmuted issues.");
+    expect(container.textContent).not.toContain("No lint issues.");
+    expect(diagnosticCount(editor().state)).toBe(0);
+    await select([rule]);
+    expect(container.textContent).toContain("No unmuted issues.");
+    if (change === "edit") {
+        await act(async () => editor().dispatch({ changes: { from: 0, insert: "# changed\n" } }));
+        await loaded(`# changed\n${source}`);
+    } else if (change === "ruleset") {
+        await act(async () => mockSelector.onRulesetChange("other"));
+    } else {
+        await upload(source, change === "same file" ? "native.yaml" : "another.yaml");
+        await loaded(source);
+    }
+    await waitFor(() => diagnosticCount(editor().state) === 1);
+    expect(container.querySelectorAll("tbody tr")).toHaveLength(1);
+    expect(container.textContent).not.toContain("Muted issues (");
+});
+
+test("API exclusions include every unchecked rule when none are selected and clipboard failures are explicit", async () => {
+    await select([]);
+    await act(async () => button("Export").click());
+    await act(async () => button("API exclusions JSON").click());
+    expect(exclusionsJson().exclude_auto_rules).toEqual(rules.map((rule) => rule.id));
+    jest.spyOn(navigator.clipboard, "writeText").mockRejectedValue(new Error("Permission denied"));
+    jest.spyOn(console, "error").mockImplementation(() => undefined);
+    await act(async () => button("Copy JSON").click());
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Select and copy the JSON below manually.");
+    expect(console.error).toHaveBeenCalledWith("Unable to copy API exclusions", expect.any(Error));
+});
+
+test("API exclusions cannot be exported from a catalog that is still loading", async () => {
+    await act(async () => mockSelector.onRulesLoaded(null));
+    await act(async () => button("Export").click());
+    expect(button("API exclusions JSON").hasAttribute("disabled")).toBe(true);
+    await act(async () => button("API exclusions JSON").click());
+    expect(container.querySelector('textarea[aria-label="API exclusions JSON"]')).toBeNull();
+    expect(container.textContent).toContain("Load a ruleset to export API exclusions.");
+});
+
+test("parser diagnostics cannot be muted", async () => {
+    lint.mockImplementation(() => async () => ({ diagnostics: [{ ...finding("Invalid document"), source: "parser" }] }));
+    await upload("paths: [");
+    await loaded("paths: [");
+    expect(container.querySelector("tbody tr")?.textContent).toContain("Invalid document");
+    expect(container.querySelector('button[aria-label^="Mute "]')).toBeNull();
+    await act(async () => button("Details").click());
+    expect(container.textContent).not.toContain("Mute this rule on this line");
 });
 
 test.each<Dialect>(["swagger2", "openapi3"])("%s upload runs all 67 real native bindings with no converter or upload HTTP", async (dialect) => {

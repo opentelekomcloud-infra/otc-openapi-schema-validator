@@ -9,9 +9,11 @@ import { openApiLinter } from "@/components/Linter";
 import RulesetsSelector, { type Rule } from "@/components/RulesetsSelector";
 import ManualChecksSelector, { type ManualRule } from "@/components/ManualChecksSelector";
 import IssuesPanel, { type IssuesPanelHandle } from "@/components/IssuesPanel";
+import ExclusionsExport from "@/components/ExclusionsExport";
 import { ScaleDialog } from "@/components/ScaleControls";
 import { exportRobotFramework, exportPDF, exportReportPortal } from "@/utils/export";
-import { isSkippedRule } from "@/lib/export/ruleOutcomes";
+import { diagnosticRuleId, isSkippedRule } from "@/lib/export/ruleOutcomes";
+import { isIssueExcluded, issueExclusionFor, sameIssueExclusion, type IssueExclusion } from "@/lib/linter/issueExclusions";
 import { referenceNavigation } from "@/lib/editor/referenceNavigation";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
@@ -32,8 +34,24 @@ const HomePage = () => {
     const [sourceRevision, setSourceRevision] = useState(0);
     const [editorReady, setEditorReady] = useState(false);
     const [selectedRules, setSelectedRules] = useState<Rule[]>([]);
+    const [allRules, setAllRules] = useState<Rule[] | null>(null);
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
-    const visibleDiagnostics = useMemo(() => diagnostics.filter((diagnostic) => !isSkippedRule(diagnostic)), [diagnostics]);
+    const [mutedIssues, setMutedIssues] = useState<IssueExclusion[]>([]);
+    const diagnosticContent = editorViewRef.current?.state.doc.toString() ?? code;
+    const retainedDiagnostics = useMemo(() => diagnostics.filter((diagnostic) =>
+        !isIssueExcluded(diagnosticContent, diagnostic, mutedIssues)), [diagnostics, diagnosticContent, mutedIssues]);
+    const visibleDiagnostics = useMemo(() => retainedDiagnostics.filter((diagnostic) => !isSkippedRule(diagnostic)), [retainedDiagnostics]);
+    const exportRules = useMemo(() => {
+        const retainedIds = new Set(retainedDiagnostics.map(diagnosticRuleId));
+        const excludedIds = new Set(diagnostics.filter((diagnostic) =>
+            isIssueExcluded(diagnosticContent, diagnostic, mutedIssues)).map(diagnosticRuleId));
+        return selectedRules.filter((rule) => !excludedIds.has(rule.id) || retainedIds.has(rule.id));
+    }, [selectedRules, diagnostics, retainedDiagnostics, diagnosticContent, mutedIssues]);
+    const excludedRules = useMemo(() => {
+        const selected = new Set(selectedRules.map((rule) => rule.id));
+        return (allRules ?? []).filter((rule) => !selected.has(rule.id)).map((rule) => rule.id);
+    }, [allRules, selectedRules]);
+    const mutedCount = diagnostics.length - retainedDiagnostics.length;
     const diagnosticsRef = useRef<readonly Diagnostic[]>([]);
     const issuesRef = useRef<IssuesPanelHandle>(null);
     const tabsRef = useRef<HTMLElement>(null);
@@ -43,6 +61,7 @@ const HomePage = () => {
     const [lintError, setLintError] = useState<string | null>(null);
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
     const [showExportModal, setShowExportModal] = useState(false);
+    const [showExclusions, setShowExclusions] = useState(false);
     const [specTitle, setSpecTitle] = useState<string | null>(null);
     const [isExporting, setIsExporting] = useState(false);
     const [totalAvailableRules, setTotalAvailableRules] = useState(0);
@@ -52,6 +71,10 @@ const HomePage = () => {
     const hasDocument = code !== initialCode && Boolean(code.trim());
 
     useEffect(() => { diagnosticsRef.current = visibleDiagnostics; }, [visibleDiagnostics]);
+    useEffect(() => {
+        const view = editorViewRef.current;
+        if (view && !isLinting) view.dispatch(setEditorDiagnostics(view.state, visibleDiagnostics));
+    }, [visibleDiagnostics, isLinting]);
     useEffect(() => {
         const element = tabsRef.current;
         if (!element) return;
@@ -82,7 +105,6 @@ const HomePage = () => {
             if (!isCurrent()) return;
             setSpecTitle(result.specTitle ?? null);
             setDiagnostics(result.diagnostics);
-            view.dispatch(setEditorDiagnostics(view.state, result.diagnostics.filter((diagnostic) => !isSkippedRule(diagnostic))));
         } catch (error: unknown) {
             if (!isCurrent()) return;
             setLintError(`Unable to validate the specification: ${error instanceof Error ? error.message : String(error)}`);
@@ -93,6 +115,7 @@ const HomePage = () => {
 
     const diagnosticsListenerExtension = useMemo(() => EditorView.updateListener.of((update) => {
         if (!update.docChanged || update.transactions.some((transaction) => transaction.annotation(ExternalChange))) return;
+        setMutedIssues([]);
         void lintDocument(update.view);
     }), [lintDocument]);
     const gutterNavigation = useMemo(() => ViewPlugin.define((view) => {
@@ -162,6 +185,7 @@ const HomePage = () => {
             setDiagnostics([]);
             setSpecTitle(null);
             setLintError(null);
+            setMutedIssues([]);
             setFileName(file.name);
             setCode(reader.result);
             setSourceRevision((revision) => revision + 1);
@@ -190,6 +214,16 @@ const HomePage = () => {
         setSelectedRules(selection);
     }, []);
     const handleManualRulesChange = useCallback((rules: ManualRule[]) => setManualRules(rules), []);
+    const handleRulesetChange = useCallback((name: string) => {
+        setRulesetName(name);
+        setMutedIssues([]);
+    }, []);
+    const handleMute = (diagnostic: Diagnostic) => {
+        const exclusion = issueExclusionFor(diagnosticContent, diagnostic);
+        if (!exclusion) return;
+        setMutedIssues((current) => current.some((entry) => sameIssueExclusion(entry, exclusion))
+            ? current : [...current, exclusion]);
+    };
     const handleDiagnosticClick = (diagnostic: Diagnostic) => {
         const view = editorViewRef.current;
         if (!view) return;
@@ -201,7 +235,7 @@ const HomePage = () => {
     const handleExportReportPortal = async () => {
         setIsExporting(true);
         try {
-            await exportReportPortal(diagnostics, selectedRules, manualRules, editorViewRef, {
+            await exportReportPortal(retainedDiagnostics, exportRules, manualRules, editorViewRef, {
                 project: "openapi",
                 launch: `Service: ${specTitle ?? "OpenAPI"}`,
                 description: `Latest launch for ${specTitle ?? "OpenAPI"} - ${new Date().toISOString()}`,
@@ -231,7 +265,10 @@ const HomePage = () => {
                     <scale-icon-action-download aria-hidden="true" />Save
                 </scale-button>
                 <scale-button onClick={() => {
-                    if (!isLinting && !lintError) setShowExportModal(true);
+                    if (!isLinting && !lintError) {
+                        setShowExclusions(false);
+                        setShowExportModal(true);
+                    }
                 }} variant="secondary" disabled={isLinting || Boolean(lintError)}>
                     <scale-icon-action-export aria-hidden="true" />Export
                 </scale-button>
@@ -267,13 +304,14 @@ const HomePage = () => {
                             content={editorViewRef.current?.state.doc.toString() ?? code}
                             isLinting={isLinting} lintError={lintError} hasDocument={hasDocument}
                             rulesSelected={selectedRules.length} onNavigate={handleDiagnosticClick}
-                            onConfigureRules={() => setActiveTab("rules")} />
+                            onConfigureRules={() => setActiveTab("rules")} onMute={handleMute} mutedCount={mutedCount}
+                            onManageMuted={() => { setShowExclusions(true); setShowExportModal(true); }} />
                     </scale-tab-panel>
                     <scale-tab-header slot="tab" data-tab="rules" selected={activeTab === "rules"}
                         onClick={() => setActiveTab("rules")}>Rules ({selectedRules.length}/{totalAvailableRules})</scale-tab-header>
                     <scale-tab-panel slot="panel" hidden={activeTab !== "rules"}>
                         <RulesetsSelector onSelectionChange={handleSelectionChange} onTotalRulesChange={setTotalAvailableRules}
-                            onRulesetChange={setRulesetName} />
+                            onRulesetChange={handleRulesetChange} onRulesLoaded={setAllRules} />
                     </scale-tab-panel>
                     <scale-tab-header slot="tab" data-tab="manual" selected={activeTab === "manual"}
                         onClick={() => setActiveTab("manual")}>Manual ({selectedManualRulesCount}/{manualRules.length})</scale-tab-header>
@@ -287,21 +325,30 @@ const HomePage = () => {
             © T-Systems International GmbH | 2026 EcoSystems | All rights reserved. |
             v{process.env.NEXT_PUBLIC_APP_VERSION ?? "dev"}
         </footer>
-        {showExportModal && <ScaleDialog heading="Export" onClose={() => setShowExportModal(false)}>
-            <p className="muted">Export all {visibleDiagnostics.length} issues and the current manual checklist. Display filters do not affect the report.</p>
-            <div className="exportActions">
-                <scale-button variant="secondary" onClick={async () => {
-                    await exportPDF(diagnostics, selectedRules, manualRules, editorViewRef);
-                    setShowExportModal(false);
-                }}><scale-icon-user-file-pdf-file aria-hidden="true" />Export to PDF</scale-button>
-                <scale-button variant="secondary" onClick={async () => {
-                    await exportRobotFramework(diagnostics, selectedRules, manualRules, editorViewRef);
-                    setShowExportModal(false);
-                }}><scale-icon-action-download aria-hidden="true" />Export to Robot Framework</scale-button>
-                <scale-button variant="secondary" onClick={handleExportReportPortal} disabled={isExporting}>
-                    <scale-icon-action-export aria-hidden="true" />{isExporting ? "Exporting…" : "Export to ReportPortal"}
-                </scale-button>
-            </div>
+        {showExportModal && <ScaleDialog heading={showExclusions ? "API exclusions" : "Export"} onClose={() => setShowExportModal(false)}>
+            {showExclusions ? <ExclusionsExport ruleset={rulesetName || "default"} excludedRules={excludedRules}
+                excludedIssues={mutedIssues}
+                onUnmute={(exclusion) => setMutedIssues((current) => current.filter((entry) => !sameIssueExclusion(entry, exclusion)))}
+                onUnmuteAll={() => setMutedIssues([])} /> : <>
+                <p className="muted">Export all {visibleDiagnostics.length} issues and the current manual checklist. Display filters do not affect the report.</p>
+                {mutedCount > 0 && <p>{mutedCount} muted issues are excluded from all reports.</p>}
+                <div className="exportActions">
+                    <scale-button variant="secondary" onClick={async () => {
+                        await exportPDF(retainedDiagnostics, exportRules, manualRules, editorViewRef);
+                        setShowExportModal(false);
+                    }}><scale-icon-user-file-pdf-file aria-hidden="true" />Export to PDF</scale-button>
+                    <scale-button variant="secondary" onClick={async () => {
+                        await exportRobotFramework(retainedDiagnostics, exportRules, manualRules, editorViewRef);
+                        setShowExportModal(false);
+                    }}><scale-icon-action-download aria-hidden="true" />Export to Robot Framework</scale-button>
+                    <scale-button variant="secondary" onClick={handleExportReportPortal} disabled={isExporting}>
+                        <scale-icon-action-export aria-hidden="true" />{isExporting ? "Exporting…" : "Export to ReportPortal"}
+                    </scale-button>
+                    <scale-button variant="secondary" disabled={!rulesetName || allRules === null}
+                        onClick={() => { if (rulesetName && allRules !== null) setShowExclusions(true); }}>API exclusions JSON</scale-button>
+                    {(!rulesetName || allRules === null) && <p className="muted">Load a ruleset to export API exclusions.</p>}
+                </div>
+            </>}
         </ScaleDialog>}
     </div>;
 };
