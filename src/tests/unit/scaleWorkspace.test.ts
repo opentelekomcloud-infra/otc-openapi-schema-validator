@@ -274,8 +274,10 @@ test("rule severity/search filters never change selection; bulk actions preserve
         : { ok: true, text: async () => JSON.stringify({ rules }) });
     Object.assign(globalThis, { fetch });
     const selected = jest.fn<void, [AutoRule[]]>();
-    await act(async () => root.render(React.createElement(RulesetsSelector, { onSelectionChange: selected })));
+    const loaded = jest.fn<void, [AutoRule[] | null]>();
+    await act(async () => root.render(React.createElement(RulesetsSelector, { onSelectionChange: selected, onRulesLoaded: loaded })));
     await choice("Ruleset", "default");
+    expect(loaded.mock.calls.at(-1)?.[0]?.map((rule) => rule.id)).toEqual(["TEST-001-M", "TEST-002-M", "TEST-003-O"]);
     expect(selected.mock.calls.at(-1)?.[0].map((rule) => rule.id)).toEqual(["TEST-001-M", "TEST-002-M"]);
     selected.mockClear();
     await choice("Rule severity", "medium");
@@ -290,4 +292,6 @@ test("rule severity/search filters never change selection; bulk actions preserve
     await search("Search rules", "");
     expect(container.querySelectorAll("scale-checkbox")).toHaveLength(3);
     expect(fetch).toHaveBeenCalledTimes(2);
+    await choice("Ruleset", "");
+    expect(loaded).toHaveBeenLastCalledWith(null);
 });

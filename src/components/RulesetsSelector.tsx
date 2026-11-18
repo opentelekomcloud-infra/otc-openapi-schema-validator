@@ -13,9 +13,10 @@ type RulesetsSelectorProps = {
     onSelectionChange?: (selectedRules: Rule[]) => void;
     onTotalRulesChange?: (total: number) => void;
     onRulesetChange?: (name: string) => void;
+    onRulesLoaded?: (rules: Rule[] | null) => void;
 };
 
-const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChange }: RulesetsSelectorProps) => {
+const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChange, onRulesLoaded }: RulesetsSelectorProps) => {
     const [rulesets, setRulesets] = useState<RulesetsStructure>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
@@ -50,6 +51,7 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
     useEffect(() => {
         let cancelled = false;
         setAllRules([]);
+        onRulesLoaded?.(null);
         setSelectedRules([]);
         onTotalRulesChange?.(0);
         onSelectionChange?.([]);
@@ -69,6 +71,7 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
                 const implementedRules = getImplementedRules(rules, functionsMap);
                 if (cancelled) return;
                 setAllRules(implementedRules);
+                onRulesLoaded?.(implementedRules);
                 onTotalRulesChange?.(implementedRules.length);
 
                 const mandatoryRules = implementedRules.filter(
@@ -87,7 +90,7 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
 
         if (selectedRuleset) fetchAllRules();
         return () => { cancelled = true; };
-    }, [selectedRuleset, rulesets, onSelectionChange, onTotalRulesChange]);
+    }, [selectedRuleset, rulesets, onSelectionChange, onTotalRulesChange, onRulesLoaded]);
 
     const handleRulesetChange = (value: string) => {
         setSelectedRuleset(value);
