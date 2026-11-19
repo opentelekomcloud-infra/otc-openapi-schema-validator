@@ -5,7 +5,9 @@ import type { RulesetsStructure } from "@/utils/extract";
 import type { AutoRule } from "@/lib/linter/ruleCatalog";
 import { getImplementedRules, loadRuleCatalog } from "@/lib/linter/ruleCatalog";
 import { functionsMap } from "@/lib/linter/runLinter";
-import { ScaleCheckbox, ScaleSearch, ScaleSelect } from "@/components/ScaleControls";
+import { ScaleCheckbox, ScaleDialog, ScaleSearch, ScaleSelect } from "@/components/ScaleControls";
+import ExclusionsImport from "@/components/ExclusionsImport";
+import type { ApiExclusions, IssueExclusion } from "@/lib/linter/issueExclusions";
 
 export type Rule = AutoRule;
 
@@ -14,9 +16,21 @@ type RulesetsSelectorProps = {
     onTotalRulesChange?: (total: number) => void;
     onRulesetChange?: (name: string) => void;
     onRulesLoaded?: (rules: Rule[] | null) => void;
+    onExclusionsImported?: (issues: IssueExclusion[]) => void;
 };
 
-const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChange, onRulesLoaded }: RulesetsSelectorProps) => {
+async function loadRulesetRules(rulesets: RulesetsStructure, name: string): Promise<Rule[]> {
+    if (!Object.hasOwn(rulesets, name)) throw new Error(`Unknown ruleset: ${name}`);
+    const files = rulesets[name].map((file) => `/rulesets/${name}/${file}.yaml`);
+    const rules = await loadRuleCatalog(files, async (file) => {
+        const response = await fetch(file);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.text();
+    });
+    return getImplementedRules(rules, functionsMap);
+}
+
+const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChange, onRulesLoaded, onExclusionsImported }: RulesetsSelectorProps) => {
     const [rulesets, setRulesets] = useState<RulesetsStructure>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
@@ -28,6 +42,9 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
     const [severityFilter, setSeverityFilter] = useState<string>("all");
 
     const [query, setQuery] = useState("");
+    const [showImport, setShowImport] = useState(false);
+    const [importStatus, setImportStatus] = useState("");
+    const [importedCatalog, setImportedCatalog] = useState<{ exclusions: ApiExclusions; rules: Rule[] } | null>(null);
 
     useEffect(() => {
         async function fetchRulesets() {
@@ -60,25 +77,19 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
 
         async function fetchAllRules() {
             try {
-                const fileNames = rulesets[selectedRuleset];
-                if (!fileNames) throw new Error(`Unknown ruleset: ${selectedRuleset}`);
-                const files = fileNames.map((file) => `/rulesets/${selectedRuleset}/${file}.yaml`);
-                const rules = await loadRuleCatalog(files, async (file) => {
-                    const response = await fetch(file);
-                    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-                    return response.text();
-                });
-                const implementedRules = getImplementedRules(rules, functionsMap);
+                const imported = importedCatalog?.exclusions.ruleset === selectedRuleset ? importedCatalog : null;
+                const implementedRules = imported?.rules ?? await loadRulesetRules(rulesets, selectedRuleset);
                 if (cancelled) return;
                 setAllRules(implementedRules);
                 onRulesLoaded?.(implementedRules);
                 onTotalRulesChange?.(implementedRules.length);
 
-                const mandatoryRules = implementedRules.filter(
-                    (rule) => rule.option.toLowerCase() === "mandatory"
-                );
-                setSelectedRules(mandatoryRules);
-                onSelectionChange?.(mandatoryRules);
+                const excluded = new Set(imported?.exclusions.exclude_auto_rules);
+                const selection = implementedRules.filter((rule) => imported
+                    ? !excluded.has(rule.id) : rule.option.toLowerCase() === "mandatory");
+                setSelectedRules(selection);
+                onSelectionChange?.(selection);
+                if (imported) onExclusionsImported?.(imported.exclusions.exclude_issues);
             } catch (error: unknown) {
                 if (cancelled) return;
                 console.error("Failed to load ruleset", error);
@@ -90,9 +101,11 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
 
         if (selectedRuleset) fetchAllRules();
         return () => { cancelled = true; };
-    }, [selectedRuleset, rulesets, onSelectionChange, onTotalRulesChange, onRulesLoaded]);
+    }, [selectedRuleset, rulesets, onSelectionChange, onTotalRulesChange, onRulesLoaded, importedCatalog, onExclusionsImported]);
 
     const handleRulesetChange = (value: string) => {
+        setImportedCatalog(null);
+        setImportStatus("");
         setSelectedRuleset(value);
         onRulesetChange?.(value);
         setSeverityFilter("all");
@@ -139,6 +152,10 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
             <ScaleSelect label="Ruleset" value={selectedRuleset} onChange={handleRulesetChange}
                 options={[{ value: "", label: "Select a ruleset" },
                     ...Object.keys(rulesets).map((value) => ({ value, label: value }))]} />
+            <div className="panelSummary">
+                <scale-button variant="secondary" size="small" onClick={() => setShowImport(true)}>Import API exclusions</scale-button>
+            </div>
+            {importStatus && <p role="status">{importStatus}</p>}
             {selectedRuleset && <div className="filterGrid settingsFilters">
                 <ScaleSearch label="Search rules" value={query} onChange={setQuery} />
                 <ScaleSelect label="Rule severity" value={severityFilter} onChange={setSeverityFilter}
@@ -173,7 +190,20 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
                 </article>)}
             </div>}
         </div>
+        {showImport && <ScaleDialog heading="Import API exclusions" onClose={() => setShowImport(false)}>
+            <ExclusionsImport loadRules={(name) => name === selectedRuleset && !rulesLoading && !error
+                ? Promise.resolve(allRules) : loadRulesetRules(rulesets, name)}
+                onImport={(exclusions, rules) => {
+                    onRulesetChange?.(exclusions.ruleset);
+                    setSelectedRuleset(exclusions.ruleset);
+                    setImportedCatalog({ exclusions, rules });
+                    setSeverityFilter("all");
+                    setQuery("");
+                    setImportStatus(`Imported exclusions: ${exclusions.exclude_auto_rules.length} excluded automatic rules. Only matching findings in the current specification will be muted.`);
+                    setShowImport(false);
+                }} />
+        </ScaleDialog>}
     </div>;
 };
 
-export default RulesetsSelector;
+export default React.memo(RulesetsSelector);

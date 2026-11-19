@@ -131,4 +131,4 @@ const ManualChecksSelector = ({ onManualRulesChange }: {
     </div>;
 };
 
-export default ManualChecksSelector;
+export default React.memo(ManualChecksSelector);

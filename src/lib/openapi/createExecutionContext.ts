@@ -2,7 +2,7 @@ import type { SourceFormat } from "@/types/openapi";
 import { NativeOpenApiError } from "./documentError";
 import { classifyNativeOpenApiDocument } from "./parseNativeOpenApi";
 import { sourceMap } from "./sourceMap";
-import type { NativeClassification, NativeExecutionContext } from "./executionContext";
+import type { NativeBaselineLoader, NativeClassification, NativeExecutionContext } from "./executionContext";
 
 function sourceFormat(content: string): SourceFormat {
     if (!/^[\s]*[\[{]/.test(content)) return "yaml";
@@ -16,7 +16,9 @@ function sourceFormat(content: string): SourceFormat {
     }
 }
 
-export function createExecutionContext(document: unknown, originalContent: string): NativeExecutionContext {
+export function createExecutionContext(
+    document: unknown, originalContent: string, loadBaseline?: NativeBaselineLoader,
+): NativeExecutionContext {
     const format = sourceFormat(originalContent);
     const sourceDocument = sourceMap(originalContent).sourceDocument;
     let classification: NativeClassification;
@@ -27,7 +29,7 @@ export function createExecutionContext(document: unknown, originalContent: strin
         classification = { ok: false, error };
     }
     return {
-        document, originalContent, sourceFormat: format, sourceDocument, classification,
+        document, originalContent, sourceFormat: format, sourceDocument, classification, loadBaseline,
         native: classification.ok
             ? { ...classification.value, originalContent, sourceFormat: format, sourceDocument }
             : undefined,

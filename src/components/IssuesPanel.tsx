@@ -24,6 +24,9 @@ type Props = {
     onMute?: (diagnostic: Diagnostic) => void;
     mutedCount?: number;
     onManageMuted?: () => void;
+    baselineUnavailable?: string | null;
+    baselineChecking?: boolean;
+    onRetryBaseline?: () => void;
 };
 const pageSize = 100;
 const severityOptions = ["all", "critical", "high", "medium", "low"].map((value) => ({
@@ -58,6 +61,7 @@ function renderMessage(message: string): React.ReactNode {
 const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
     diagnostics, content, isLinting, lintError, hasDocument, rulesSelected, onNavigate, onConfigureRules,
     onMute, mutedCount = 0, onManageMuted,
+    baselineUnavailable, baselineChecking = false, onRetryBaseline,
 }, ref) {
     const [query, setQuery] = useState("");
     const [severity, setSeverity] = useState("all");
@@ -175,6 +179,8 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
         <scale-button variant="secondary" onClick={onConfigureRules}>Configure rules</scale-button>
     </>;
     else if (!diagnostics.length && mutedCount) empty = <><h2>No unmuted issues.</h2><p>Muted issues are excluded, not passed checks.</p></>;
+    else if (!diagnostics.length && (baselineUnavailable || baselineChecking)) empty = <><h2>No issues from the completed checks.</h2>
+        <p>Checks requiring a Gitea baseline were skipped.</p></>;
     else if (!diagnostics.length) empty = <><h2>No lint issues.</h2><p>The selected automatic checks found no issues. Manual checks are reviewed separately.</p></>;
     else if (!filtered.length) empty = <><h2>No matching issues</h2><p>Other issues are hidden by the current filters.</p>
         <scale-button variant="secondary" onClick={() => { setQuery(""); setSeverity("all"); }}>Clear filters</scale-button>
@@ -203,6 +209,15 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
                         onClick={() => move(1)}>Next issue</scale-button>
                 </div>
             </div>
+            {(baselineUnavailable || baselineChecking) && <div className="panelSummary" role="status">
+                <span>{baselineChecking
+                    ? <><strong>Checking Gitea connection.</strong> Baseline checks are temporarily skipped (SKIP).
+                        Validation will restart automatically if the connection succeeds. Other selected checks continue to run.</>
+                    : <><strong>Gitea checks skipped (SKIP).</strong> {baselineUnavailable} Further baseline checks
+                        are paused until you retry the connection. Other selected checks continue to run.</>}</span>
+                {!baselineChecking && onRetryBaseline && <scale-button variant="secondary" size="small"
+                    onClick={onRetryBaseline}>Retry Gitea connection</scale-button>}
+            </div>}
         </div>
         <div className="panelScroll" aria-label="Validation results">
             {empty ? <div className="emptyState">{empty}</div> : [...groups].map(([key, entries]) =>

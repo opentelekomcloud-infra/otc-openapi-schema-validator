@@ -6,6 +6,8 @@ export type NativeClassification =
     | { readonly ok: true; readonly value: NativeOpenApiDocument }
     | { readonly ok: false; readonly error: NativeOpenApiError };
 
+export type NativeBaselineLoader = (document: unknown) => Promise<NativeOpenApiDocument>;
+
 export interface NativeExecutionContext {
     readonly document: unknown;
     readonly originalContent: string;
@@ -13,6 +15,7 @@ export interface NativeExecutionContext {
     readonly sourceDocument: Document.Parsed;
     readonly classification: NativeClassification;
     readonly native: NativeOpenApiContext | undefined;
+    readonly loadBaseline?: NativeBaselineLoader;
 }
 
 const active = new WeakMap<object, NativeExecutionContext>();

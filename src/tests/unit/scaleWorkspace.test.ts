@@ -4,6 +4,7 @@ import { createRoot, type Root } from "react-dom/client";
 import type { Diagnostic } from "@codemirror/lint";
 import IssuesPanel, { type IssuesPanelHandle } from "@/components/IssuesPanel";
 import RulesetsSelector from "@/components/RulesetsSelector";
+import ExclusionsImport from "@/components/ExclusionsImport";
 import type { AutoRule } from "@/lib/linter/ruleCatalog";
 
 let root: Root;
@@ -41,6 +42,16 @@ async function click(label: string) {
     if (!element) throw new Error(`Missing button ${label}`);
     await act(async () => element.click());
 }
+async function pasteExclusions(value: unknown) {
+    const textarea = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Import API exclusions JSON"]');
+    if (!textarea) throw new Error("Missing exclusions import textarea");
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    if (!setter) throw new Error("Missing textarea value setter");
+    await act(async () => {
+        setter.call(textarea, typeof value === "string" ? value : JSON.stringify(value));
+        textarea.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+}
 const content = "x\n".repeat(220);
 const diagnostics: Diagnostic[] = Array.from({ length: 205 }, (_, index) => ({
     from: index * 2, to: index * 2 + 1,
@@ -54,6 +65,18 @@ function panel(extra: Partial<React.ComponentProps<typeof IssuesPanel>> = {}) {
         rulesSelected: 2, onNavigate: jest.fn(), onConfigureRules: jest.fn(), ...extra,
     });
 }
+
+test("skipped Gitea-only checks never display full success and expose an explicit retry", async () => {
+    const retry = jest.fn();
+    await act(async () => root.render(panel({
+        diagnostics: [], baselineUnavailable: "Baseline could not be loaded.", onRetryBaseline: retry,
+    })));
+    expect(container.textContent).toContain("Gitea checks skipped (SKIP).");
+    expect(container.textContent).toContain("No issues from the completed checks.");
+    expect(container.textContent).not.toContain("No lint issues.");
+    await click("Retry Gitea connection");
+    expect(retry).toHaveBeenCalledTimes(1);
+});
 
 test("issues have bounded pages, non-destructive filters, grouping and keyboard-accessible source navigation", async () => {
     const navigate = jest.fn();
@@ -294,4 +317,142 @@ test("rule severity/search filters never change selection; bulk actions preserve
     expect(fetch).toHaveBeenCalledTimes(2);
     await choice("Ruleset", "");
     expect(loaded).toHaveBeenLastCalledWith(null);
+});
+
+test("API exclusions import switches catalogs, replaces checkboxes including optional rules, and restores normal ruleset selection", async () => {
+    const makeRule = (id: string, option: string) => ({
+        id, title: id, message: id, option, severity: "medium", status: "implemented",
+        call: { function: "checkOASVersion", functionParams: { allowedVersions: ["2.0", "3.0"] } },
+    });
+    const catalogs = {
+        default: [makeRule("DEFAULT-M", "Mandatory")],
+        other: [makeRule("OTHER-M", "Mandatory"), makeRule("OTHER-O", "Optional")],
+    };
+    const fetch = jest.fn(async (url: string) => url === "/api/rulesets"
+        ? { ok: true, json: async () => ({ default: ["Test"], other: ["Test"] }) }
+        : { ok: true, text: async () => JSON.stringify({ rules: url.includes("/other/") ? catalogs.other : catalogs.default }) });
+    Object.assign(globalThis, { fetch });
+    const selected = jest.fn<void, [AutoRule[]]>();
+    const ruleset = jest.fn();
+    const imported = jest.fn();
+    await act(async () => root.render(React.createElement(RulesetsSelector, {
+        onSelectionChange: selected, onRulesetChange: ruleset, onExclusionsImported: imported,
+    })));
+    await choice("Ruleset", "default");
+    await search("Search rules", "not present");
+    await click("Import API exclusions");
+    const issues = [{ rule_id: "OTHER-O", line_number: 3 }, { rule_id: "NO-LONGER-EXISTS", line_number: 900 }];
+    await pasteExclusions({ ruleset: "other", exclude_auto_rules: ["OTHER-M"], exclude_issues: issues });
+    await click("Import exclusions");
+    expect(container.querySelector("scale-modal")).toBeNull();
+    expect(ruleset).toHaveBeenLastCalledWith("other");
+    expect(selected.mock.calls.at(-1)?.[0].map((rule) => rule.id)).toEqual(["OTHER-O"]);
+    expect(imported).toHaveBeenLastCalledWith(issues);
+    const checkboxes = () => [...container.querySelectorAll<HTMLScaleCheckboxElement>("scale-checkbox")];
+    expect(checkboxes().map((checkbox) => [checkbox.getAttribute("label"), checkbox.hasAttribute("checked")])).toEqual([
+        ["Select OTHER-M", false], ["Select OTHER-O", true],
+    ]);
+    expect(fetch).toHaveBeenCalledTimes(3);
+
+    await click("Import API exclusions");
+    await pasteExclusions({ ruleset: "other", exclude_auto_rules: [], exclude_issues: [] });
+    await click("Import exclusions");
+    expect(selected.mock.calls.at(-1)?.[0].map((rule) => rule.id)).toEqual(["OTHER-M", "OTHER-O"]);
+    expect(imported).toHaveBeenLastCalledWith([]);
+    expect(fetch).toHaveBeenCalledTimes(3);
+    await choice("Ruleset", "default");
+    await choice("Ruleset", "other");
+    expect(selected.mock.calls.at(-1)?.[0].map((rule) => rule.id)).toEqual(["OTHER-M"]);
+});
+
+test("invalid exclusions, unknown catalogs/rules and failed catalog loads preserve the current rules and mutes", async () => {
+    const rules = [{ id: "TEST-M", title: "Test", message: "Test", option: "Mandatory", severity: "high",
+        status: "implemented", call: { function: "checkOASVersion" } }];
+    Object.assign(globalThis, { fetch: jest.fn(async (url: string) => url === "/api/rulesets"
+        ? { ok: true, json: async () => ({ default: ["Test"], broken: ["Test"] }) }
+        : url.includes("/broken/") ? { ok: false, status: 503 }
+            : { ok: true, text: async () => JSON.stringify({ rules }) }) });
+    const selected = jest.fn();
+    const ruleset = jest.fn();
+    const imported = jest.fn();
+    await act(async () => root.render(React.createElement(RulesetsSelector, {
+        onSelectionChange: selected, onRulesetChange: ruleset, onExclusionsImported: imported,
+    })));
+    await choice("Ruleset", "default");
+    selected.mockClear();
+    ruleset.mockClear();
+    await click("Import API exclusions");
+    for (const [value, message] of [
+        ["{", "Unable to import exclusions"],
+        [{ ruleset: "unknown" }, "Unknown ruleset: unknown"],
+        [{ ruleset: "default", exclude_auto_rules: ["UNKNOWN"] }, "UNKNOWN"],
+        [{ ruleset: "broken" }, "HTTP 503"],
+    ] as const) {
+        await pasteExclusions(value);
+        await click("Import exclusions");
+        expect(container.querySelector('[role="alert"]')?.textContent).toContain(message);
+        expect(selected).not.toHaveBeenCalled();
+        expect(ruleset).not.toHaveBeenCalled();
+        expect(imported).not.toHaveBeenCalled();
+    }
+});
+
+test("JSON files populate the import preview, apply only on confirmation, and surface read failures", async () => {
+    const readers: FileReader[] = [];
+    jest.spyOn(FileReader.prototype, "readAsText").mockImplementation(function (this: FileReader) { readers.push(this); });
+    const imported = jest.fn();
+    const config = { ruleset: "default", exclude_auto_rules: [], exclude_issues: [] };
+    await act(async () => root.render(React.createElement(ExclusionsImport, {
+        loadRules: async () => [], onImport: imported,
+    })));
+    const input = container.querySelector<HTMLInputElement>('input[aria-label="Load API exclusions file"]');
+    if (!input) throw new Error("Missing exclusions file input");
+    const upload = async () => {
+        Object.defineProperty(input, "files", { configurable: true, value: [new File([JSON.stringify(config)], "exclusions.json")] });
+        await act(async () => input.dispatchEvent(new Event("change", { bubbles: true })));
+    };
+    await upload();
+    Object.defineProperty(readers[0], "result", { configurable: true, value: JSON.stringify(config) });
+    await act(async () => {
+        readers[0].dispatchEvent(new ProgressEvent("load"));
+        readers[0].dispatchEvent(new ProgressEvent("loadend"));
+    });
+    expect(container.querySelector("textarea")?.value).toBe(JSON.stringify(config));
+    expect(imported).not.toHaveBeenCalled();
+    await click("Import exclusions");
+    expect(imported).toHaveBeenCalledWith(config, []);
+
+    await upload();
+    await act(async () => {
+        readers[1].dispatchEvent(new ProgressEvent("error"));
+        readers[1].dispatchEvent(new ProgressEvent("loadend"));
+    });
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Unable to read the selected JSON file");
+    expect(imported).toHaveBeenCalledTimes(1);
+    expect(input.value).toBe("");
+});
+
+test("closing the import dialog before its catalog loads cancels all selection changes", async () => {
+    let finish: ((rules: AutoRule[]) => void) | undefined;
+    const imported = jest.fn();
+    const loadRules = jest.fn(() => new Promise<AutoRule[]>((resolve) => { finish = resolve; }));
+    await act(async () => root.render(React.createElement(ExclusionsImport, { loadRules, onImport: imported })));
+    await pasteExclusions({ ruleset: "other" });
+    await click("Import exclusions");
+    expect(loadRules).toHaveBeenCalledWith("other");
+    await act(async () => root.render(null));
+    await act(async () => finish?.([]));
+    expect(imported).not.toHaveBeenCalled();
+});
+
+test("closing a Scale dialog cancels its pending shadow animations before their targets are removed", async () => {
+    await act(async () => root.render(panel()));
+    await click("Details");
+    const modal = container.querySelector("scale-modal");
+    if (!modal) throw new Error("Missing Scale dialog");
+    const shadow = modal.attachShadow({ mode: "open" });
+    const cancel = jest.fn();
+    Object.defineProperty(shadow, "getAnimations", { value: () => [{ cancel }] });
+    await act(async () => root.render(null));
+    expect(cancel).toHaveBeenCalledTimes(1);
 });

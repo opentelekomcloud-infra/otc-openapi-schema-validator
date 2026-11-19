@@ -1,6 +1,7 @@
 import { getSource } from "@/functions/common";
 import { isRecord } from "@/lib/openapi/references";
 import { runLinter, type SourceDiagnostic } from "./runLinter";
+import type { NativeBaselineLoader } from "@/lib/openapi/executionContext";
 
 const dictionaryFunctions = new Set([
     "checkCommonParameters", "checkParameterIsSnakeCase", "checkRootNodeMatchesResource", "checkURIContentDictionary",
@@ -22,16 +23,17 @@ function usesAbbreviations(rule: unknown): rule is Record<string, unknown> & { c
 
 export async function runPreparedLinter(
     content: string, selectedRules: unknown, loadAbbreviations: () => Promise<void>,
+    loadBaseline?: NativeBaselineLoader,
 ) {
     const rules: readonly unknown[] = Array.isArray(selectedRules) ? selectedRules : [];
     const dependentRules = rules.filter(usesAbbreviations);
-    if (!dependentRules.length) return runLinter(content, selectedRules);
+    if (!dependentRules.length) return runLinter(content, selectedRules, loadBaseline);
 
     try {
         await loadAbbreviations();
     } catch (error: unknown) {
         const failed = new Set<unknown>(dependentRules);
-        const result = await runLinter(content, rules.filter((rule) => !failed.has(rule)));
+        const result = await runLinter(content, rules.filter((rule) => !failed.has(rule)), loadBaseline);
         const diagnostics: SourceDiagnostic[] = dependentRules.map((rule) => ({
             from: 0, to: content.length, lineNumber: 1, severity: "error", source: getSource(rule),
             message: `Rule "${rule.call.function}" execution failed: unable to initialize allowed abbreviations: ${
@@ -39,5 +41,5 @@ export async function runPreparedLinter(
         }));
         return { ...result, diagnostics: [...result.diagnostics, ...diagnostics] };
     }
-    return runLinter(content, selectedRules);
+    return runLinter(content, selectedRules, loadBaseline);
 }

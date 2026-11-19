@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useId, useRef, useState } from "react";
+import React, { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 
 export function ScaleSelect({ label, value, options, onChange, disabled = false }: {
     label: string;
@@ -68,6 +68,13 @@ export function ScaleDialog({ heading, onClose, children }: {
     const closeRef = useRef(onClose);
     const [error, setError] = useState<string | null>(null);
     useEffect(() => { closeRef.current = onClose; }, [onClose]);
+    useLayoutEffect(() => {
+        const element = ref.current;
+        return () => {
+            // Cancel before removal: Scale commits animation styles to its shadow elements after finish.
+            element?.shadowRoot?.getAnimations().forEach((animation) => animation.cancel());
+        };
+    }, []);
     useEffect(() => {
         const element = ref.current;
         if (!element) return;

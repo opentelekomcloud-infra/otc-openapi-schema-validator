@@ -56,7 +56,7 @@ import { NativeAccessorError } from "@/lib/openapi/accessorError";
 import { BaselineUnavailableError, NativeBaselineError } from "@/lib/openapi/baselineError";
 import { NativeExampleError } from "@/lib/openapi/exampleError";
 import { createExecutionContext } from "@/lib/openapi/createExecutionContext";
-import { bindExecutionContext, type NativeExecutionContext } from "@/lib/openapi/executionContext";
+import { bindExecutionContext, type NativeBaselineLoader, type NativeExecutionContext } from "@/lib/openapi/executionContext";
 
 function executionRange(content: string, error: unknown, document: unknown) {
   if (error instanceof NativeBaselineError) return { from: 0, to: 0, lineNumber: 1 };
@@ -137,7 +137,8 @@ export interface SourceDiagnostic extends Diagnostic {
  */
 export async function runLinter(
   content: string,
-  selectedRules: any
+  selectedRules: any,
+  loadBaseline?: NativeBaselineLoader,
 ): Promise<{ diagnostics: SourceDiagnostic[]; specTitle?: string }> {
   let diagnostics: SourceDiagnostic[] = [];
   let specTitle: string | undefined;
@@ -150,7 +151,7 @@ export async function runLinter(
       return { diagnostics, specTitle };
     }
     log.debug("loaded rules: ", selectedRules)
-    const context = createExecutionContext(spec, content);
+    const context = createExecutionContext(spec, content, loadBaseline);
     const releaseContext = bindExecutionContext(context);
     try {
       const results = await Promise.all(
