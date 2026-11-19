@@ -211,7 +211,9 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
                     <table className="workspaceTable issuesTable">
                         <caption className="visuallyHidden">{key || "Lint issues"}</caption>
                         <thead><tr><th scope="col">Line</th><th scope="col">Rule</th><th scope="col">Issue</th>
-                            <th scope="col">Severity</th><th scope="col"><span className="visuallyHidden">Actions</span></th></tr></thead>
+                            <th scope="col">Severity</th>
+                            <th scope="col" className="issueDetailsColumn"><span className="visuallyHidden">Details</span></th>
+                            {onMute && <th scope="col" className="issueMuteColumn"><span className="visuallyHidden">Mute</span></th>}</tr></thead>
                         <tbody>{entries.map((diagnostic) => <tr key={diagnostics.indexOf(diagnostic)}
                             ref={(element) => { if (element) rows.current.set(diagnostic, element); else rows.current.delete(diagnostic); }}
                             data-active={active === diagnostic}
@@ -230,16 +232,17 @@ const IssuesPanel = forwardRef<IssuesPanelHandle, Props>(function IssuesPanel({
                             <td><span className="issuePreview" title={diagnostic.message}>{renderMessage(diagnostic.message)}</span></td>
                             <td><span className="severityLabel" data-severity={diagnostic.severity}>
                                 <span aria-hidden="true" className="severityDot" />{getSeverityLabel(diagnostic.severity)}</span></td>
-                            <td><div className="issueActions"><button className="textAction" onClick={(event) => {
+                            <td><button className="textAction" onClick={(event) => {
                                 event.stopPropagation(); setDetail(diagnostic);
-                            }} aria-label={`Details for issue on line ${line(diagnostic)}`}>Details</button>
-                                {onMute && issueExclusionFor(content, diagnostic) && <button className="textAction"
+                            }} aria-label={`Details for issue on line ${line(diagnostic)}`}>Details</button></td>
+                            {onMute && <td>
+                                {issueExclusionFor(content, diagnostic) && <button className="textAction"
                                     title="Mute all findings of this rule on this line until the source changes"
                                     aria-label={`Mute ${diagnosticRuleId(diagnostic)} on line ${line(diagnostic)}`}
                                     onClick={(event) => { event.stopPropagation(); onMute(diagnostic); }}>
                                     <scale-icon-action-hide-password aria-hidden="true" />
                                 </button>}
-                            </div></td>
+                            </td>}
                         </tr>)}</tbody>
                     </table>
                 </section>)}

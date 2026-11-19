@@ -81,7 +81,8 @@ button:focus-visible, summary:focus-visible {
 .issuesTable th:first-child { width: 9%; }
 .issuesTable th:nth-child(2) { width: 23%; }
 .issuesTable th:nth-child(4) { width: 16%; }
-.issuesTable th:last-child { width: 12%; }
+.issuesTable .issueDetailsColumn { width: 3rem; }
+.issuesTable .issueMuteColumn { width: 2rem; }
 .issuesTable tr { cursor: pointer; }
 .issuesTable tbody tr:hover { background: var(--telekom-color-ui-state-fill-hovered); }
 .issuesTable tr[data-active="true"] {
@@ -90,7 +91,6 @@ button:focus-visible, summary:focus-visible {
   box-shadow: inset 3px 0 var(--telekom-color-primary-standard);
 }
 .issuePreview { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
-.issueActions { display: flex; flex-direction: column; align-items: flex-start; gap: var(--scl-spacing-8); }
 .exclusionsJson { width: 100%; max-height: 40dvh; overflow: auto; font-family: var(--scl-font-family-mono, monospace); font-size: 12px; margin: var(--scl-spacing-12) 0; }
 .mutedIssuesScroll { position: relative; max-height: 25dvh; overflow: auto; margin: var(--scl-spacing-12) 0; }
 .mutedIssuesTable th:nth-child(2) { width: 5rem; }

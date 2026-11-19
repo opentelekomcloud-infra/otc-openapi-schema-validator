@@ -212,7 +212,15 @@ test("muting uses rule and line across UI, gutter and all reports; exports unche
     await loaded(source);
     const lintCalls = lint.mock.calls.length;
     const selection = editor().state.selection;
-    await act(async () => button(`Mute ${first.id} on line 1`).click());
+    const muteButton = button(`Mute ${first.id} on line 1`);
+    const issueRow = muteButton.closest("tr");
+    const detailsButton = issueRow?.querySelector('button[aria-label^="Details for issue"]');
+    expect(detailsButton).not.toBeNull();
+    expect(detailsButton?.closest("td")).not.toBe(muteButton.closest("td"));
+    expect(issueRow?.querySelectorAll("td")).toHaveLength(6);
+    expect(Array.from(container.querySelectorAll(".issuesTable th")).slice(-2).map((header) => header.textContent))
+        .toEqual(["Details", "Mute"]);
+    await act(async () => muteButton.click());
     expect(container.querySelectorAll("tbody tr")).toHaveLength(2);
     expect(diagnosticCount(editor().state)).toBe(2);
     expect(editor().state.selection.eq(selection)).toBe(true);
