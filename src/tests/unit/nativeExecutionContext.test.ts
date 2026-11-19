@@ -9,6 +9,7 @@ import { sourceMap } from "@/lib/openapi/sourceMap";
 import { isRecord } from "@/lib/openapi/references";
 import { fetchRepoMap, fetchSpecFromGitea } from "@/utils/utils";
 import { flowExampleContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
+import { createBaselineSession } from "@/lib/openapi/baseline";
 
 jest.mock("@/utils/utils", () => ({
     ...jest.requireActual<typeof import("@/utils/utils")>("@/utils/utils"),
@@ -35,8 +36,107 @@ function freezeGraph(value: unknown): void {
 }
 
 beforeEach(() => {
+    jest.clearAllMocks();
     jest.spyOn(console, "debug").mockImplementation(() => undefined);
     jest.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Native context tests must stay offline."));
+});
+
+test("pending startup probes skip immediately, then enable baseline loading after success", async () => {
+    let finish: () => void = () => { throw new Error("Probe has not started"); };
+    const probe = new Promise<void>((resolve) => { finish = resolve; });
+    const unavailable = jest.fn();
+    const session = createBaselineSession(unavailable, () => probe);
+    const document = { openapi: "3.0.3", paths: {} };
+    const pending = session.check(new AbortController().signal);
+    await expect(session.load(document)).rejects.toThrow("temporarily skipped");
+    expect(fetchRepoMap).not.toHaveBeenCalled();
+    expect(fetchSpecFromGitea).not.toHaveBeenCalled();
+    finish();
+    await pending;
+    jest.mocked(fetchRepoMap).mockResolvedValue({ reponame: "test" });
+    jest.mocked(fetchSpecFromGitea).mockResolvedValue(document);
+    expect((await session.load(document)).document).toEqual(document);
+    expect(unavailable).not.toHaveBeenCalled();
+});
+
+test("timed-out probes pause the first baseline request, and cancelled probes cannot pause a new attempt", async () => {
+    const unavailable = jest.fn();
+    const probe = jest.fn<Promise<void>, [AbortSignal]>().mockRejectedValue(new Error("Aborted"));
+    const session = createBaselineSession(unavailable, probe);
+    const controller = new AbortController();
+    controller.abort();
+    await session.check(controller.signal);
+    expect(unavailable).toHaveBeenLastCalledWith("Gitea availability check timed out after 5 seconds.");
+    await expect(session.load({})).rejects.toThrow("timed out");
+    expect(fetchSpecFromGitea).not.toHaveBeenCalled();
+    let fail: (error: Error) => void = () => { throw new Error("Probe has not started"); };
+    probe.mockImplementationOnce(() => new Promise((_resolve, reject) => { fail = reject; }));
+    const old = session.check(new AbortController().signal);
+    session.reset();
+    probe.mockResolvedValue(undefined);
+    await session.check(new AbortController().signal);
+    fail(new Error("Stale failure"));
+    await old;
+    expect(unavailable).toHaveBeenCalledTimes(1);
+});
+
+test("UI baseline failure pauses future requests until retry, without pausing API or unrelated checks", async () => {
+    const unavailable = jest.fn();
+    const session = createBaselineSession(unavailable);
+    jest.mocked(fetchRepoMap).mockResolvedValue({ reponame: "test", filename: "test" });
+    jest.mocked(fetchSpecFromGitea).mockResolvedValue(null);
+    const content = "openapi: 3.0.3\ninfo: {title: Test, version: v1}\npaths:\n  /v1/resources:\n    get:\n      responses:\n        '400': {description: Bad request}\n";
+    const selected = catalog.filter((rule) => ["checkCompatibility", "checkIncompatibleChangeVersioning", "checkSuccessResponse"]
+        .includes(rule.call.function));
+    const first = await runLinter(content, selected, session.load);
+    expect(first.diagnostics.filter((entry) => entry.ruleOutcome === "skip")).toHaveLength(8);
+    expect(first.diagnostics.some((entry) => entry.message.includes("Missing: 200"))).toBe(true);
+    const next = await runLinter(`# next file\n${content}`, selected, session.load);
+    expect(next.diagnostics.filter((entry) => entry.ruleOutcome === "skip")).toHaveLength(8);
+    expect(next.diagnostics.some((entry) => entry.message.includes("Missing: 200"))).toBe(true);
+    expect(fetchRepoMap).toHaveBeenCalledTimes(1);
+    expect(fetchSpecFromGitea).toHaveBeenCalledTimes(1);
+    expect(unavailable).toHaveBeenCalledTimes(1);
+
+    await runLinter(content, selected);
+    expect(fetchSpecFromGitea).toHaveBeenCalledTimes(2);
+    session.reset();
+    jest.mocked(fetchSpecFromGitea).mockResolvedValue(yaml.load(content));
+    const recovered = await runLinter(content, selected, session.load);
+    expect(fetchSpecFromGitea).toHaveBeenCalledTimes(3);
+    expect(recovered.diagnostics.some((entry) => entry.ruleOutcome === "skip")).toBe(false);
+    expect(recovered.diagnostics.some((entry) => entry.message.includes("Missing: 200"))).toBe(true);
+});
+
+test("missing mappings and invalid baseline documents do not pause Gitea for other specifications", async () => {
+    const unavailable = jest.fn();
+    const session = createBaselineSession(unavailable);
+    const document = { openapi: "3.0.3", info: { title: "Test", version: "v1" }, paths: {} };
+    jest.mocked(fetchRepoMap).mockResolvedValueOnce(null).mockResolvedValue({ reponame: "test" });
+    jest.mocked(fetchSpecFromGitea).mockResolvedValueOnce({ openapi: "3.1.0", paths: {} }).mockResolvedValue(document);
+    await expect(session.load(document)).rejects.toThrow("mapping is unavailable");
+    await expect(session.load(document)).rejects.toThrow("Invalid baseline specification");
+    expect((await session.load(document)).document).toEqual(document);
+    expect(fetchSpecFromGitea).toHaveBeenCalledTimes(2);
+    expect(unavailable).not.toHaveBeenCalled();
+});
+
+test("a failed request started before explicit retry cannot pause the renewed session", async () => {
+    const unavailable = jest.fn();
+    const session = createBaselineSession(unavailable);
+    const document = { openapi: "3.0.3", paths: {} };
+    let finish: ((result: null) => void) | undefined;
+    jest.mocked(fetchRepoMap).mockResolvedValue({ reponame: "test" });
+    jest.mocked(fetchSpecFromGitea).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+        .mockResolvedValue(document);
+    const old = session.load(document);
+    const rejected = expect(old).rejects.toThrow("could not be loaded from Gitea");
+    await Promise.resolve();
+    session.reset();
+    finish?.(null);
+    await rejected;
+    expect((await session.load(document)).document).toEqual(document);
+    expect(unavailable).not.toHaveBeenCalled();
 });
 afterEach(() => {
     expect(globalThis.fetch).not.toHaveBeenCalled();

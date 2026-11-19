@@ -26,6 +26,32 @@ beforeEach(() => {
     client = new Client({ baseUrl: "https://gitea.example.invalid/", token: "test-only-token" });
 });
 
+test("startup availability checks use the authenticated API with a five-second timeout and verified TLS", async () => {
+    get.mockResolvedValue({ status: 200, data: { version: "1.25.0" } });
+    await expect(client.checkAvailability()).resolves.toBeUndefined();
+    expect(get).toHaveBeenCalledWith("https://gitea.example.invalid/api/v1/version", expect.objectContaining({
+        timeout: 5000, maxRedirects: 0,
+        headers: { Authorization: "token test-only-token", Accept: "application/json" },
+    }));
+    expect(get.mock.calls[0][1]?.httpsAgent.options.rejectUnauthorized).toBe(true);
+});
+
+test.each([
+    { status: 500, data: { version: "1.25.0" } },
+    { status: 302, data: "login" },
+    { status: 200, data: "<html>login</html>" },
+    { status: 200, data: {} },
+])("unavailable servers and login responses cannot pass the startup check: %j", async (response) => {
+    get.mockResolvedValue(response);
+    await expect(client.checkAvailability()).rejects.toThrow(/Gitea availability/);
+});
+
+test("availability transport failures expose only the sanitized code", async () => {
+    jest.mocked(axios.isAxiosError).mockReturnValueOnce(true);
+    get.mockRejectedValueOnce(Object.assign(new Error("TEST_PRIVATE"), { code: "ETIMEDOUT", config: { secret: "TEST_PRIVATE" } }));
+    await expect(client.checkAvailability()).rejects.toThrow(/^Failed to check Gitea availability: ETIMEDOUT$/);
+});
+
 test.each([
     "\uFEFF# authored comment\r\nswagger: '2.0'\r\npaths: {}\r\n",
     '# original JSON spelling\n{"openapi":"3.0.3","paths":{}}\n',

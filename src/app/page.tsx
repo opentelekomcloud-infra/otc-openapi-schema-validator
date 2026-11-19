@@ -15,6 +15,7 @@ import { exportRobotFramework, exportPDF, exportReportPortal } from "@/utils/exp
 import { diagnosticRuleId, isSkippedRule } from "@/lib/export/ruleOutcomes";
 import { isIssueExcluded, issueExclusionFor, sameIssueExclusion, type IssueExclusion } from "@/lib/linter/issueExclusions";
 import { referenceNavigation } from "@/lib/editor/referenceNavigation";
+import { checkGiteaAvailability, createBaselineSession } from "@/lib/openapi/baseline";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
 import { applyPolyfills, defineCustomElements } from "@telekom/scale-components/loader";
 import AuthButtons from "@/components/AuthButtons";
@@ -37,6 +38,7 @@ const HomePage = () => {
     const [allRules, setAllRules] = useState<Rule[] | null>(null);
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
     const [mutedIssues, setMutedIssues] = useState<IssueExclusion[]>([]);
+    const pendingImportedIssuesRef = useRef<IssueExclusion[] | null>(null);
     const diagnosticContent = editorViewRef.current?.state.doc.toString() ?? code;
     const retainedDiagnostics = useMemo(() => diagnostics.filter((diagnostic) =>
         !isIssueExcluded(diagnosticContent, diagnostic, mutedIssues)), [diagnostics, diagnosticContent, mutedIssues]);
@@ -59,6 +61,10 @@ const HomePage = () => {
     const [mobileView, setMobileView] = useState("results");
     const [isLinting, setIsLinting] = useState(false);
     const [lintError, setLintError] = useState<string | null>(null);
+    const [baselineUnavailable, setBaselineUnavailable] = useState<string | null>(null);
+    const [baselineChecking, setBaselineChecking] = useState(true);
+    const [baselineCheckRevision, setBaselineCheckRevision] = useState(0);
+    const baselineSession = useMemo(() => createBaselineSession(setBaselineUnavailable, checkGiteaAvailability), []);
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
     const [showExportModal, setShowExportModal] = useState(false);
     const [showExclusions, setShowExclusions] = useState(false);
@@ -69,6 +75,31 @@ const HomePage = () => {
     const lintRunIdRef = useRef(0);
     const selectedManualRulesCount = manualRules.filter((rule) => rule.verified).length;
     const hasDocument = code !== initialCode && Boolean(code.trim());
+
+    useEffect(() => {
+        const controller = new AbortController();
+        let cancelled = false;
+        const timeout = setTimeout(() => controller.abort(), 5000);
+        // Avoid starting the discarded effect during React Strict Mode setup.
+        queueMicrotask(() => {
+            if (cancelled) return;
+            void baselineSession.check(controller.signal).then(() => {
+                clearTimeout(timeout);
+                if (cancelled) return;
+                setBaselineChecking(false);
+                const source = editorViewRef.current?.state.doc.toString();
+                if (source && source !== initialCode && source.trim()) {
+                    setSourceRevision((revision) => revision + 1);
+                }
+            });
+        });
+        return () => {
+            cancelled = true;
+            clearTimeout(timeout);
+            baselineSession.reset();
+            controller.abort();
+        };
+    }, [baselineSession, baselineCheckRevision]);
 
     useEffect(() => { diagnosticsRef.current = visibleDiagnostics; }, [visibleDiagnostics]);
     useEffect(() => {
@@ -88,6 +119,7 @@ const HomePage = () => {
 
     const lintDocument = useCallback(async (view: EditorView) => {
         const runId = ++lintRunIdRef.current;
+        const baselinePending = baselineSession.checking;
         const document = view.state.doc;
         const isCurrent = () => lintRunIdRef.current === runId &&
             editorViewRef.current === view && view.state.doc === document;
@@ -101,20 +133,32 @@ const HomePage = () => {
             if (isCurrent()) view.dispatch(setEditorDiagnostics(view.state, []));
         });
         try {
-            const result = await openApiLinter(selectedRules)(view);
+            const result = await openApiLinter(selectedRules, baselineSession.load)(view);
             if (!isCurrent()) return;
+            if (pendingImportedIssuesRef.current !== null && !baselinePending) {
+                const source = document.toString();
+                const matches = new Set(result.diagnostics.flatMap((diagnostic) => {
+                    const selector = issueExclusionFor(source, diagnostic);
+                    return selector ? [`${selector.rule_id}:${selector.line_number}`] : [];
+                }));
+                setMutedIssues(pendingImportedIssuesRef.current.filter((entry) =>
+                    matches.has(`${entry.rule_id}:${entry.line_number}`)));
+                pendingImportedIssuesRef.current = null;
+            }
             setSpecTitle(result.specTitle ?? null);
             setDiagnostics(result.diagnostics);
         } catch (error: unknown) {
             if (!isCurrent()) return;
+            pendingImportedIssuesRef.current = null;
             setLintError(`Unable to validate the specification: ${error instanceof Error ? error.message : String(error)}`);
         } finally {
             if (isCurrent()) setIsLinting(false);
         }
-    }, [selectedRules]);
+    }, [selectedRules, baselineSession]);
 
     const diagnosticsListenerExtension = useMemo(() => EditorView.updateListener.of((update) => {
         if (!update.docChanged || update.transactions.some((transaction) => transaction.annotation(ExternalChange))) return;
+        pendingImportedIssuesRef.current = null;
         setMutedIssues([]);
         void lintDocument(update.view);
     }), [lintDocument]);
@@ -185,6 +229,7 @@ const HomePage = () => {
             setDiagnostics([]);
             setSpecTitle(null);
             setLintError(null);
+            pendingImportedIssuesRef.current = null;
             setMutedIssues([]);
             setFileName(file.name);
             setCode(reader.result);
@@ -216,8 +261,18 @@ const HomePage = () => {
     const handleManualRulesChange = useCallback((rules: ManualRule[]) => setManualRules(rules), []);
     const handleRulesetChange = useCallback((name: string) => {
         setRulesetName(name);
+        pendingImportedIssuesRef.current = null;
         setMutedIssues([]);
     }, []);
+    const handleExclusionsImported = useCallback((issues: IssueExclusion[]) => {
+        pendingImportedIssuesRef.current = issues;
+        setMutedIssues([]);
+    }, []);
+    const handleRetryGitea = () => {
+        setBaselineUnavailable(null);
+        setBaselineChecking(true);
+        setBaselineCheckRevision((revision) => revision + 1);
+    };
     const handleMute = (diagnostic: Diagnostic) => {
         const exclusion = issueExclusionFor(diagnosticContent, diagnostic);
         if (!exclusion) return;
@@ -305,13 +360,15 @@ const HomePage = () => {
                             isLinting={isLinting} lintError={lintError} hasDocument={hasDocument}
                             rulesSelected={selectedRules.length} onNavigate={handleDiagnosticClick}
                             onConfigureRules={() => setActiveTab("rules")} onMute={handleMute} mutedCount={mutedCount}
+                            baselineUnavailable={baselineUnavailable} baselineChecking={baselineChecking} onRetryBaseline={handleRetryGitea}
                             onManageMuted={() => { setShowExclusions(true); setShowExportModal(true); }} />
                     </scale-tab-panel>
                     <scale-tab-header slot="tab" data-tab="rules" selected={activeTab === "rules"}
                         onClick={() => setActiveTab("rules")}>Rules ({selectedRules.length}/{totalAvailableRules})</scale-tab-header>
                     <scale-tab-panel slot="panel" hidden={activeTab !== "rules"}>
                         <RulesetsSelector onSelectionChange={handleSelectionChange} onTotalRulesChange={setTotalAvailableRules}
-                            onRulesetChange={handleRulesetChange} onRulesLoaded={setAllRules} />
+                            onRulesetChange={handleRulesetChange} onRulesLoaded={setAllRules}
+                            onExclusionsImported={handleExclusionsImported} />
                     </scale-tab-panel>
                     <scale-tab-header slot="tab" data-tab="manual" selected={activeTab === "manual"}
                         onClick={() => setActiveTab("manual")}>Manual ({selectedManualRulesCount}/{manualRules.length})</scale-tab-header>

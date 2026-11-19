@@ -17,12 +17,15 @@ import { parseAllowedAbbreviations } from "@/lib/abbreviations";
 import { exportRobotFramework, exportPDF, exportReportPortal } from "@/utils/export";
 import { coverageLedger } from "@/tests/fixtures/dual-version/coverageLedger";
 import { flowExampleContent, readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
+import type { IssueExclusion } from "@/lib/linter/issueExclusions";
+import { checkGiteaAvailability } from "@/lib/openapi/baseline";
 
 type LintResult = Awaited<ReturnType<ReturnType<typeof openApiLinter>>>;
 let mockSelector: {
     onSelectionChange: (rules: AutoRule[]) => void;
     onRulesLoaded: (rules: AutoRule[] | null) => void;
     onRulesetChange: (name: string) => void;
+    onExclusionsImported: (issues: IssueExclusion[]) => void;
 };
 jest.mock("@telekom/scale-components/dist/scale-components/scale-components.css", () => ({}));
 jest.mock("@telekom/scale-components/loader", () => ({
@@ -38,6 +41,10 @@ jest.mock("@/utils/export", () => ({
 }));
 jest.mock("@/components/Linter", () => ({ openApiLinter: jest.fn() }));
 jest.mock("@/utils/utils", () => ({ fetchRepoMap: jest.fn(), fetchSpecFromGitea: jest.fn() }));
+jest.mock("@/lib/openapi/baseline", () => ({
+    ...jest.requireActual<typeof import("@/lib/openapi/baseline")>("@/lib/openapi/baseline"),
+    checkGiteaAvailability: jest.fn(async () => undefined),
+}));
 jest.mock("@/utils/englishWords", () => ({
     ...jest.requireActual<typeof import("@/utils/englishWords")>("@/utils/englishWords"),
     loadAllowedAbbreviationsFromApi: jest.fn(async () => undefined),
@@ -161,6 +168,7 @@ beforeAll(async () => {
 
 beforeEach(async () => {
     jest.clearAllMocks();
+    jest.mocked(checkGiteaAvailability).mockResolvedValue(undefined);
     savedBlob = undefined;
     Object.assign(globalThis, { fetch: jest.fn(async () => { throw new Error("Unexpected UI network request"); }) });
     jest.spyOn(window, "alert").mockImplementation(() => undefined);
@@ -188,6 +196,117 @@ afterEach(async () => {
     jest.restoreAllMocks();
 });
 
+async function restartWithProbe(probe: (signal: AbortSignal) => Promise<void>, strict = false) {
+    await act(async () => root.unmount());
+    jest.mocked(checkGiteaAvailability).mockImplementation(probe);
+    root = createRoot(container);
+    await act(async () => root.render(strict
+        ? React.createElement(React.StrictMode, null, React.createElement(HomePage))
+        : React.createElement(HomePage)));
+    await waitFor(() => Boolean(container.querySelector(".cm-editor")));
+    await act(async () => {
+        mockSelector.onRulesLoaded(rules);
+        mockSelector.onRulesetChange("default");
+    });
+}
+
+test("Strict Mode starts only one live availability request", async () => {
+    jest.mocked(checkGiteaAvailability).mockClear();
+    await restartWithProbe(async () => undefined, true);
+    await waitFor(() => !container.textContent?.includes("Checking Gitea connection."));
+    expect(checkGiteaAvailability).toHaveBeenCalledTimes(1);
+});
+
+test("startup checks do not delay local results and successful probes automatically revalidate without losing mutes", async () => {
+    const actual = jest.requireActual<typeof import("@/components/Linter")>("@/components/Linter");
+    lint.mockImplementation(actual.openApiLinter);
+    let finish: () => void = () => { throw new Error("Probe has not started"); };
+    const probe = new Promise<void>((resolve) => { finish = resolve; });
+    await restartWithProbe(() => probe);
+    jest.mocked(fetchRepoMap).mockResolvedValue({ reponame: "local-test" });
+    const source = "openapi: 3.0.3\ninfo: {title: Pending, version: v1}\npaths:\n  /v1/resources:\n    get:\n      responses:\n        '400': {description: Bad request}\n";
+    jest.mocked(fetchSpecFromGitea).mockResolvedValue(yamlParser.load(source));
+    const selected = rules.filter((rule) => ["checkCompatibility", "checkIncompatibleChangeVersioning", "checkSuccessResponse"]
+        .includes(rule.call.function));
+    await select(selected);
+    await upload(source);
+    await loaded(source);
+    expect(container.textContent).toContain("Checking Gitea connection.");
+    expect(container.textContent).toContain("Missing: 200");
+    expect(fetchSpecFromGitea).not.toHaveBeenCalled();
+    const mute = [...container.querySelectorAll<HTMLElement>("button")].find((element) =>
+        element.getAttribute("aria-label")?.startsWith("Mute "));
+    if (!mute) throw new Error("Expected local finding mute control");
+    await act(async () => mute.click());
+    expect(container.textContent).toContain("Muted issues (1)");
+    await act(async () => finish());
+    await waitFor(() => jest.mocked(fetchSpecFromGitea).mock.calls.length === 1 &&
+        !container.textContent?.includes("Validating specification..."));
+    expect(container.textContent).not.toContain("Checking Gitea connection.");
+    expect(container.textContent).not.toContain("Gitea checks skipped");
+    expect(container.textContent).toContain("Muted issues (1)");
+    expect(editor().state.doc.toString()).toBe(source);
+    expect(lint.mock.calls.at(-1)?.[0]).toBe(selected);
+});
+
+test("failed startup probes skip the first and later baseline loads until a successful explicit retry", async () => {
+    const actual = jest.requireActual<typeof import("@/components/Linter")>("@/components/Linter");
+    lint.mockImplementation(actual.openApiLinter);
+    await restartWithProbe(async () => {
+        throw new Error("__TURBOPACK__imported__module__.giteaClient.checkAvailability is not a function");
+    });
+    jest.mocked(checkGiteaAvailability).mockClear();
+    const selected = rules.filter((rule) => ["checkCompatibility", "checkIncompatibleChangeVersioning", "checkSuccessResponse"]
+        .includes(rule.call.function));
+    const source = "openapi: 3.0.3\ninfo: {title: Offline, version: v1}\npaths:\n  /v1/resources:\n    get:\n      responses:\n        '400': {description: Bad request}\n";
+    await select(selected);
+    await upload(source);
+    await loaded(source);
+    expect(container.textContent).toContain("Gitea checks skipped (SKIP).");
+    expect(container.textContent).toContain("Could not connect to Gitea.");
+    expect(container.textContent).not.toContain("__TURBOPACK__");
+    expect(container.textContent).not.toContain("is not a function");
+    expect(container.textContent).toContain("Missing: 200");
+    await upload(`# next file\n${source}`);
+    await loaded(`# next file\n${source}`);
+    expect(fetchSpecFromGitea).not.toHaveBeenCalled();
+    expect(checkGiteaAvailability).not.toHaveBeenCalled();
+    await act(async () => button("Retry Gitea connection").click());
+    await waitFor(() => Boolean(container.textContent?.includes("Gitea checks skipped (SKIP).")));
+    expect(checkGiteaAvailability).toHaveBeenCalledTimes(1);
+    expect(fetchSpecFromGitea).not.toHaveBeenCalled();
+    jest.mocked(checkGiteaAvailability).mockResolvedValue(undefined);
+    jest.mocked(fetchRepoMap).mockResolvedValue({ reponame: "local-test" });
+    jest.mocked(fetchSpecFromGitea).mockResolvedValue(yamlParser.load(source));
+    await act(async () => button("Retry Gitea connection").click());
+    await waitFor(() => jest.mocked(fetchSpecFromGitea).mock.calls.length === 1 &&
+        !container.textContent?.includes("Validating specification..."));
+    expect(checkGiteaAvailability).toHaveBeenCalledTimes(2);
+    expect(container.textContent).not.toContain("Gitea checks skipped");
+});
+
+test("issue exclusions imported during startup are matched after the final automatic validation", async () => {
+    let finish: () => void = () => { throw new Error("Probe has not started"); };
+    const probe = new Promise<void>((resolve) => { finish = resolve; });
+    await restartWithProbe(() => probe);
+    const rule = rules[0];
+    const source = "openapi: 3.0.3\ninfo: {}\npaths: {}\n";
+    await upload(source);
+    await loaded(source);
+    await act(async () => {
+        mockSelector.onExclusionsImported([{ rule_id: rule.id, line_number: 1 }]);
+        mockSelector.onSelectionChange([rule]);
+    });
+    expect(container.textContent).toContain("Checking Gitea connection.");
+    lint.mockImplementation(() => async () => ({
+        diagnostics: [{ ...finding("Late baseline finding"), source: `Rule ${rule.id}` }],
+    }));
+    await act(async () => finish());
+    await waitFor(() => Boolean(container.textContent?.includes("Muted issues (1)")));
+    expect(container.textContent).not.toContain("Late baseline finding");
+    expect(container.textContent).not.toContain("Checking Gitea connection.");
+});
+
 function exclusionsJson(): { ruleset: string; exclude_auto_rules: string[]; exclude_issues: { rule_id: string; line_number: number }[] } {
     const textarea = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="API exclusions JSON"]');
     if (!textarea) throw new Error("Missing API exclusions JSON");
@@ -196,6 +315,43 @@ function exclusionsJson(): { ruleset: string; exclude_auto_rules: string[]; excl
 async function closeDialog() {
     await act(async () => container.querySelector("scale-modal")?.dispatchEvent(new CustomEvent("scale-close")));
 }
+
+test("imported issue mutes replace previous mutes and ignore absent findings after validating the imported rules", async () => {
+    const [first, second] = rules;
+    const source = "openapi: 3.0.3\ninfo: {}\npaths: {}\n";
+    lint.mockImplementation((selected: AutoRule[]) => async () => ({ diagnostics: selected.flatMap((rule) => [
+        { ...finding(rule.id), source: `Rule ${rule.id}`, from: 0, to: 1 },
+    ]) }));
+    await select([first]);
+    await upload(source);
+    await loaded(source);
+    await act(async () => button(`Mute ${first.id} on line 1`).click());
+    await act(async () => {
+        mockSelector.onRulesetChange("imported");
+        mockSelector.onRulesLoaded([first, second]);
+        mockSelector.onSelectionChange([first, second]);
+        mockSelector.onExclusionsImported([
+            { rule_id: second.id, line_number: 1 },
+            { rule_id: first.id, line_number: 2 },
+            { rule_id: second.id, line_number: 900 },
+            { rule_id: "NO-LONGER-EXISTS", line_number: 1 },
+        ]);
+    });
+    await waitFor(() => Boolean(container.textContent?.includes("Muted issues (1)")));
+    expect(container.querySelectorAll(".issuePreview")).toHaveLength(1);
+    expect(container.querySelector(".issuePreview")?.textContent).toBe(first.id);
+    await act(async () => button("Muted issues (1)").click());
+    expect(exclusionsJson()).toEqual({
+        ruleset: "imported", exclude_auto_rules: [], exclude_issues: [{ rule_id: second.id, line_number: 1 }],
+    });
+    await closeDialog();
+    await act(async () => {
+        mockSelector.onSelectionChange([first, second]);
+        mockSelector.onExclusionsImported([{ rule_id: "UNKNOWN", line_number: 1 }]);
+    });
+    await waitFor(() => container.querySelectorAll(".issuePreview").length === 2);
+    expect(container.textContent).not.toContain("Muted issues (");
+});
 
 test("muting uses rule and line across UI, gutter and all reports; exports unchecked rules and reversible API selectors", async () => {
     const [first, second] = rules;
@@ -349,7 +505,7 @@ test.each<Dialect>(["swagger2", "openapi3"])("%s upload runs all 67 real native 
     await upload(content);
     await loaded(content);
     expect(lint).toHaveBeenCalledTimes(1);
-    expect(lint).toHaveBeenCalledWith(rules);
+    expect(lint).toHaveBeenCalledWith(rules, expect.any(Function));
     expect(fetchSpecFromGitea).toHaveBeenCalledTimes(1);
     expect(container.textContent).not.toContain("execution failed");
     expect(container.textContent).not.toContain("Converted Swagger");
@@ -527,6 +683,41 @@ test.each([false, true])("unavailable baseline stays out of UI while exports ret
         expect(exported).toHaveLength(8 + issueCount);
         expect(exported?.filter((diagnostic) => "ruleOutcome" in diagnostic && diagnostic.ruleOutcome === "skip")).toHaveLength(8);
     }
+});
+
+test("failed Gitea loads show SKIP, future uploads avoid the request, and explicit retry restores the baseline checks", async () => {
+    const actual = jest.requireActual<typeof import("@/components/Linter")>("@/components/Linter");
+    lint.mockImplementation(actual.openApiLinter);
+    jest.mocked(fetchRepoMap).mockResolvedValue({ reponame: "local-test", filename: "test" });
+    jest.mocked(fetchSpecFromGitea).mockResolvedValue(null);
+    const selected = rules.filter((rule) => ["checkCompatibility", "checkIncompatibleChangeVersioning", "checkSuccessResponse"]
+        .includes(rule.call.function));
+    await select(selected);
+    const source = "openapi: 3.0.3\ninfo: {title: First, version: v1}\npaths:\n  /v1/resources:\n    get:\n      responses:\n        '400': {description: Bad request}\n";
+    await upload(source);
+    await loaded(source);
+    expect(container.textContent).toContain("Gitea checks skipped (SKIP)");
+    expect(container.textContent).toContain("Missing: 200");
+    expect(fetchSpecFromGitea).toHaveBeenCalledTimes(1);
+    const next = source.replace("First", "Second");
+    await upload(next);
+    await loaded(next);
+    expect(container.textContent).toContain("Gitea checks skipped (SKIP)");
+    expect(container.textContent).toContain("Missing: 200");
+    expect(fetchSpecFromGitea).toHaveBeenCalledTimes(1);
+    await act(async () => button("Export").click());
+    await act(async () => button("Export to Robot Framework").click());
+    const exported = jest.mocked(exportRobotFramework).mock.calls.at(-1)?.[0];
+    expect(exported?.filter((entry) => "ruleOutcome" in entry && entry.ruleOutcome === "skip")).toHaveLength(8);
+
+    jest.mocked(fetchSpecFromGitea).mockResolvedValue(yamlParser.load(next));
+    await act(async () => button("Retry Gitea connection").click());
+    await waitFor(() => jest.mocked(fetchSpecFromGitea).mock.calls.length === 2 &&
+        !container.textContent?.includes("Validating specification..."));
+    expect(container.textContent).not.toContain("Gitea checks skipped");
+    expect(container.textContent).toContain("Missing: 200");
+    expect(lint.mock.calls.at(-1)?.[0]).toBe(selected);
+    expect(editor().state.doc.toString()).toBe(next);
 });
 
 test("reuploading exactly the same file revalidates and refreshes both the table and gutter", async () => {

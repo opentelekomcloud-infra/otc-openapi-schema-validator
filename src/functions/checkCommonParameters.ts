@@ -76,10 +76,11 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         return result;
     }
 
-    function pushDiagnosticAtRange(from: number, to: number, msg: string, dedupeKey: string) {
+    function pushDiagnosticAtRange(range: () => SourceRange, msg: string, dedupeKey: string) {
         const key = `${source}|${dedupeKey}`;
         if (reported.has(key)) return;
         reported.add(key);
+        const { from, to } = range();
 
         diagnostics.push({
             from,
@@ -90,7 +91,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         });
     }
 
-    function evaluateName(nameRaw: string, range: SourceRange, dedupeContext?: string) {
+    function evaluateName(nameRaw: string, range: () => SourceRange, dedupeContext?: string) {
         const name = String(nameRaw).trim().toLowerCase();
         if (!name) return;
 
@@ -99,10 +100,8 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         }
 
         if (notAllowedNames.has(name)) {
-            const r = range;
             pushDiagnosticAtRange(
-                r.from,
-                r.to,
+                range,
                 `Parameter/property name "${nameRaw}" is not allowed. ${rule.message}`,
                 `notAllowed|${dedupeContext ?? ""}|${name}`
             );
@@ -111,10 +110,8 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
 
         const suspicious = isSuspiciousName(nameRaw);
         if (suspicious.badTokens.length) {
-            const r = range;
             pushDiagnosticAtRange(
-                r.from,
-                r.to,
+                range,
                 `Parameter/property name "${nameRaw}" may not follow common standard words (${suspicious.reasons.join(", ")}: ${suspicious.badTokens.join(", ")}). ${rule.message}`,
                 `suspicious|${dedupeContext ?? ""}|${name}|${suspicious.badTokens.join("_")}`
             );
@@ -126,7 +123,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
         for (const { parameter } of ruleParameterNodes(op, spec, refCache)) {
             if (isSwagger2Root(spec) && parameter.in === "body") continue;
             if (typeof parameter.name !== "string") continue;
-            evaluateName(parameter.name, objectRange(spec, content, parameter, "name", "value"), ctx);
+            evaluateName(parameter.name, () => objectRange(spec, content, parameter, "name", "value"), ctx);
         }
     }
 
@@ -168,7 +165,7 @@ export function checkCommonParameters(spec: any, content: string, rule: any): Di
 
     function collectBodyAndResponseNames(op: NativeOperation) {
         const ctx = `${op.path}#${op.method}`;
-        const visit = (name: string, owner: object) => evaluateName(name, objectRange(spec, content, owner, name), ctx);
+        const visit = (name: string, owner: object) => evaluateName(name, () => objectRange(spec, content, owner, name), ctx);
         const request = ruleRequest(op, spec, refCache);
         const requestSchemaExamples = namingSchemas(request, spec, refCache, true).flatMap((schema) => schemaWalk(schema, visit));
         const exampleConfig = { exampleSources: {

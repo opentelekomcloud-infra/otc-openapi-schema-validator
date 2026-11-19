@@ -18,6 +18,31 @@ export class GiteaClient {
     }
   }
 
+  async checkAvailability(): Promise<void> {
+    let response;
+    try {
+      response = await axios.get<unknown>(`${this.baseUrl.replace(/\/+$/, '')}/api/v1/version`, {
+        responseType: 'json',
+        headers: { Authorization: `token ${this.token}`, Accept: 'application/json' },
+        proxy: this.proxy,
+        httpsAgent: this.httpsAgent,
+        timeout: 5000,
+        maxRedirects: 0,
+        validateStatus: () => true,
+      });
+    } catch (error) {
+      const code = axios.isAxiosError(error) && typeof error.code === 'string' && /^[A-Z0-9_]{1,60}$/.test(error.code)
+        ? error.code : 'REQUEST_FAILED';
+      throw new Error(`Failed to check Gitea availability: ${code}`);
+    }
+    if (response.status !== 200) throw new Error(`Gitea availability check failed: HTTP ${response.status}`);
+    const data = response.data;
+    if (!data || typeof data !== 'object' || !('version' in data) ||
+        typeof data.version !== 'string' || !data.version.trim()) {
+      throw new Error('Invalid Gitea availability response');
+    }
+  }
+
   async fetchRawYamlFile(repo: string, path: string, ref?: string): Promise<string> {
     const filePath = path.replace(/^\/+/, '').split('/').map(encodeURIComponent).join('/');
     const url = `${this.baseUrl.replace(/\/+$/, '')}/api/v1/repos/docs/${encodeURIComponent(repo)}/contents/${filePath}`;

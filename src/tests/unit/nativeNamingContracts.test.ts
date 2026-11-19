@@ -4,6 +4,7 @@ import { getImplementedRules, loadRuleCatalog, type AutoRule } from "@/lib/linte
 import { functionsMap, runLinter } from "@/lib/linter/runLinter";
 import { isRecord } from "@/lib/openapi/references";
 import { sourceLineNumber } from "@/lib/openapi/sourceMap";
+import * as sourceLocations from "@/lib/openapi/sourceMap";
 
 jest.mock("swagger2openapi", () => ({
     convertStr: jest.fn(() => { throw new Error("Native naming must not convert documents."); }),
@@ -91,6 +92,23 @@ async function check(doc: Doc, id: string, params: Doc = {}, format: Format = "y
 }
 
 describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s naming contracts", (dialect) => {
+    test("common-name checks locate only emitted findings, not every valid parameter or property", async () => {
+        const range = jest.spyOn(sourceLocations, "objectRange");
+        const fields: Doc = { id: { type: "string" }, name: { type: "string" }, count: { type: "integer" } };
+        const params = { allowedName: ["id", "name", "count"], notAllowedNames: ["total_count"] };
+        const operation = { parameters: [parameter(dialect, "id")],
+            responses: { "200": response(dialect, { type: "object", properties: fields }) } };
+        expect((await check(document(dialect, operation), common, params)).diagnostics).toHaveLength(0);
+        expect(range).not.toHaveBeenCalled();
+
+        fields.total_count = { type: "integer" };
+        const result = await check(document(dialect, operation), common, params);
+        expect(result.diagnostics).toHaveLength(1);
+        expect(result.diagnostics[0].message).toContain('"total_count" is not allowed');
+        expect(result.content.slice(result.diagnostics[0].from, result.diagnostics[0].to)).toBe("total_count");
+        expect(range).toHaveBeenCalledTimes(1);
+    });
+
     test.each(["parameter", "request", "response"])("URI words do not invalidate %s names", async (location) => {
         for (const path of ["/api/v3/addons", "/api/v3/mysterycontext"]) {
             for (const name of ["cluster_id", "mysteryword_id"]) {
