@@ -2,6 +2,7 @@ rules:
   - id: "DOC-040-01-2507-2507-M"
     title: "API Reference Document Sample Requirements"
     message: "Operation examples must be present or absent according to method-specific requirements, and must match the defined API contract."
+    description: Require request payload examples only when a request body is declared, and response payload examples only when a selected response declares a schema. Apply this to both CRUD and non-CRUD operations. URI examples do not replace payload examples. Preserve method-specific prohibitions and validation of all existing supported examples against their contracts.
     option: Mandatory
     location: paths
     element:

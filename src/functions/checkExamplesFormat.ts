@@ -6,6 +6,7 @@ import { extractRequestExamples, extractResponseExamples, getResponseCodesToChec
 import { collectDocumentOperations } from "@/lib/openapi/operations";
 import { appendPointer } from "@/lib/openapi/references";
 import { sourceMap } from "@/lib/openapi/sourceMap";
+import { getRequestPayload, getResponsePayload } from "@/lib/openapi/payloads";
 
 /**
  * DOC-040-01-2507-2507-M
@@ -15,7 +16,7 @@ import { sourceMap } from "@/lib/openapi/sourceMap";
  * and checks example consistency against the API contract.
  *
  * Supported checks:
- * - request/response examples required or forbidden per HTTP method
+ * - request/response examples required for declared bodies/response schemas, or forbidden per HTTP method
  * - request examples validated against requestBody schema and/or selected operation parameters
  * - mandatory request body fields present in request examples
  * - response examples validated against response schema
@@ -41,13 +42,19 @@ export function checkExamplesFormat(spec: any, content: string, rule: any): Diag
     const responseExamples = extractResponseExamples(operation, responseCodes, fp, spec, refCache, pointer);
     const requestPayloads = requestExamples.filter((example) => example.scope === "payload");
     const responsePayloads = responseExamples.filter((example) => example.scope === "payload");
-    if (requestRequirement === "required" && requestPayloads.length === 0) {
+    if (requestRequirement === "required" && requestPayloads.length === 0 &&
+      getRequestPayload(operation, pathItem, spec, refCache, {
+        operation: pointer, pathItem: resolvedPathItemPointer,
+      }).hasBody) {
       pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required request example.`, sourceMap(content).requestBody(path, method));
     }
     if (requestRequirement === "forbidden" && requestPayloads.length > 0) {
       pushMethodDiagnostic(diagnostics, content, path, method, rule, `Request example is not allowed for ${method.toUpperCase()} operations.`, requestPayloads[0].pointer);
     }
-    if (responseRequirement === "required" && responsePayloads.length === 0) {
+    if (responseRequirement === "required" && responsePayloads.length === 0 && responseCodes.some((statusCode) => {
+      const payload = getResponsePayload(operation, statusCode, spec, refCache, pointer);
+      return payload !== undefined && (payload.schema !== undefined || payload.media.some((media) => media.schema !== undefined));
+    })) {
       pushMethodDiagnostic(diagnostics, content, path, method, rule, `Missing required response example.`, sourceMap(content).locate(appendPointer(pointer, "responses")));
     }
     if (responseRequirement === "forbidden" && responsePayloads.length > 0) {

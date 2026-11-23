@@ -241,6 +241,84 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s filter response reuse", (di
 });
 
 describe.each<Dialect>(["swagger2", "openapi3"])("%s native DOC-040", (dialect) => {
+    function responseWithSchema(schema: JsonObject): JsonObject {
+        return dialect === "swagger2" ? { description: "OK", schema }
+            : { description: "OK", content: { "application/json": { schema } } };
+    }
+
+    test.each([
+        { method: "post", path: "/v5/mfa-devices/enable", status: "200" },
+        { method: "post", path: "/v5/users/{user_id}/access-keys", status: "201" },
+        { method: "put", path: "/v1/resources/{id}", status: "204" },
+        { method: "patch", path: "/v1/resources/{id}", status: "200" },
+        { method: "get", path: "/v1/resources/{id}", status: "200" },
+    ])("$method $path requires no payload examples without a body or selected response schema", async ({ method, path, status }) => {
+        const spec: JsonObject = {
+            ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+            paths: { [path]: { [method]: {
+                parameters: [{ name: "id", in: "query", ...(dialect === "swagger2"
+                    ? { type: "string" } : { schema: { type: "string" } }) }],
+                "x-request-examples-url-1": `${method.toUpperCase()} https://{endpoint}${path}`,
+                responses: {
+                    [status]: { description: "Successful" },
+                    "400": responseWithSchema({ type: "object" }),
+                },
+            } } },
+        };
+        expect(await check(spec, ruleFor("DOC-040-01-2507-2507-M"))).toEqual([]);
+    });
+
+    test("a bodyless POST still requires an example for a selected response schema", async () => {
+        const spec: JsonObject = {
+            ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+            paths: { "/v5/users/{user_id}/access-keys": { post: {
+                responses: { "201": responseWithSchema({}) },
+            } } },
+        };
+        const diagnostics = await check(spec, ruleFor("DOC-040-01-2507-2507-M"));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing required response example.");
+    });
+
+    test("a declared referenced request body still requires a payload example, not a URI example", async () => {
+        const body: JsonObject = dialect === "swagger2"
+            ? { name: "body", in: "body", schema: {} }
+            : { content: { "application/json": { schema: {} } } };
+        const spec: JsonObject = {
+            ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+            "x-body": body,
+            paths: { "/v5/mfa-devices/enable": {
+                ...(dialect === "swagger2" ? { parameters: [{ $ref: "#/x-body" }] } : {}),
+                post: {
+                    ...(dialect === "openapi3" ? { requestBody: { $ref: "#/x-body" } } : {}),
+                    "x-request-examples-url-1": "POST https://{endpoint}/v5/mfa-devices/enable",
+                    responses: { "200": { description: "Successful" } },
+                },
+            } },
+        };
+        const diagnostics = await check(spec, ruleFor("DOC-040-01-2507-2507-M"));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing required request example.");
+    });
+
+    test("referenced schema-less success responses are exempt, but another selected schema still requires an example", async () => {
+        const spec: JsonObject = {
+            ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+            "x-response": { description: "Successful", ...(dialect === "openapi3"
+                ? { content: { "application/json": {} } } : {}) },
+            paths: { "/v1/resources": { post: {
+                responses: { "200": { $ref: "#/x-response" } },
+            } } },
+        };
+        const rule = ruleFor("DOC-040-01-2507-2507-M");
+        expect(await check(spec, rule)).toEqual([]);
+        const operation = object(object(object(spec.paths)["/v1/resources"]).post);
+        object(operation.responses)["202"] = responseWithSchema({ type: "string" });
+        const diagnostics = await check(spec, rule);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing required response example.");
+    });
+
     function postFixture() {
         const spec = readFixture(dialect);
         const operation = object(object(object(spec.paths)["/v1/resources"]).post);
@@ -262,6 +340,12 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native DOC-040", (dialect) 
 
     test("POST required examples accept inherited schema.example or native media example", async () => {
         expect(await check(postFixture().spec, ruleFor("DOC-040-01-2507-2507-M"))).toEqual([]);
+    });
+
+    test("a valid request example does not require a response example for an intentionally empty 200", async () => {
+        const { spec, operation } = postFixture();
+        operation.responses = { "200": { description: "Successful" } };
+        expect(await check(spec, ruleFor("DOC-040-01-2507-2507-M"))).toEqual([]);
     });
 
     test("serialized structured JSON is decoded without rewriting the example", async () => {
