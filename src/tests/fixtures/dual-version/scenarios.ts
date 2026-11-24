@@ -602,7 +602,8 @@ export const scenarios = {
         positive: "detail schema exposes both created_at and updated_at",
         negative: "detail schema omits updated_at",
         message: "$rule", detail: true,
-        prepare: ({ definitions, variant }) => {
+        prepare: ({ definitions, variant, spec }) => {
+            object(object(spec.paths)[detailPath]).put = { responses: {} };
             if (variant === "negative") delete object(object(definitions.Resource).properties).updated_at;
         },
     },
