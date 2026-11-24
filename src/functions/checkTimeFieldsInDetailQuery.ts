@@ -5,6 +5,10 @@ import {
 } from "@/utils/nativeResponse";
 import { ruleDiagnostic, ruleOperations, ruleStrings, type NativeRule } from "@/utils/nativeRule";
 
+function resourcePath(path: string): string {
+    return path.replace(/\/+$/, "").replace(/\/\{[^/{}]+\}$/, "").replace(/\{[^/{}]+\}/g, "{}");
+}
+
 export function checkTimeFieldsInDetailQuery(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
     const params = rule.call.functionParams ?? {};
     const method = configuredString(params.method, "method", "get").toLowerCase();
@@ -67,14 +71,18 @@ export function checkTimeFieldsInDetailQuery(spec: unknown, content: string, rul
         }
         return false;
     };
-    for (const op of ruleOperations(spec, { methods: [method] }, pathMatches)) {
+    const queries = ruleOperations(spec, { methods: [method] }, pathMatches);
+    const resources = new Set(queries.map((op) => resourcePath(op.path)));
+    const updatable = new Set(ruleOperations(spec, { methods: ["put", "patch"] },
+        (path) => resources.has(resourcePath(path))).map((op) => resourcePath(op.path)));
+    for (const op of queries) {
         const response = responseFor(op, status, spec, cache);
         if (!response?.hasBody) continue;
         const schema = selectedResponseSchema(response, spec, cache);
         if (!schema) {
             diagnostics.push(ruleDiagnostic(content, rule, op.pointer, "The declared response body has no schema to verify time fields."));
         } else {
-            const missing = [created, updated]
+            const missing = (updatable.has(resourcePath(op.path)) ? [created, updated] : [created])
                 .filter((candidates) => !hasField(schema.node, candidates))
                 .map((candidates) => [...candidates].map((name) => `'${name}'`).join(" or "));
             if (missing.length) {

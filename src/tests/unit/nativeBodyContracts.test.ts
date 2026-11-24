@@ -239,6 +239,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
             anyOf: [{ items: { properties: { updated_at: { type: "string" } } } }] };
         const doc = document(dialect, "/items/{resource_id}", "get",
             operation(dialect, schemaRef(dialect, "Node")), definitions(dialect, { Node: schema }));
+        object(object(doc.paths)["/items/{resource_id}"]).put = { responses: {} };
         expect((await check(doc, time)).diagnostics).toEqual([]);
         schema.anyOf = [];
         expect((await check(doc, time)).diagnostics).toHaveLength(1);
@@ -255,6 +256,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         ) };
         const doc = document(dialect, "/items/{resource_id}", "get",
             operation(dialect, schemaRef(dialect, "Resource")), definitions(dialect, { Resource: schema }));
+        object(object(doc.paths)["/items/{resource_id}"]).patch = { responses: {} };
         const { diagnostics } = await check(doc, time);
         expect(diagnostics).toHaveLength(1);
         expect(diagnostics[0].message).toBe(`${ruleFor(time).message} Missing in response schema for status '200': ${missing}.`);
@@ -267,6 +269,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         const schema: Doc = { type: "object", properties: { updated_at: { type: "string" } } };
         const doc = document(dialect, "/items/{id}", "get",
             { responses: { "201": responseBody(dialect, schema) } });
+        object(object(doc.paths)["/items/{id}"]).put = { responses: {} };
         const { diagnostics } = await check(doc, time, params);
         expect(diagnostics).toHaveLength(1);
         expect(diagnostics[0].message).toContain("Missing in response schema for status '201': 'create_time' or 'created_at'.");
@@ -283,6 +286,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
             present.map((name) => [name, { type: "string" }]),
         ) };
         const doc = document(dialect, "/items/{id}", "get", operation(dialect, schema));
+        object(object(doc.paths)["/items/{id}"]).put = { responses: {} };
         const { diagnostics } = await check(doc, time, { requiredFields: undefined });
         if (missing === null) {
             expect(diagnostics).toEqual([]);
@@ -291,6 +295,77 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         expect(diagnostics).toHaveLength(1);
         expect(diagnostics[0].message).toBe(
             `${ruleFor(time).message} Missing in response schema for status '200': ${missing}.`);
+    });
+
+    test("immutable collection and item GETs require creation but not modification timestamps", async () => {
+        const schema: Doc = { type: "object", properties: { created_at: { type: "string" } } };
+        const doc = document(dialect, "/unused", "get", {});
+        doc.paths = {
+            "/v5/policies/{policy_id}/versions": {
+                get: operation(dialect, { type: "array", items: schema }), post: { responses: {} },
+            },
+            "/v5/policies/{policy_id}/versions/{version_id}": {
+                get: operation(dialect, schema), delete: { responses: {} },
+            },
+        };
+        expect((await check(doc, time)).diagnostics).toEqual([]);
+        delete object(schema.properties).created_at;
+        const { diagnostics } = await check(doc, time);
+        expect(diagnostics).toHaveLength(2);
+        for (const diagnostic of diagnostics) {
+            expect(diagnostic.message).toContain("Missing in response schema for status '200': 'created_at'.");
+            expect(diagnostic.message).not.toContain("updated_at");
+        }
+    });
+
+    test.each([
+        { query: "/policies/{policy_id}/versions", update: "/policies/{policy_id}/versions", method: "put" },
+        { query: "/policies/{policy_id}/versions", update: "/policies/{policy_id}/versions/{version_id}", method: "patch" },
+        { query: "/policies/{policy_id}/versions/{version_id}", update: "/policies/{policy_id}/versions", method: "patch" },
+        { query: "/policies/{policy_id}/versions/{version_id}", update: "/policies/{id}/versions/{id}/", method: "put" },
+    ])("$method $update requires a modification timestamp for GET $query", async ({ query, update, method }) => {
+        const schema: Doc = { type: "object", properties: { created_at: { type: "string" } } };
+        const doc = document(dialect, query, "get", operation(dialect, schema));
+        const paths = object(doc.paths);
+        paths[update] = { ...(paths[update] === undefined ? {} : object(paths[update])), [method]: { responses: {} } };
+        const { diagnostics } = await check(doc, time);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing in response schema for status '200': 'updated_at'.");
+        object(schema.properties).updated_at = { type: "string" };
+        expect((await check(doc, time)).diagnostics).toEqual([]);
+    });
+
+    test.each([
+        { path: "/policies/{policy_id}", method: "put" },
+        { path: "/policies/{policy_id}/versions/{version_id}/tags/{tag_id}", method: "patch" },
+        { path: "/policies/{policy_id}/versions/{version_id}/set-default", method: "post" },
+        { path: "/policies/{policy_id}/versions/{version_id}", method: "post" },
+        { path: "/policies/{policy_id}/other-versions/{version_id}", method: "put" },
+    ])("$method $path does not count as an update on the queried versions resource", async ({ path, method }) => {
+        const query = "/policies/{policy_id}/versions";
+        const schema = { type: "object", properties: { created_at: { type: "string" } } };
+        const doc = document(dialect, query, "get", operation(dialect, schema));
+        object(doc.paths)[`${query}/{version_id}`] = { get: operation(dialect, schema) };
+        const paths = object(doc.paths);
+        paths[path] = { ...(paths[path] === undefined ? {} : object(paths[path])), [method]: { responses: {} } };
+        expect((await check(doc, time)).diagnostics).toEqual([]);
+    });
+
+    test("update support resolves matching Path Item refs but not unrelated or excluded refs", async () => {
+        const query = "/policies/{policy_id}/versions";
+        const doc = document(dialect, query, "get", operation(dialect, {
+            type: "object", properties: { created_at: { type: "string" } },
+        }), { "x-updates": { Version: { patch: { responses: {} } } } });
+        const paths = object(doc.paths);
+        paths["/status"] = { $ref: "#/missing" };
+        paths[`${query}/{version_id}/tags`] = { $ref: "#/missing" };
+        expect((await check(doc, time)).diagnostics).toEqual([]);
+        paths[`${query}/{version_id}`] = { $ref: "#/x-updates/Version" };
+        const { diagnostics } = await check(doc, time);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing in response schema for status '200': 'updated_at'.");
+        paths[`${query}/{version_id}`] = { $ref: "#/missing" };
+        expect((await check(doc, time)).diagnostics[0].message).toContain("execution failed");
     });
 
     test("path filters precede Path Item refs, including tag/project/status exclusions", async () => {
