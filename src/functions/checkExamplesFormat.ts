@@ -34,7 +34,7 @@ export function checkExamplesFormat(spec: any, content: string, rule: any): Diag
   for (const { path, method, operation, pathItem, pointer, resolvedPathItemPointer } of collectDocumentOperations(spec)) {
     const methodCfg = methodsCfg[method] ?? {};
     const requestRequirement = normalizeRequirement(methodCfg.requestExample, method === "get" || method === "delete" ? "forbidden" : "optional");
-    const responseRequirement = normalizeRequirement(methodCfg.responseExample, method === "delete" ? "forbidden" : "optional");
+    const responseRequirement = normalizeRequirement(methodCfg.responseExample, "optional");
     const requestExamples = extractRequestExamples(operation, fp, spec, pathItem, refCache, {
       operation: pointer, pathItem: resolvedPathItemPointer,
     });

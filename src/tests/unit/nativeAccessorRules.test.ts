@@ -406,7 +406,7 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native DOC-040", (dialect) 
         expect(diagnostics[0].message).not.toContain("Missing required");
     });
 
-    test.each(["property-only", "payload"])("DELETE presence policy distinguishes %s examples", async (kind) => {
+    test.each(["property-only", "payload"])("DELETE accepts valid %s response examples", async (kind) => {
         const schema: JsonObject = { type: "object", properties: { id: { type: "string", example: "sample" } } };
         const response: JsonObject = dialect === "swagger2" ? { schema } : { content: { "application/json": { schema } } };
         if (kind === "payload") {
@@ -418,8 +418,40 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native DOC-040", (dialect) 
             paths: { "/resources": { delete: { responses: { "200": response } } } },
         };
         const diagnostics = await check(spec, ruleFor("DOC-040-01-2507-2507-M"));
-        expect(diagnostics).toHaveLength(kind === "payload" ? 1 : 0);
-        if (kind === "payload") expect(diagnostics[0].message).toContain("Response example is not allowed");
+        expect(diagnostics).toEqual([]);
+    });
+
+    test.each([
+        { status: "200", example: "absent" },
+        { status: "200", example: "valid" },
+        { status: "200", example: "invalid" },
+        { status: "202", example: "absent" },
+        { status: "202", example: "valid" },
+        { status: "202", example: "invalid" },
+        { status: "202", example: "valid", fallback: true },
+    ])("DELETE $status response examples are optional but validated: $example, fallback=$fallback", async ({ status, example, fallback }) => {
+        const response = responseWithSchema({ type: "object", properties: { task_id: { type: "string" } } });
+        if (example !== "absent") {
+            const value = { task_id: example === "valid" ? "task" : 42 };
+            if (dialect === "swagger2") response.examples = { "application/json": value };
+            else object(object(response.content)["application/json"]).example = value;
+        }
+        const spec: JsonObject = {
+            ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+            "x-response": response,
+            paths: { "/resources/{id}": { delete: { responses: { [status]: { $ref: "#/x-response" } } } } },
+        };
+        const base = ruleFor("DOC-040-01-2507-2507-M");
+        const rule = fallback ? { ...base, call: { ...base.call, functionParams: {
+            ...base.call.functionParams, methods: { delete: { requestExample: "forbidden" } },
+        } } } : base;
+        const diagnostics = await check(spec, rule);
+        expect(diagnostics).toHaveLength(example === "invalid" ? 1 : 0);
+        if (example === "invalid") {
+            expect(diagnostics[0].message).toContain(`Response example for status '${status}'`);
+            expect(diagnostics[0].message).toContain("Expected string");
+            expect(diagnostics[0].message).not.toContain("not allowed");
+        }
     });
 
     test.each(["absent", "broken-ref"])("a native response example with %s schema cannot silently pass", async (kind) => {
