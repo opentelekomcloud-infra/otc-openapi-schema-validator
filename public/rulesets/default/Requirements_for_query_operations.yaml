@@ -41,9 +41,9 @@ rules:
 
   - id: "QUE-060-01-2507-2507-M"
     title: "Querying resource details requires returning creation and modification time parameters"
-    message: Resource detail query APIs must return the configured creation time fields and, when updates are supported, modification time fields in the response.
+    message: Resource detail query APIs must return the time fields required by the matching profile, or the configured creation time fields and, when updates are supported, modification time fields.
     option: Mandatory
-    description: Check native response schemas for detail endpoints, preserving identifier matching, project-only and tags exclusions, aliases and nested field traversal. Creation time fields are always required; modification time fields are required only when PUT or PATCH exists on the same resource collection or its immediate parameterized item path. Parameter names and trailing slashes do not affect matching. Parent, child and unrelated resources, and POST actions, do not imply update support. No-body responses are skipped; a declared body without a selected schema cannot verify the time fields.
+    description: Check native response schemas, preserving project-only and tags exclusions, aliases and nested field traversal. The first matching timeFieldProfiles entry replaces the default time fields and identifier filter. Match resourceKeywords case-insensitively as whole hyphen/underscore-delimited words in the last literal path segment, ignoring path parameters. Ancestor segments and partial words do not match. Every field in the profile requiredFields must be declared in the selected response schema, independently of PUT/PATCH, but need not be mandatory or non-null in response values. Without a matching profile, creation time fields are required and modification time fields are required only when PUT or PATCH exists on the same resource collection or its immediate parameterized item path. Parameter names and trailing slashes do not affect update matching. Parent, child and unrelated resources, and POST actions, do not imply update support. No-body responses are skipped; a declared body without a selected schema cannot verify the time fields.
     location: paths
     element: responses
     call:
@@ -55,5 +55,14 @@ rules:
         requiredFields:
           - "created_at"
           - "updated_at"
+        timeFieldProfiles:
+          - resourceKeywords:
+              - "task"
+              - "tasks"
+              - "job"
+              - "jobs"
+            requiredFields:
+              - "start_time"
+              - "end_time"
     severity: high
     status: implemented

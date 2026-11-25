@@ -9,6 +9,25 @@ function resourcePath(path: string): string {
     return path.replace(/\/+$/, "").replace(/\/\{[^/{}]+\}$/, "").replace(/\{[^/{}]+\}/g, "{}");
 }
 
+function timeFieldProfiles(value: unknown) {
+    if (value === undefined) return [];
+    if (!Array.isArray(value)) throw new Error("functionParams.timeFieldProfiles must be an array.");
+    return value.map((profile: unknown, index: number) => {
+        const field = `timeFieldProfiles[${index}]`;
+        if (!isRecord(profile)) throw new Error(`functionParams.${field} must be an object.`);
+        const resourceKeywords = ruleStrings(profile.resourceKeywords, `${field}.resourceKeywords`)
+            .map((word) => word.trim().toLowerCase());
+        const requiredFields = ruleStrings(profile.requiredFields, `${field}.requiredFields`).map((name) => name.trim());
+        if (!resourceKeywords.length || resourceKeywords.some((word) => !/^[a-z0-9]+$/.test(word))) {
+            throw new Error(`functionParams.${field}.resourceKeywords must contain non-empty alphanumeric words.`);
+        }
+        if (!requiredFields.length || requiredFields.some((name) => !name)) {
+            throw new Error(`functionParams.${field}.requiredFields must contain non-empty field names.`);
+        }
+        return { resourceKeywords, requiredFields: [...new Set(requiredFields)] };
+    });
+}
+
 export function checkTimeFieldsInDetailQuery(spec: unknown, content: string, rule: NativeRule): Diagnostic[] {
     const params = rule.call.functionParams ?? {};
     const method = configuredString(params.method, "method", "get").toLowerCase();
@@ -23,13 +42,19 @@ export function checkTimeFieldsInDetailQuery(spec: unknown, content: string, rul
     const updated = new Set(fields.filter((name) => /update|updated/i.test(name)));
     if (!created.size) created.add("created_at");
     if (!updated.size) updated.add("updated_at");
+    const profiles = timeFieldProfiles(params.timeFieldProfiles);
+    const profileFor = (path: string) => {
+        const resource = path.split("/").filter((segment) => segment && !/^\{[^{}]+\}$/.test(segment)).pop() ?? "";
+        const words = resource.toLowerCase().split(/[-_]+/);
+        return profiles.find((profile) => profile.resourceKeywords.some((word) => words.includes(word)));
+    };
     const cache = new Map<string, unknown>();
     const diagnostics: Diagnostic[] = [];
     const pathMatches = (path: string): boolean => {
         if (path.split("/").filter(Boolean).includes("tags")) return false;
         const names = [...path.matchAll(/\{([^}]+)\}/g)].map((match) => match[1].trim()).filter(Boolean);
         if (names.length && names.every((name) => name.toLowerCase() === "project_id")) return false;
-        if (!identifier) return true;
+        if (!identifier || profileFor(path)) return true;
         if (names.includes(identifier)) return true;
         return identifier.toLowerCase() === "id"
             ? names.some((name) => name.toLowerCase() !== "project_id" && name.toLowerCase().endsWith("id"))
@@ -71,18 +96,21 @@ export function checkTimeFieldsInDetailQuery(spec: unknown, content: string, rul
         }
         return false;
     };
-    const queries = ruleOperations(spec, { methods: [method] }, pathMatches);
-    const resources = new Set(queries.map((op) => resourcePath(op.path)));
+    const queries = ruleOperations(spec, { methods: [method] }, pathMatches)
+        .map((op) => ({ op, profile: profileFor(op.path) }));
+    const resources = new Set(queries.filter(({ profile }) => !profile).map(({ op }) => resourcePath(op.path)));
     const updatable = new Set(ruleOperations(spec, { methods: ["put", "patch"] },
         (path) => resources.has(resourcePath(path))).map((op) => resourcePath(op.path)));
-    for (const op of queries) {
+    for (const { op, profile } of queries) {
         const response = responseFor(op, status, spec, cache);
         if (!response?.hasBody) continue;
         const schema = selectedResponseSchema(response, spec, cache);
         if (!schema) {
             diagnostics.push(ruleDiagnostic(content, rule, op.pointer, "The declared response body has no schema to verify time fields."));
         } else {
-            const missing = (updatable.has(resourcePath(op.path)) ? [created, updated] : [created])
+            const required = profile ? profile.requiredFields.map((name) => new Set([name]))
+                : updatable.has(resourcePath(op.path)) ? [created, updated] : [created];
+            const missing = required
                 .filter((candidates) => !hasField(schema.node, candidates))
                 .map((candidates) => [...candidates].map((name) => `'${name}'`).join(" or "));
             if (missing.length) {

@@ -21,6 +21,7 @@ const detail = "STC-010-01-2507-2507-M-4";
 const list = "STC-010-01-2507-2507-M-5";
 const count = "QUE-040-01-2507-2507-M";
 const time = "QUE-060-01-2507-2507-M";
+const deletionTask = "/v5/service-linked-agencies/deletion-task/{deletion_task_id}";
 const ids = [request, response, getBody, detail, list, count, time];
 const rules = new Map<string, AutoRule>();
 
@@ -295,6 +296,116 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         expect(diagnostics).toHaveLength(1);
         expect(diagnostics[0].message).toBe(
             `${ruleFor(time).message} Missing in response schema for status '200': ${missing}.`);
+    });
+
+    test.each([
+        { fields: ["status"], missing: "'start_time', 'end_time'" },
+        { fields: ["status", "start_time"], missing: "'end_time'" },
+        { fields: ["status", "end_time"], missing: "'start_time'" },
+        { fields: ["status", "start_time", "end_time"], missing: null },
+    ])("the shipped deletion-task profile requires schema fields, not required values: $fields", async ({ fields, missing }) => {
+        const schema = { type: "object", required: ["status"], properties: Object.fromEntries(
+            fields.map((name) => [name, { type: "string" }]),
+        ) };
+        const doc = document(dialect, deletionTask, "get",
+            operation(dialect, schemaRef(dialect, "Task")), definitions(dialect, { Task: schema }));
+        const { diagnostics } = await check(doc, time);
+        expect(diagnostics).toHaveLength(missing === null ? 0 : 1);
+        if (missing !== null) {
+            expect(diagnostics[0].message).toContain(`Missing in response schema for status '200': ${missing}.`);
+        }
+    });
+
+    test.each([
+        { path: "/v1/task/{id}", job: true },
+        { path: "/v1/tasks/{id}", job: true },
+        { path: "/v1/job/{id}", job: true },
+        { path: "/v1/jobs/{id}", job: true },
+        { path: "/v1/deletion-task/{task_key}", job: true },
+        { path: "/v1/batch_jobs/{job_key}/", job: true },
+        { path: "/v1/async-JOBS/{job_key}", job: true },
+        { path: "/v1/tasks", job: true },
+        { path: "/v1/taskforce/{id}", job: false },
+        { path: "/v1/jobsite/{id}", job: false },
+        { path: "/v1/mytasks/{id}", job: false },
+        { path: "/v1/jobs/{job_id}/logs/{log_id}", job: false },
+        { path: "/v1/tasks/{task_id}/results/{id}", job: false },
+        { path: "/v1/resources/{task_id}", job: false },
+        { path: "/v1/resources/{job_id}", job: false },
+    ])("the default profile classifies only the queried resource in $path", async ({ path, job }) => {
+        const doc = document(dialect, path, "get", operation(dialect, { type: "object" }));
+        const { diagnostics } = await check(doc, time);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain(`Missing in response schema for status '200': ${
+            job ? "'start_time', 'end_time'" : "'created_at'"}.`);
+    });
+
+    test.each(formats)("%s keyword profiles override default fields and identifiers, in configured order", async (format) => {
+        const params = { timeFieldProfiles: [
+            { resourceKeywords: ["priority"], requiredFields: ["queued_at"] },
+            { resourceKeywords: ["job", "jobs"], requiredFields: ["start_time", "end_time"] },
+        ] };
+        const schema = (fields: string[]) => ({ type: "object", properties: Object.fromEntries(
+            fields.map((name) => [name, { type: "string" }]),
+        ) });
+        const special = schema(["queued_at"]);
+        const doc = document(dialect, "/v1/priority-jobs/{job_key}", "get", operation(dialect, special));
+        const paths = object(doc.paths);
+        paths["/v1/jobs/{job_key}"] = { get: operation(dialect, schema(["start_time", "end_time"])) };
+        expect((await check(doc, time, params, format)).diagnostics).toEqual([]);
+        delete special.properties.queued_at;
+        const missing = (await check(doc, time, params, format)).diagnostics;
+        expect(missing).toHaveLength(1);
+        expect(missing[0].message).toContain("Missing in response schema for status '200': 'queued_at'.");
+        special.properties.queued_at = { type: "string" };
+        paths["/v1/taskforce/{id}"] = { get: operation(dialect, schema(["start_time", "end_time"])) };
+        const { diagnostics } = await check(doc, time, params, format);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing in response schema for status '200': 'created_at'.");
+        paths["/v1/taskforce/{id}"] = { get: operation(dialect, schema(["created_at"])) };
+        expect((await check(doc, time, params, format)).diagnostics).toEqual([]);
+    });
+
+    test("removing profiles restores the default resource timestamp policy", async () => {
+        const doc = document(dialect, deletionTask, "get", operation(dialect, {
+            properties: { start_time: { type: "string" }, end_time: { type: "string" } },
+        }));
+        const { diagnostics } = await check(doc, time, { timeFieldProfiles: [] });
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Missing in response schema for status '200': 'created_at'.");
+    });
+
+    test("profile fields do not depend on update methods or their response schemas", async () => {
+        const path = "/v1/jobs/{id}";
+        const doc = document(dialect, path, "get", operation(dialect, {
+            allOf: [{ properties: { start_time: { type: "string" }, end_time: { type: "string", nullable: true } } }],
+        }));
+        object(doc.paths)["/v1/jobs"] = { put: { responses: { "200": { $ref: "#/missing" } } } };
+        const params = { timeFieldProfiles: [{ resourceKeywords: ["jobs"], requiredFields: ["start_time", "end_time"] }] };
+        expect((await check(doc, time, params)).diagnostics).toEqual([]);
+        object(object(doc.paths)[path]).patch = { responses: {} };
+        expect((await check(doc, time, params)).diagnostics).toEqual([]);
+        object(doc.paths)["/v1/jobs"] = { $ref: "#/missing" };
+        expect((await check(doc, time, params)).diagnostics[0].message).toContain("execution failed");
+    });
+
+    test("invalid time-field profiles produce explicit configuration errors", async () => {
+        const doc = document(dialect, deletionTask, "get", operation(dialect, {}));
+        for (const profiles of [
+            null, {}, [null], [{ resourceKeywords: [], requiredFields: ["start_time"] }],
+            [{ resourceKeywords: ["job*"], requiredFields: ["start_time"] }],
+            [{ resourceKeywords: ["deletion-task"], requiredFields: ["start_time"] }],
+            [{ resourceKeywords: [" "], requiredFields: ["start_time"] }],
+            [{ resourceKeywords: "job", requiredFields: ["start_time"] }],
+            [{ resourceKeywords: ["jobs"], requiredFields: [] }],
+            [{ resourceKeywords: ["jobs"], requiredFields: [" "] }],
+            [{ resourceKeywords: ["jobs"], requiredFields: "start_time" }],
+        ]) {
+            const { diagnostics } = await check(doc, time, { timeFieldProfiles: profiles });
+            expect(diagnostics).toHaveLength(1);
+            expect(diagnostics[0].message).toContain("execution failed");
+            expect(diagnostics[0].message).toContain("timeFieldProfiles");
+        }
     });
 
     test("immutable collection and item GETs require creation but not modification timestamps", async () => {
