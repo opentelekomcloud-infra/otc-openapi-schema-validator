@@ -479,7 +479,7 @@ paths:
     expect(diags).toHaveLength(0);
   });
 
-  test("DELETE forbids response examples", () => {
+  test("an explicit custom DELETE policy can still forbid response examples", () => {
     const spec: any = {
       openapi: "3.0.0",
       paths: {
