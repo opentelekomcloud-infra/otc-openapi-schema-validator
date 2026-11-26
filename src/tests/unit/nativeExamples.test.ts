@@ -63,6 +63,43 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native examples", (dialect)
         expect(found[0].scope).toBe("property");
         expect(found[0].value).toBe("sample");
     });
+
+    test("numbered request extensions retain literal values and operation pointers, excluding metadata", () => {
+        const schema = { type: "object" };
+        const operation = {
+            ...(dialect === "swagger2" ? { parameters: [{ name: "body", in: "body", schema }] }
+                : { requestBody: { content: { "application/json": { schema } } } }),
+            "x-request-examples-1": { $ref: "literal payload data" },
+            "x-request-examples-2": null,
+            "x-request-examples-url-1": "PUT https://example.invalid/switch",
+            "x-request-examples-description-1": "Description",
+            "x-request-examples-1-extra": "not a numbered payload",
+        };
+        const document = dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" };
+        freeze(operation);
+        const pointers = { operation: "#/paths/~1switch/put", pathItem: "#/paths/~1switch" };
+        const found = collectRequestExamples(operation, {}, document, {}, new Map(), pointers);
+        expect(found.map((entry) => [entry.value, entry.pointer, entry.scope])).toEqual([
+            [operation["x-request-examples-1"], "#/paths/~1switch/put/x-request-examples-1", "payload"],
+            [null, "#/paths/~1switch/put/x-request-examples-2", "payload"],
+        ]);
+        expect(found[0].value).toBe(operation["x-request-examples-1"]);
+        expect(collectRequestExamples(operation, {}, document, {
+            exampleSources: { request: ["schema.example"] },
+        })).toEqual([]);
+    });
+});
+
+test("operation request extensions cannot silently choose between different OAS3 media schemas", () => {
+    const operation = {
+        requestBody: { content: {
+            "application/json": { schema: { type: "object" } },
+            "text/plain": { schema: { type: "string" } },
+        } },
+        "x-request-examples-1": {},
+    };
+    expect(() => collectRequestExamples(operation, {}, { openapi: "3.0.3" }, {}))
+        .toThrow("Operation request examples require exactly one request media type");
 });
 
 test.each([null, false, 0, "", [], {}])("Swagger response example %j is retained as an explicit payload", (value) => {
