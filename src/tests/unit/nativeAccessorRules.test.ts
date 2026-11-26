@@ -301,6 +301,32 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native DOC-040", (dialect) 
         expect(diagnostics[0].message).toContain("Missing required request example.");
     });
 
+    test.each([true, "invalid"])("numbered operation request examples satisfy presence and validate their schema: %s", async (value) => {
+        const schema = { type: "object", properties: { enabled: { type: "boolean" } } };
+        const body: JsonObject = dialect === "swagger2" ? { name: "body", in: "body", schema }
+            : { content: { "application/json": { schema } } };
+        const spec: JsonObject = {
+            ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),
+            "x-body": body,
+            paths: { "/v5/asymmetric-signature-switch": { put: {
+                ...(dialect === "swagger2" ? { parameters: [{ $ref: "#/x-body" }] }
+                    : { requestBody: { $ref: "#/x-body" } }),
+                "x-request-examples-description-1": "Enabling the switch",
+                "x-request-examples-url-1": "PUT https://{endpoint}/v5/asymmetric-signature-switch",
+                "x-request-examples-1": { enabled: value },
+                responses: { "204": { description: "Successful" } },
+            } } },
+        };
+        const diagnostics = await check(spec, ruleFor("DOC-040-01-2507-2507-M"));
+        expect(diagnostics).toHaveLength(value === true ? 0 : 1);
+        if (value !== true) {
+            expect(diagnostics[0].message).toContain("Expected boolean");
+            expect(diagnostics[0].message).not.toContain("Missing required request example");
+            const content = yaml.dump(spec, { lineWidth: -1, noRefs: true });
+            expect(content.slice(diagnostics[0].from, diagnostics[0].to)).toContain("invalid");
+        }
+    });
+
     test("referenced schema-less success responses are exempt, but another selected schema still requires an example", async () => {
         const spec: JsonObject = {
             ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),

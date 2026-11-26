@@ -21,7 +21,8 @@ function example(
 
 function sources(config: RuleConfig, direction: "request" | "response"): Set<string> {
     const supported = new Set([
-        "content.example", "content.examples", "schema.example", ...(direction === "response" ? ["response.examples"] : []),
+        "content.example", "content.examples", "schema.example",
+        ...(direction === "response" ? ["response.examples"] : ["operation.x-request-examples"]),
     ]);
     const selected = config.exampleSources?.[direction] ?? [...supported];
     if (!Array.isArray(selected) || selected.some((source) => typeof source !== "string" || !supported.has(source))) {
@@ -110,12 +111,29 @@ export function collectRequestExamples(
     const payload = getRequestPayload(operation, pathItem, document, cache, pointers);
     if (payload.kind !== "body") return [];
     const found: NativeExample[] = [];
+    const extensions: NativeExample[] = [];
+    if (allowed.has("operation.x-request-examples") && isRecord(operation)) {
+        for (const [name, value] of Object.entries(operation)) {
+            if (!/^x-request-examples-[1-9]\d*$/.test(name)) continue;
+            const pointer = appendPointer(pointers?.operation ?? "#", name);
+            if (payload.dialect === "openapi3" && payload.media.length !== 1) {
+                throw new NativeExampleError(pointer, "Operation request examples require exactly one request media type; use content examples to identify the media type");
+            }
+            const media = payload.media[0];
+            extensions.push(example(value, pointer, {
+                direction: "request", statusCode: undefined,
+                mediaType: payload.mediaTypes.values.length === 1 ? media?.mediaType : undefined,
+                schema: payload.dialect === "swagger2" ? payload.schema : media?.schema,
+            }));
+        }
+    }
     if (payload.dialect === "swagger2") {
-        if (!allowed.has("schema.example")) return [];
+        if (!allowed.has("schema.example")) return unique(extensions);
         const mediaType = payload.mediaTypes.values.length === 1 ? payload.mediaTypes.values[0] : undefined;
-        return unique(schemaExamples(payload.schema, true, {
+        found.push(...schemaExamples(payload.schema, true, {
             direction: "request", mediaType, statusCode: undefined, schema: payload.schema,
         }, document, cache));
+        return unique([...found, ...extensions]);
     }
     for (const media of payload.media) {
         const context: ExampleContext = { direction: "request", mediaType: media.mediaType, statusCode: undefined, schema: media.schema };
@@ -125,7 +143,7 @@ export function collectRequestExamples(
             found.push(...schemaExamples(media.schema, explicit.length === 0, context, document, cache));
         }
     }
-    return unique(found);
+    return unique([...found, ...extensions]);
 }
 
 export function collectResponseExamples(

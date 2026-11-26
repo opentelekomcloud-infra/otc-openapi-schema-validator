@@ -67,6 +67,7 @@ rules:
             - content.example
             - content.examples
             - schema.example
+            - operation.x-request-examples
           response:
             - content.example
             - content.examples
