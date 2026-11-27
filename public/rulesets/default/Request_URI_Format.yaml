@@ -125,6 +125,8 @@ rules:
     call:
       function: checkURIResourceFormat
       functionParams:
+        detectSingletonByResponse: true
+        ignoreWrapperNames: ["request_id", "page_info", "total_count", "count", "metadata"]
         exceptionPaths:
           - "/v5/service-linked-agencies/deletion-task/*"
         verbLikeTail:
@@ -171,7 +173,7 @@ rules:
           - "kms"
           - "oss"
         exception: "Non-CRUD operations which use verb at the end of URI. Mostly POST or PUT HTTP methods"
-    description: Check resource plurals for real native CRUD operations, including local Path Item references. Exclude exceptionPaths before reference resolution using exact paths or prefix patterns ending in '*'. Match configured verbLikeTail names exactly or as whole hyphen/underscore-delimited words in the leaf resource/action segment, excluding a trailing path parameter. Preserve parent-resource plural checks, singular exceptions and the existing five-method scope.
+    description: Check resource plurals for real native CRUD operations, including local Path Item references. Allow a singular terminal resource segment when successful response schemas confirm a single object with singular object wrappers or flat scalar DTO fields, without root-level lists. Ignore configured metadata wrappers. If an operation has no response schema, use GET on the same path as evidence. Missing or ambiguous schemas do not establish a singleton. Preserve plural requirements on identifier-based collection paths and action parents. Exclude exceptionPaths before reference resolution using exact paths or prefix patterns ending in '*'. Match configured verbLikeTail names exactly or as whole hyphen/underscore-delimited words in the leaf resource/action segment, excluding a trailing path parameter. Preserve singular exceptions and the existing five-method scope.
     status: implemented
     severity: critical
 

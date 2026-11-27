@@ -64,6 +64,10 @@ function document(dialect: Dialect, paths: JsonObject, extra: JsonObject = {}): 
     return { ...(dialect === "swagger2" ? { swagger: "2.0" } : { openapi: "3.0.3" }),
         info: { title: "Native URI contracts", version: "v1" }, paths, ...extra };
 }
+function response(dialect: Dialect, schema: JsonObject): JsonObject {
+    return { description: "OK", ...(dialect === "swagger2" ? { schema }
+        : { content: { "application/json": { schema } } }) };
+}
 function text(spec: JsonObject, format: Format): string {
     if (format === "json") return JSON.stringify(spec);
     if (format === "flow") return yaml.dump(spec, { noRefs: true, flowLevel: 0 });
@@ -304,6 +308,112 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s native URI/operation contra
         expect((await check(spec, ruleFor("checkURIResourceFormat"))).diagnostics).toEqual([]);
         object(spec.paths)["/v1/status"] = { get: {} };
         expect((await check(spec, ruleFor("checkURIResourceFormat", { endsWithSButSingular: ["status"] }))).diagnostics).toHaveLength(1);
+    });
+    test.each(formats)("schema-confirmed singular singleton paths pass in %s, including prefixed wrappers and flat DTOs", async (format) => {
+        const fixtures: [string, JsonObject][] = [
+            ["/v5/users/{id}/login-profile", { login_profile: { type: "object", properties: {
+                groups: { type: "array", items: { type: "object" } },
+            } } }],
+            ["/v5/users/{id}/last-login", { user_last_login: { type: "object" } }],
+            ["/v5/account-summary", { users: { type: "integer" }, enabled: { type: "boolean" } }],
+        ];
+        for (const [path, properties] of fixtures) {
+            const spec = document(dialect, { [path]: { get: { responses: {
+                "200": response(dialect, { type: "object", properties: {
+                    ...properties, page_info: { type: "object" }, request_id: { type: "string" },
+                } }),
+                "400": response(dialect, { type: "array", items: { type: "object" } }),
+            } } } });
+            expect((await check(spec, ruleFor("checkURIResourceFormat"), format)).diagnostics).toEqual([]);
+            expect((await check(spec, ruleFor("checkURIResourceFormat", { detectSingletonByResponse: false }), format))
+                .diagnostics).toHaveLength(1);
+        }
+    });
+    test.each(formats)("singleton evidence resolves reusable Path Item, response, schema and root-field refs in %s", async (format) => {
+        const spec = document(dialect, { "/v5/token-policy": { $ref: "#/x-items/Policy" } }, {
+            "x-items": { Policy: { get: { responses: { "200": { $ref: "#/x-responses/Policy" } } } } },
+            "x-responses": { Policy: response(dialect, { $ref: "#/x-schemas/Root" }) },
+            "x-schemas": { Root: { properties: { token_policy: { $ref: "#/x-schemas/Policy" } } },
+                Policy: { type: "object" } },
+        });
+        expect((await check(spec, ruleFor("checkURIResourceFormat"), format)).diagnostics).toEqual([]);
+    });
+    test.each(formats)("DELETE with no response body borrows only same-path GET singleton evidence in %s", async (format) => {
+        const query = { responses: { "200": response(dialect, { properties: { login_profile: { type: "object" } } }) } };
+        const spec = document(dialect, {
+            "/v5/users/{id}/login-profile": { get: query, delete: { responses: { "204": { description: "No body" } } } },
+        });
+        expect((await check(spec, ruleFor("checkURIResourceFormat"), format)).diagnostics).toEqual([]);
+        object(spec.paths)["/v5/users/{id}/profile"] = { delete: { responses: { "204": { description: "No body" } } } };
+        const { diagnostics } = await check(spec, ruleFor("checkURIResourceFormat"), format);
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain('path "/v5/users/{id}/profile"');
+        object(object(spec.paths)["/v5/users/{id}/login-profile"]).delete = {
+            responses: { "200": response(dialect, { type: "array", items: { type: "object" } }) },
+        };
+        expect((await check(spec, ruleFor("checkURIResourceFormat"), format)).diagnostics).toHaveLength(2);
+    });
+    test.each<JsonObject>([
+        { type: "array", items: { type: "object" } },
+        { properties: { users: { type: "array", items: { type: "object" } } } },
+        { properties: { users: { type: "object" } } },
+        { properties: { value: {} } },
+        { oneOf: [{ type: "object" }, { type: "array", items: { type: "object" } }] },
+        {},
+    ])("singular URI suffix alone does not exempt collection or ambiguous schema %j", async (schema) => {
+        const spec = document(dialect, { "/v5/user": { get: { responses: { "200": response(dialect, schema) } } } });
+        expect((await check(spec, ruleFor("checkURIResourceFormat"))).diagnostics).toHaveLength(1);
+    });
+    test("a schema-less response or only error-response evidence cannot confirm a singleton", async () => {
+        const spec = document(dialect, { "/v5/profile": { get: { responses: {
+            "200": { description: "No schema" },
+            "400": response(dialect, { properties: { profile: { type: "object" } } }),
+        } } } });
+        expect((await check(spec, ruleFor("checkURIResourceFormat"))).diagnostics).toHaveLength(1);
+    });
+    test.each(["root", "wrapper"])("a %s response array explains why the singular URI is not a singleton", async (kind) => {
+        const array = { type: "array", items: { type: "object" } };
+        const schema: JsonObject = kind === "root" ? array : { properties: { groups: { $ref: "#/x-schemas/List" } } };
+        const spec = document(dialect, { "/v5/groups-summary": { get: { responses: {
+            "200": response(dialect, { $ref: "#/x-schemas/Root" }),
+        } } } }, { "x-schemas": { Root: schema, List: array } });
+        const { diagnostics } = await check(spec, ruleFor("checkURIResourceFormat"));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).toContain("Response for status '200' returns an array");
+        expect(diagnostics[0].message).toContain("it is a collection, not a singleton");
+        if (kind === "wrapper") expect(diagnostics[0].message).toContain("root field 'groups'");
+    });
+    test("ambiguous response schemas do not claim that a collection is returned", async () => {
+        const spec = document(dialect, { "/v5/profile": { get: { responses: {
+            "200": response(dialect, {}),
+        } } } });
+        const { diagnostics } = await check(spec, ruleFor("checkURIResourceFormat"));
+        expect(diagnostics).toHaveLength(1);
+        expect(diagnostics[0].message).not.toContain("returns an array");
+        expect(diagnostics[0].message).not.toContain("it is a collection");
+    });
+    test("singleton schema does not exempt identifier-based collection paths or action parent resources", async () => {
+        const operation = { responses: { "200": response(dialect, { properties: { user: { type: "object" } } }) } };
+        const spec = document(dialect, {
+            "/v5/user/{id}": { get: operation },
+            "/v5/user/{id}/remove": { get: operation },
+        });
+        expect((await check(spec, ruleFor("checkURIResourceFormat"))).diagnostics).toHaveLength(2);
+    });
+    test("every declared successful response schema must support singleton evidence", async () => {
+        const spec = document(dialect, { "/v5/profile": { get: { responses: {
+            "200": response(dialect, { properties: { profile: { type: "object" } } }),
+            "201": response(dialect, { properties: { profiles: { type: "array", items: { type: "object" } } } }),
+        } } } });
+        expect((await check(spec, ruleFor("checkURIResourceFormat"))).diagnostics).toHaveLength(1);
+    });
+    test("required response and root-field refs fail explicitly instead of granting a singleton exemption", async () => {
+        const schemas: JsonObject[] = [{ $ref: "#/missing" }, { properties: { profile: { $ref: "#/missing" } } }];
+        for (const schema of schemas) {
+            const spec = document(dialect, { "/v5/profile": { get: { responses: { "200": response(dialect, schema) } } } });
+            expect((await check(spec, ruleFor("checkURIResourceFormat"), "json", true)).diagnostics[0].message)
+                .toContain("Local reference does not exist");
+        }
     });
     test.each(formats)("plural resource recognizes configured action words in compound tails in %s", async (format) => {
         const spec = document(dialect, {
