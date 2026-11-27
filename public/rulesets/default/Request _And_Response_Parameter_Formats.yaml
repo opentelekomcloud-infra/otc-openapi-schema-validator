@@ -71,7 +71,7 @@ rules:
   - id: "ARG-060-01-2507-2507-O"
     title: "Root Body Parameter Should Match Resource Type"
     message: "The root body parameter name should match the resource type, using singular form for single resources and plural form for collections."
-    description: "Check native Swagger body/formData and response.schema or OpenAPI content schemas, including local references. Preserve top-level singular/plural heuristics, method/2xx scopes, wrappers, English-word safety and exact JSON then first-media selection; initialize the same abbreviation dictionary in UI and API without adding allOf inference."
+    description: "Check native CRUD resource envelopes, excluding configured action words in the final path segment before reference resolution. Retain POST/PUT/PATCH request and GET/2xx response checks. A singular resource tail or trailing identifier denotes a single resource; plural resource tails denote collections. Skip unwrapped DTOs in both directions: after ignoring metadata, a resource envelope has one top-level object or array of objects. Scalar fields and arrays of primitives are unwrapped; unknown field types remain checked conservatively. FormData is unwrapped. Keep native references, wrapper alternatives, English-word safety and exact JSON then first-media selection without adding allOf inference. Configuration can disable singleton detection or the unwrapped-body exemption."
     option: Optional
     location: paths
     element:
@@ -87,6 +87,9 @@ rules:
         enforcePluralForCollections: true
         enforceSingularForSingleResource: true
         detectCollectionByMethodAndPath: true
+        detectSingletonByPath: true
+        skipUnwrappedBodies: true
+        nonCrudActions: ["action", "actions", "add", "remove", "create", "delete", "switch", "associate", "disassociate", "attach", "attached", "detach", "bind", "unbind", "enable", "disable", "set", "start", "stop", "restart", "reset", "resize", "promote", "demote", "import", "export", "sync", "validate", "check", "approve", "reject", "rollback", "commit", "migrate", "recover", "last-used", "last-login", ""]
         collectionResponseMethods: ["get"]
         singleResourceRequestMethods: ["post", "put", "patch"]
         ignoreWrapperNames: ["request_id", "page_info", "total_count", "count", "metadata"]
