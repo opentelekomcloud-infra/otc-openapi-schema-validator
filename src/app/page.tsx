@@ -13,7 +13,10 @@ import ExclusionsExport from "@/components/ExclusionsExport";
 import { ScaleDialog } from "@/components/ScaleControls";
 import { exportRobotFramework, exportPDF, exportReportPortal } from "@/utils/export";
 import { diagnosticRuleId, isSkippedRule } from "@/lib/export/ruleOutcomes";
-import { isIssueExcluded, issueExclusionFor, sameIssueExclusion, type IssueExclusion } from "@/lib/linter/issueExclusions";
+import {
+    exclusionReason, exclusionRuleId, isIssueExcluded, issueExclusionFor, ruleExclusion,
+    sameIssueExclusion, type ApiExclusions, type IssueExclusion, type RuleExclusion,
+} from "@/lib/linter/issueExclusions";
 import { referenceNavigation } from "@/lib/editor/referenceNavigation";
 import { checkGiteaAvailability, createBaselineSession } from "@/lib/openapi/baseline";
 import "@telekom/scale-components/dist/scale-components/scale-components.css";
@@ -38,6 +41,8 @@ const HomePage = () => {
     const [allRules, setAllRules] = useState<Rule[] | null>(null);
     const [diagnostics, setDiagnostics] = useState<Diagnostic[]>([]);
     const [mutedIssues, setMutedIssues] = useState<IssueExclusion[]>([]);
+    const [autoExclusionReasons, setAutoExclusionReasons] = useState<Record<string, string>>({});
+    const [manualExclusions, setManualExclusions] = useState<RuleExclusion[]>([]);
     const pendingImportedIssuesRef = useRef<IssueExclusion[] | null>(null);
     const diagnosticContent = editorViewRef.current?.state.doc.toString() ?? code;
     const retainedDiagnostics = useMemo(() => diagnostics.filter((diagnostic) =>
@@ -51,8 +56,9 @@ const HomePage = () => {
     }, [selectedRules, diagnostics, retainedDiagnostics, diagnosticContent, mutedIssues]);
     const excludedRules = useMemo(() => {
         const selected = new Set(selectedRules.map((rule) => rule.id));
-        return (allRules ?? []).filter((rule) => !selected.has(rule.id)).map((rule) => rule.id);
-    }, [allRules, selectedRules]);
+        return (allRules ?? []).filter((rule) => !selected.has(rule.id)).map((rule) =>
+            ruleExclusion(rule.id, autoExclusionReasons[rule.id]));
+    }, [allRules, selectedRules, autoExclusionReasons]);
     const mutedCount = diagnostics.length - retainedDiagnostics.length;
     const diagnosticsRef = useRef<readonly Diagnostic[]>([]);
     const issuesRef = useRef<IssuesPanelHandle>(null);
@@ -66,6 +72,10 @@ const HomePage = () => {
     const [baselineCheckRevision, setBaselineCheckRevision] = useState(0);
     const baselineSession = useMemo(() => createBaselineSession(setBaselineUnavailable, checkGiteaAvailability), []);
     const [manualRules, setManualRules] = useState<ManualRule[]>([]);
+    const exportManualRules = useMemo(() => {
+        const excluded = new Set(manualExclusions.map(exclusionRuleId));
+        return manualRules.filter((rule) => !excluded.has(rule.id));
+    }, [manualRules, manualExclusions]);
     const [showExportModal, setShowExportModal] = useState(false);
     const [showExclusions, setShowExclusions] = useState(false);
     const [specTitle, setSpecTitle] = useState<string | null>(null);
@@ -73,7 +83,7 @@ const HomePage = () => {
     const [totalAvailableRules, setTotalAvailableRules] = useState(0);
     const [rulesetName, setRulesetName] = useState("");
     const lintRunIdRef = useRef(0);
-    const selectedManualRulesCount = manualRules.filter((rule) => rule.verified).length;
+    const selectedManualRulesCount = exportManualRules.filter((rule) => rule.verified).length;
     const hasDocument = code !== initialCode && Boolean(code.trim());
 
     useEffect(() => {
@@ -261,12 +271,18 @@ const HomePage = () => {
     const handleManualRulesChange = useCallback((rules: ManualRule[]) => setManualRules(rules), []);
     const handleRulesetChange = useCallback((name: string) => {
         setRulesetName(name);
+        setAutoExclusionReasons({});
         pendingImportedIssuesRef.current = null;
         setMutedIssues([]);
     }, []);
     const handleExclusionsImported = useCallback((issues: IssueExclusion[]) => {
         pendingImportedIssuesRef.current = issues;
         setMutedIssues([]);
+    }, []);
+    const handleRuleExclusionsImported = useCallback((exclusions: ApiExclusions) => {
+        setAutoExclusionReasons(Object.fromEntries(exclusions.exclude_auto_rules.map((entry) =>
+            [exclusionRuleId(entry), exclusionReason(entry)])));
+        if (exclusions.exclude_manual_rules !== undefined) setManualExclusions(exclusions.exclude_manual_rules);
     }, []);
     const handleRetryGitea = () => {
         setBaselineUnavailable(null);
@@ -290,7 +306,7 @@ const HomePage = () => {
     const handleExportReportPortal = async () => {
         setIsExporting(true);
         try {
-            await exportReportPortal(retainedDiagnostics, exportRules, manualRules, editorViewRef, {
+            await exportReportPortal(retainedDiagnostics, exportRules, exportManualRules, editorViewRef, {
                 project: "openapi",
                 launch: `Service: ${specTitle ?? "OpenAPI"}`,
                 description: `Latest launch for ${specTitle ?? "OpenAPI"} - ${new Date().toISOString()}`,
@@ -368,12 +384,13 @@ const HomePage = () => {
                     <scale-tab-panel slot="panel" hidden={activeTab !== "rules"}>
                         <RulesetsSelector onSelectionChange={handleSelectionChange} onTotalRulesChange={setTotalAvailableRules}
                             onRulesetChange={handleRulesetChange} onRulesLoaded={setAllRules}
-                            onExclusionsImported={handleExclusionsImported} />
+                            onExclusionsImported={handleExclusionsImported} onRuleExclusionsImported={handleRuleExclusionsImported} />
                     </scale-tab-panel>
                     <scale-tab-header slot="tab" data-tab="manual" selected={activeTab === "manual"}
                         onClick={() => setActiveTab("manual")}>Manual ({selectedManualRulesCount}/{manualRules.length})</scale-tab-header>
                     <scale-tab-panel slot="panel" hidden={activeTab !== "manual"}>
-                        <ManualChecksSelector onManualRulesChange={handleManualRulesChange} />
+                        <ManualChecksSelector onManualRulesChange={handleManualRulesChange}
+                            excludedRules={manualExclusions} onExcludedRulesChange={setManualExclusions} />
                     </scale-tab-panel>
                 </scale-tab-nav>
             </section>
@@ -385,17 +402,23 @@ const HomePage = () => {
         {showExportModal && <ScaleDialog heading={showExclusions ? "API exclusions" : "Export"} onClose={() => setShowExportModal(false)}>
             {showExclusions ? <ExclusionsExport ruleset={rulesetName || "default"} excludedRules={excludedRules}
                 excludedIssues={mutedIssues}
+                excludedManualRules={manualExclusions}
+                onRuleReasonChange={(id, reason) => setAutoExclusionReasons((current) => ({ ...current, [id]: reason }))}
+                onManualReasonChange={(id, reason) => setManualExclusions((current) => current.map((entry) =>
+                    exclusionRuleId(entry) === id ? ruleExclusion(id, reason) : entry))}
+                onIssueReasonChange={(exclusion, reason) => setMutedIssues((current) => current.map((entry) =>
+                    sameIssueExclusion(entry, exclusion) ? { ...entry, reason } : entry))}
                 onUnmute={(exclusion) => setMutedIssues((current) => current.filter((entry) => !sameIssueExclusion(entry, exclusion)))}
                 onUnmuteAll={() => setMutedIssues([])} /> : <>
                 <p className="muted">Export all {visibleDiagnostics.length} issues and the current manual checklist. Display filters do not affect the report.</p>
                 {mutedCount > 0 && <p>{mutedCount} muted issues are excluded from all reports.</p>}
                 <div className="exportActions">
                     <scale-button variant="secondary" onClick={async () => {
-                        await exportPDF(retainedDiagnostics, exportRules, manualRules, editorViewRef);
+                        await exportPDF(retainedDiagnostics, exportRules, exportManualRules, editorViewRef);
                         setShowExportModal(false);
                     }}><scale-icon-user-file-pdf-file aria-hidden="true" />Export to PDF</scale-button>
                     <scale-button variant="secondary" onClick={async () => {
-                        await exportRobotFramework(retainedDiagnostics, exportRules, manualRules, editorViewRef);
+                        await exportRobotFramework(retainedDiagnostics, exportRules, exportManualRules, editorViewRef);
                         setShowExportModal(false);
                     }}><scale-icon-action-download aria-hidden="true" />Export to Robot Framework</scale-button>
                     <scale-button variant="secondary" onClick={handleExportReportPortal} disabled={isExporting}>

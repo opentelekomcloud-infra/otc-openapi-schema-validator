@@ -224,11 +224,42 @@ test("selection, exclusions and counts are unchanged for a native Swagger input"
         auto_rules: [versionId, structureId], exclude_auto_rules: [structureId],
         manual_rules: ["not-selected"],
     });
+
     expect(res.status).toHaveBeenCalledWith(200);
     expect(jest.mocked(runLinter).mock.calls[0][1]).toEqual([expect.objectContaining({ id: versionId })]);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
         rules: expect.objectContaining({ auto_total: 67, auto_selected: 1, manual_total: 28, manual_selected: 0 }),
     }));
+});
+
+test("automatic and manual rule exclusions accept reasons without changing selection semantics", async () => {
+    const file_content = readFixtureContent("swagger2");
+    const baseline = await request(validate, { file_content, auto_rules: [versionId] });
+    const manualId: string = baseline.json.mock.calls[0][0].rules.manual[0].id;
+    const res = await request(validate, {
+        file_content, auto_rules: [versionId], manual_rules: [manualId],
+        exclude_auto_rules: [{ rule_id: versionId, reason: "Covered separately" }],
+        exclude_manual_rules: [{ rule_id: manualId, reason: "Not applicable" }],
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+        rules: expect.objectContaining({ auto_selected: 0, manual_selected: 0 }),
+        exclusions: {
+            exclude_auto_rules: [{ rule_id: versionId, reason: "Covered separately" }],
+            exclude_manual_rules: [{ rule_id: manualId, reason: "Not applicable" }],
+            exclude_issues: [],
+        },
+    }));
+});
+
+test.each(["exclude_auto_rules", "exclude_manual_rules", "exclude_issues"])("invalid %s reason returns 400 before source I/O", async (field) => {
+    const entry = { rule_id: versionId, ...(field === "exclude_issues" ? { line_number: 1 } : {}), reason: 42 };
+    const res = await request(validate, { path: "https://specs.example.invalid/unused.yaml", [field]: [entry] });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: expect.stringContaining("reason") });
+    expect(fs.readFile).not.toHaveBeenCalled();
+    expect(globalThis.fetch).not.toHaveBeenCalled();
+    expect(runLinter).not.toHaveBeenCalled();
 });
 
 test("file_content retains precedence over a URL without any source fetch", async () => {
@@ -259,6 +290,27 @@ describe("rule and source-line issue exclusions", () => {
     const successId = "STC-010-01-2507-2507-M-2";
     const content = "swagger: '2.0'\r\ninfo: {title: Exclusions, version: v1}\r\npaths:\r\n  /one:\r\n    get:\r\n      responses: {'400': {description: Bad request}}\r\n  /two:\r\n    get:\r\n      responses: {'400': {description: Bad request}}\r\n";
     const body = { file_content: content, auto_rules: [versionId, successId], manual_rules: ["not-selected"] };
+    test("issue reasons remain auditable while exclusions still match only rule and line", async () => {
+        const exclusion = { rule_id: successId, line_number: 5, reason: "Intentional response" };
+        const res = await request(validate, { ...body, exclude_issues: [exclusion] });
+        expect(res.status).toHaveBeenCalledWith(200);
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            diagnostics: [expect.objectContaining({ lineNumber: 8 })],
+            excluded_issues: [expect.objectContaining({ lineNumber: 5 })],
+            exclusions: { exclude_auto_rules: [], exclude_manual_rules: [], exclude_issues: [exclusion] },
+        }));
+    });
+    test("ReportPortal returns exclusion reasons without exporting excluded findings", async () => {
+        const exclusion = { rule_id: successId, line_number: 5, reason: "Intentional response" };
+        const res = await request(validate, { ...body, export: "xml", exclude_issues: [exclusion] });
+        expect(res.status).toHaveBeenCalledWith(200);
+        const xml = jest.mocked(reportPortalClient.importLaunch).mock.calls[0][0].xml;
+        expect(xml).toContain("Line 8:");
+        expect(xml).not.toContain("Line 5:");
+        expect(res.json).toHaveBeenCalledWith(expect.objectContaining({
+            exclusions: { exclude_auto_rules: [], exclude_manual_rules: [], exclude_issues: [exclusion] },
+        }));
+    });
     test.each(["swagger2", "openapi3"] as const)("%s excludes only the matching rule/line and keeps other breaches", async (dialect) => {
         const source = dialect === "swagger2" ? content : content.replace("swagger: '2.0'", "openapi: 3.0.3");
         const exclusion = { rule_id: successId, line_number: 5 };

@@ -12,7 +12,10 @@ import { giteaClient } from '@/clients/gitea';
 import { requireApiAuth } from "@/lib/apiAuth";
 import { diagnosticLineNumber } from "@/lib/openapi/sourceMap";
 import { diagnosticRuleId } from "@/lib/export/ruleOutcomes";
-import { isRecord } from "@/lib/openapi/references";
+import {
+  exclusionReason, exclusionRuleId, parseIssueExclusions, parseRuleExclusions,
+  type IssueExclusion, type RuleExclusion,
+} from "@/lib/linter/issueExclusions";
 
 const log = {
   debug: (...args: any[]) => console.debug("[Validate]", ...args),
@@ -38,9 +41,9 @@ export const config = {
  *   // Selection
  *   manual_rules?: string[];       // optional (subset); loads ALL then filters if provided
  *   auto_rules?: string[];         // optional (subset); loads ALL then filters if provided
- *   exclude_manual_rules?: string[]; // optional; rule IDs to exclude from manual rules
- *   exclude_auto_rules?: string[];   // optional; rule IDs to exclude from auto rules
- *   exclude_issues?: Array<{ rule_id: string; line_number: number }>; // exclude matching rule findings on 1-based source lines
+ *   exclude_manual_rules?: Array<string | { rule_id: string; reason?: string }>;
+ *   exclude_auto_rules?: Array<string | { rule_id: string; reason?: string }>;
+ *   exclude_issues?: Array<{ rule_id: string; line_number: number; reason?: string }>;
  *   ruleset?: string;              // optional; defaults to "default"
  *
  *   // Export
@@ -49,23 +52,13 @@ export const config = {
  * }
  */
 
-interface IssueExclusion {
-  rule_id: string;
-  line_number: number;
-}
-
-function isIssueExclusion(value: unknown): value is IssueExclusion {
-  return isRecord(value) && typeof value.rule_id === 'string' && value.rule_id.trim() !== '' &&
-    typeof value.line_number === 'number' && Number.isSafeInteger(value.line_number) && value.line_number > 0;
-}
-
 interface ValidateRequestBody {
   path?: string;
   file_content?: string;
   manual_rules?: string[];
   auto_rules?: string[];
-  exclude_manual_rules?: string[];
-  exclude_auto_rules?: string[];
+  exclude_manual_rules?: RuleExclusion[];
+  exclude_auto_rules?: RuleExclusion[];
   exclude_issues?: IssueExclusion[];
   ruleset?: string;
   export?: 'pdf' | 'xml' | 'robot';
@@ -191,8 +184,15 @@ export default async function handler(
 
     const { path: specPathInput, file_content, manual_rules, auto_rules, exclude_manual_rules, exclude_auto_rules, exclude_issues, export: exportMode, out, ruleset = 'default' } = (body || {}) as ValidateRequestBody & Record<string, any>;
 
-    if (exclude_issues !== undefined && (!Array.isArray(exclude_issues) || !exclude_issues.every(isIssueExclusion))) {
-      return res.status(400).json({ error: 'Parameter "exclude_issues" must be an array of { rule_id: non-empty string, line_number: positive safe integer }.' });
+    let automaticExclusions: RuleExclusion[];
+    let manualExclusions: RuleExclusion[];
+    let issueExclusions: IssueExclusion[];
+    try {
+      automaticExclusions = parseRuleExclusions(exclude_auto_rules, "exclude_auto_rules");
+      manualExclusions = parseRuleExclusions(exclude_manual_rules, "exclude_manual_rules");
+      issueExclusions = parseIssueExclusions(exclude_issues);
+    } catch (error: unknown) {
+      return res.status(400).json({ error: error instanceof Error ? error.message : "Invalid exclusions." });
     }
 
     // Validate required source: either file_content or path/url must be provided
@@ -274,13 +274,13 @@ export default async function handler(
     log.debug('rules loaded: ', { manual_total: allManual.length, auto_total: allAuto.length, ruleset });
     let manual = filterByIds(allManual, manual_rules);
     let auto = filterByIds(allAuto, auto_rules);
-    if (exclude_manual_rules?.length) {
-      const excludeManualSet = new Set(exclude_manual_rules);
+    if (manualExclusions.length) {
+      const excludeManualSet = new Set(manualExclusions.map(exclusionRuleId));
       manual = manual.filter(r => !r.id || !excludeManualSet.has(r.id));
     }
 
-    if (exclude_auto_rules?.length) {
-      const excludeAutoSet = new Set(exclude_auto_rules);
+    if (automaticExclusions.length) {
+      const excludeAutoSet = new Set(automaticExclusions.map(exclusionRuleId));
       auto = auto.filter(r => !r.id || !excludeAutoSet.has(r.id));
     }
     log.debug('rules selected: ', { manual_selected: manual.length, auto_selected: auto.length });
@@ -294,6 +294,10 @@ export default async function handler(
       severity: getSeverityLabel(diagnostic.severity),
     });
     const diagnosticsWithLines = diagnostics.map(responseDiagnostic);
+    const exclusionMetadata = [automaticExclusions, manualExclusions].some((entries) => entries.some(exclusionReason)) ||
+      issueExclusions.some((entry) => entry.reason) ? { exclusions: {
+        exclude_auto_rules: automaticExclusions, exclude_manual_rules: manualExclusions, exclude_issues: issueExclusions,
+      } } : {};
     const validationResult = {
       diagnostics: diagnosticsWithLines,
       conversion: { converted: false },
@@ -305,6 +309,7 @@ export default async function handler(
         manual_selected: manual.length,
         auto_selected: auto.length,
       },
+      ...exclusionMetadata,
     };
     const parserError = diagnostics.find((diagnostic) => diagnostic.source === "parser" && diagnostic.severity === "error");
     if (parserError) {
@@ -314,7 +319,7 @@ export default async function handler(
     const retainedDiagnostics: typeof diagnostics = [];
     const excludedDiagnostics: typeof diagnostics = [];
     for (const diagnostic of diagnostics) {
-      const excluded = exclude_issues?.some((entry) =>
+      const excluded = issueExclusions.some((entry) =>
         entry.rule_id.trim() === diagnosticRuleId(diagnostic) &&
         entry.line_number === diagnosticLineNumber(specText, diagnostic));
       (excluded ? excludedDiagnostics : retainedDiagnostics).push(diagnostic);
@@ -373,6 +378,7 @@ export default async function handler(
         launch: payload,
         conversion: { converted: false },
         ...excludedResult,
+        ...exclusionMetadata,
       });
     }
 

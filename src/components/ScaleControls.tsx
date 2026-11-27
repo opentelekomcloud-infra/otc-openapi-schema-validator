@@ -48,8 +48,8 @@ export function ScaleSearch({ label, value, onChange }: {
         inputModeType="search" />;
 }
 
-export function ScaleCheckbox({ label, checked, onChange }: {
-    label: string; checked: boolean; onChange: () => void;
+export function ScaleCheckbox({ label, checked, onChange, disabled = false }: {
+    label: string; checked: boolean; onChange: () => void; disabled?: boolean;
 }) {
     const ref = useRef<HTMLScaleCheckboxElement>(null);
     useEffect(() => {
@@ -58,7 +58,7 @@ export function ScaleCheckbox({ label, checked, onChange }: {
         element.addEventListener("scale-change", onChange);
         return () => element.removeEventListener("scale-change", onChange);
     }, [onChange]);
-    return <scale-checkbox ref={ref} label={label} checked={checked} hideLabel />;
+    return <scale-checkbox ref={ref} label={label} checked={checked} disabled={disabled} hideLabel />;
 }
 
 export function ScaleDialog({ heading, onClose, children }: {

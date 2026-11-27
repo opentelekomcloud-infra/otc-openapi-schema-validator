@@ -3,6 +3,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { parseApiExclusions, validateExclusionRuleIds, type ApiExclusions } from "@/lib/linter/issueExclusions";
 import type { AutoRule } from "@/lib/linter/ruleCatalog";
+import { loadManualRules } from "@/lib/linter/manualCatalog";
 
 type Props = {
     loadRules: (ruleset: string) => Promise<AutoRule[]>;
@@ -60,7 +61,8 @@ export default function ExclusionsImport({ loadRules, onImport }: Props) {
         try {
             const exclusions = parseApiExclusions(json);
             const rules = await loadRules(exclusions.ruleset);
-            validateExclusionRuleIds(exclusions, rules);
+            const manualRules = exclusions.exclude_manual_rules?.length ? await loadManualRules() : [];
+            validateExclusionRuleIds(exclusions, rules, manualRules);
             if (operationRef.current === operation) onImport(exclusions, rules);
         } catch (failure: unknown) {
             if (operationRef.current === operation) {
@@ -73,7 +75,9 @@ export default function ExclusionsImport({ loadRules, onImport }: Props) {
     return <>
         <p>Paste API exclusions JSON or load a JSON file. Import replaces the current ruleset, automatic rule selection,
             and muted issues. All automatic rules not listed in exclude_auto_rules will be selected, including optional rules.
-            Manual checks are unchanged.</p>
+            Manual exclusions are replaced only when exclude_manual_rules is provided. Reviewed status is unchanged.</p>
+        <p className="muted">Reasons are optional. Rule exclusions accept IDs or objects with rule_id and reason;
+            issue exclusions accept an optional reason alongside rule_id and line_number.</p>
         <p className="muted">Load the specification first. Only rule/line pairs matching findings in the current
             specification will be muted; other pairs are ignored. Muted issues reset when the specification text
             or ruleset changes, or a specification file is loaded.</p>

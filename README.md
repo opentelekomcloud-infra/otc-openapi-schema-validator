@@ -156,9 +156,9 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
   "file_content": "string (raw YAML/JSON)",
   "manual_rules": ["RULE_ID", "…"],
   "auto_rules": ["RULE_ID", "…"],
-  "exclude_manual_rules": ["RULE_ID", "…"],
-  "exclude_auto_rules": ["RULE_ID", "…"],
-  "exclude_issues": [{"rule_id": "FIL-010-01-2507-2507-O", "line_number": 358}],
+  "exclude_manual_rules": [{"rule_id": "RULE_ID", "reason": "Reviewed in a separate checklist"}],
+  "exclude_auto_rules": ["LEGACY_RULE_ID", {"rule_id": "RULE_ID", "reason": "Known false positive"}],
+  "exclude_issues": [{"rule_id": "FIL-010-01-2507-2507-O", "line_number": 358, "reason": "Intentional API contract"}],
   "ruleset": "string (default: \"default\")",
   "export": "robot | xml | pdf",
   "out": "string (required only when export=pdf)"
@@ -175,6 +175,8 @@ Validate an OpenAPI spec (YAML/JSON) from **raw content** or a **path/URL**.
 - `ruleset` directory is read from `public/rulesets/<ruleset>`; only auto‑rules with `status: implemented` are used.
 - Rule catalogs load atomically: unreadable or malformed YAML, duplicate IDs, and invalid implemented function bindings produce an error instead of partial validation. The UI displays catalog errors; the validation API returns HTTP 500 for a broken server-side catalog. Rules explicitly marked `unsupported` are not executed.
 - `exclude_issues` excludes findings matching both `rule_id` and a 1-based source `line_number`; other rules on that line and other lines for that rule remain checked. Invalid selectors return **400**. JSON responses include excluded findings in `excluded_issues` for audit, but they are not sent to ReportPortal or included in Robot XML. XML exports retain remaining failures; a rule whose findings are all explicitly excluded is omitted entirely, not reported as PASS or SKIP. Parser errors cannot be excluded. Line numbers refer to the submitted source and may change after editing it.
+- All exclusion types support an optional string `reason`. Automatic and manual rule exclusions accept both legacy ID strings and `{ "rule_id": "...", "reason": "..." }` objects, including mixed arrays. Reasons are metadata, not part of exclusion matching. Invalid reasons or conflicting reasons for duplicate exclusions return **400**. When reasons are supplied, JSON validation and ReportPortal-import responses preserve the normalized configuration in `exclusions`; legacy requests retain their response shape.
+- In the UI, import/export API exclusions JSON preserves reasons, editable in the exclusions manager. Manual checks have a separate **Exclude from reports** control and optional reason: exclusion does not mark a check reviewed or passed. Excluded manual checks are omitted from PDF, Robot and ReportPortal reports. An imported JSON without `exclude_manual_rules` leaves current manual exclusions unchanged; an explicit empty array clears them.
 - `export: "xml"` builds **Robot XML** and imports a launch to **ReportPortal** (defaults used in server: project `openapi`, dynamic launch name/description). Response includes the created launch payload.
 - `export: "robot"` returns **Robot Framework XML** directly in the response body (`Content-Type: application/xml; charset=utf-8`, attachment filename `robot-report.xml`), without importing to ReportPortal. It uses the same report builder as the UI download and ReportPortal export; manual checks are **SKIP** in API reports.
 - `export: "pdf"` requires `out`; without it the API returns **400**. With `out`, it currently returns **501** (use the UI PDF export instead).

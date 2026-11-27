@@ -7,7 +7,7 @@ import { getImplementedRules, loadRuleCatalog } from "@/lib/linter/ruleCatalog";
 import { functionsMap } from "@/lib/linter/runLinter";
 import { ScaleCheckbox, ScaleDialog, ScaleSearch, ScaleSelect } from "@/components/ScaleControls";
 import ExclusionsImport from "@/components/ExclusionsImport";
-import type { ApiExclusions, IssueExclusion } from "@/lib/linter/issueExclusions";
+import { exclusionRuleId, type ApiExclusions, type IssueExclusion } from "@/lib/linter/issueExclusions";
 
 export type Rule = AutoRule;
 
@@ -17,6 +17,7 @@ type RulesetsSelectorProps = {
     onRulesetChange?: (name: string) => void;
     onRulesLoaded?: (rules: Rule[] | null) => void;
     onExclusionsImported?: (issues: IssueExclusion[]) => void;
+    onRuleExclusionsImported?: (exclusions: ApiExclusions) => void;
 };
 
 async function loadRulesetRules(rulesets: RulesetsStructure, name: string): Promise<Rule[]> {
@@ -30,7 +31,7 @@ async function loadRulesetRules(rulesets: RulesetsStructure, name: string): Prom
     return getImplementedRules(rules, functionsMap);
 }
 
-const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChange, onRulesLoaded, onExclusionsImported }: RulesetsSelectorProps) => {
+const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChange, onRulesLoaded, onExclusionsImported, onRuleExclusionsImported }: RulesetsSelectorProps) => {
     const [rulesets, setRulesets] = useState<RulesetsStructure>({});
     const [loading, setLoading] = useState<boolean>(true);
     const [error, setError] = useState<string>("");
@@ -84,12 +85,15 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
                 onRulesLoaded?.(implementedRules);
                 onTotalRulesChange?.(implementedRules.length);
 
-                const excluded = new Set(imported?.exclusions.exclude_auto_rules);
+                const excluded = new Set(imported?.exclusions.exclude_auto_rules.map(exclusionRuleId));
                 const selection = implementedRules.filter((rule) => imported
                     ? !excluded.has(rule.id) : rule.option.toLowerCase() === "mandatory");
                 setSelectedRules(selection);
                 onSelectionChange?.(selection);
-                if (imported) onExclusionsImported?.(imported.exclusions.exclude_issues);
+                if (imported) {
+                    onExclusionsImported?.(imported.exclusions.exclude_issues);
+                    onRuleExclusionsImported?.(imported.exclusions);
+                }
             } catch (error: unknown) {
                 if (cancelled) return;
                 console.error("Failed to load ruleset", error);
@@ -101,7 +105,7 @@ const RulesetsSelector = ({ onSelectionChange, onTotalRulesChange, onRulesetChan
 
         if (selectedRuleset) fetchAllRules();
         return () => { cancelled = true; };
-    }, [selectedRuleset, rulesets, onSelectionChange, onTotalRulesChange, onRulesLoaded, importedCatalog, onExclusionsImported]);
+    }, [selectedRuleset, rulesets, onSelectionChange, onTotalRulesChange, onRulesLoaded, importedCatalog, onExclusionsImported, onRuleExclusionsImported]);
 
     const handleRulesetChange = (value: string) => {
         setImportedCatalog(null);

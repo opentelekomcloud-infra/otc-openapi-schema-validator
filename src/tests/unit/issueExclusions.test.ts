@@ -57,3 +57,35 @@ test("unknown excluded automatic rules fail validation, but unmatched issue IDs 
     expect(() => validateExclusionRuleIds(config, [{ id: "RULE-1" }])).not.toThrow();
     expect(() => validateExclusionRuleIds(config, [])).toThrow('Unknown automatic rule IDs in ruleset "default": RULE-1');
 });
+
+test("rule and issue reasons survive normalization, mixed legacy formats and duplicate selectors", () => {
+    const parsed = parseApiExclusions(JSON.stringify({
+        ruleset: " default ",
+        exclude_auto_rules: ["RULE-1", { rule_id: " RULE-1 ", reason: " Known false positive " }],
+        exclude_manual_rules: [{ rule_id: "MANUAL-1", reason: "Not applicable" }, "MANUAL-2"],
+        exclude_issues: [
+            { rule_id: "RULE-2", line_number: 3 },
+            { rule_id: "RULE-2", line_number: 3, reason: "Intentional response" },
+        ],
+    }));
+    expect(parsed).toEqual({
+        ruleset: "default",
+        exclude_auto_rules: [{ rule_id: "RULE-1", reason: "Known false positive" }],
+        exclude_manual_rules: [{ rule_id: "MANUAL-1", reason: "Not applicable" }, "MANUAL-2"],
+        exclude_issues: [{ rule_id: "RULE-2", line_number: 3, reason: "Intentional response" }],
+    });
+    expect(parseApiExclusions(JSON.stringify(parsed))).toEqual(parsed);
+    expect(() => validateExclusionRuleIds(parsed, [{ id: "RULE-1" }], [{ id: "MANUAL-1" }, { id: "MANUAL-2" }])).not.toThrow();
+    expect(() => validateExclusionRuleIds(parsed, [{ id: "RULE-1" }])).toThrow("Unknown manual rule IDs");
+    expect(isIssueExcluded(source, diagnostic, [{ ...issueExclusionFor(source, diagnostic)!, reason: "Reason is metadata" }])).toBe(true);
+});
+
+test.each(["exclude_auto_rules", "exclude_manual_rules", "exclude_issues"])("invalid or conflicting %s reasons are not silently discarded", (field) => {
+    const selector = field === "exclude_issues" ? { rule_id: "RULE-1", line_number: 1 } : { rule_id: "RULE-1" };
+    for (const reason of [null, 42, [], {}]) {
+        expect(() => parseApiExclusions(JSON.stringify({ ruleset: "default", [field]: [{ ...selector, reason }] }))).toThrow("reason");
+    }
+    expect(() => parseApiExclusions(JSON.stringify({
+        ruleset: "default", [field]: [{ ...selector, reason: "First" }, { ...selector, reason: "Different" }],
+    }))).toThrow("Conflicting exclusion reasons");
+});

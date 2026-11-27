@@ -5,7 +5,15 @@ import type { Diagnostic } from "@codemirror/lint";
 import IssuesPanel, { type IssuesPanelHandle } from "@/components/IssuesPanel";
 import RulesetsSelector from "@/components/RulesetsSelector";
 import ExclusionsImport from "@/components/ExclusionsImport";
+import ExclusionsExport from "@/components/ExclusionsExport";
 import type { AutoRule } from "@/lib/linter/ruleCatalog";
+import ManualChecksSelector from "@/components/ManualChecksSelector";
+import * as manualCatalog from "@/lib/linter/manualCatalog";
+import type { RuleExclusion } from "@/lib/linter/issueExclusions";
+
+jest.mock("react-markdown", () => ({
+    __esModule: true, default: ({ children }: { children: string }) => React.createElement("span", null, children),
+}));
 
 let root: Root;
 let container: HTMLDivElement;
@@ -363,6 +371,136 @@ test("API exclusions import switches catalogs, replaces checkboxes including opt
     await choice("Ruleset", "default");
     await choice("Ruleset", "other");
     expect(selected.mock.calls.at(-1)?.[0].map((rule) => rule.id)).toEqual(["OTHER-M"]);
+});
+
+test("reason-bearing imports validate manual IDs and restore automatic, manual and issue metadata", async () => {
+    const rules = [{ id: "TEST-M", title: "Test", message: "Test", option: "Mandatory", severity: "high",
+        status: "implemented", call: { function: "checkOASVersion" } }];
+    const fetch = jest.fn(async (url: string) => url === "/api/rulesets"
+        ? { ok: true, json: async () => ({ default: ["Test"] }) }
+        : url === "/api/manuals"
+            ? { ok: true, json: async () => ({ manual: ["Test.yaml"] }) }
+            : { ok: true, text: async () => JSON.stringify({ rules: url.includes("/manual-checklist/")
+                ? [{ id: "MANUAL-1", title: "Manual", message: "Check", option: "Mandatory" }] : rules }) });
+    Object.assign(globalThis, { fetch });
+    const selected = jest.fn();
+    const imported = jest.fn();
+    await act(async () => root.render(React.createElement(RulesetsSelector, {
+        onSelectionChange: selected, onRuleExclusionsImported: imported,
+    })));
+    await choice("Ruleset", "default");
+    await click("Import API exclusions");
+    const config = {
+        ruleset: "default", exclude_auto_rules: [{ rule_id: "TEST-M", reason: "Known exception" }],
+        exclude_manual_rules: [{ rule_id: "MANUAL-1", reason: "External review" }],
+        exclude_issues: [{ rule_id: "TEST-M", line_number: 5, reason: "Intentional contract" }],
+    };
+    await pasteExclusions({ ...config, exclude_manual_rules: [{ rule_id: "UNKNOWN", reason: "Not applicable" }] });
+    await click("Import exclusions");
+    expect(container.querySelector('[role="alert"]')?.textContent).toContain("Unknown manual rule IDs");
+    expect(imported).not.toHaveBeenCalled();
+    await pasteExclusions(config);
+    await click("Import exclusions");
+    expect(imported).toHaveBeenLastCalledWith(config);
+    expect(selected).toHaveBeenLastCalledWith([]);
+    expect(fetch).toHaveBeenCalledWith("/api/manuals");
+    expect(fetch).toHaveBeenCalledWith("/manual-checklist/Test.yaml");
+});
+
+test("explicit manual exclusions preserve review history, support reasons and ignore bulk review changes", async () => {
+    const rule = { id: "MANUAL-1", title: "Manual", message: "Check", option: "Mandatory", verified: true };
+    localStorage.setItem("manualRules", JSON.stringify([rule]));
+    jest.spyOn(manualCatalog, "loadManualRules").mockResolvedValue([{ ...rule, verified: false }]);
+    const changed = jest.fn();
+    const exclusions = jest.fn();
+    function Harness() {
+        const [excludedRules, setExcludedRules] = React.useState<RuleExclusion[]>([]);
+        return React.createElement(ManualChecksSelector, { onManualRulesChange: changed, excludedRules,
+            onExcludedRulesChange: (entries) => { exclusions(entries); setExcludedRules(entries); } });
+    }
+    await act(async () => root.render(React.createElement(Harness)));
+    const toggle = async (label: string) => {
+        const element = container.querySelector(`scale-checkbox[label="${label}"]`);
+        if (!element) throw new Error(`Missing checkbox ${label}`);
+        await act(async () => element.dispatchEvent(new CustomEvent("scale-change", { bubbles: true })));
+    };
+    await toggle("Exclude MANUAL-1");
+    expect(exclusions).toHaveBeenLastCalledWith(["MANUAL-1"]);
+    const reason = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Exclusion reason for manual MANUAL-1"]');
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    if (!reason || !setter) throw new Error("Missing manual reason input");
+    await act(async () => {
+        setter.call(reason, "Already reviewed elsewhere");
+        reason.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(exclusions).toHaveBeenLastCalledWith([{ rule_id: "MANUAL-1", reason: "Already reviewed elsewhere" }]);
+    await toggle("Review MANUAL-1");
+    await click("Reset filtered");
+    expect(changed).toHaveBeenLastCalledWith([rule]);
+    expect(JSON.parse(localStorage.getItem("manualRules")!)).toEqual([rule]);
+    await toggle("Exclude MANUAL-1");
+    expect(exclusions).toHaveBeenLastCalledWith([]);
+    await toggle("Review MANUAL-1");
+    expect(changed).toHaveBeenLastCalledWith([{ ...rule, verified: false }]);
+    localStorage.removeItem("manualRules");
+});
+
+test("scrollable exclusions tables retain all rows, edited reasons and the full exported list without pagination", async () => {
+    const automatic = Array.from({ length: 12 }, (_, index) => ({ rule_id: `AUTO-${index + 1}`, reason: "Original" }));
+    const issues = Array.from({ length: 11 }, (_, index) => ({ rule_id: `ISSUE-${index + 1}`, line_number: index + 1 }));
+    function Harness() {
+        const [rules, setRules] = React.useState(automatic);
+        return React.createElement(ExclusionsExport, {
+            ruleset: "default", excludedRules: rules, excludedIssues: issues,
+            onRuleReasonChange: (id, reason) => setRules((previous) =>
+                previous.map((entry) => entry.rule_id === id ? { ...entry, reason } : entry)),
+            onUnmute: jest.fn(), onUnmuteAll: jest.fn(),
+        });
+    }
+    await act(async () => root.render(React.createElement(Harness)));
+    const rows = (selector: string) => [...container.querySelectorAll(`${selector} tbody tr`)];
+    const automaticRows = () => rows(".exclusionReasonsTable");
+    const mutedRows = () => rows(".mutedIssuesTable");
+    expect(automaticRows()).toHaveLength(12);
+    expect(mutedRows()).toHaveLength(11);
+    expect(container.querySelectorAll("nav.pagination")).toHaveLength(0);
+    const reason = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Exclusion reason for automatic AUTO-6"]');
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    if (!reason || !setter) throw new Error("Missing scrolled reason input");
+    await act(async () => {
+        setter.call(reason, "Edited after scrolling");
+        reason.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+    expect(container.querySelector<HTMLTextAreaElement>('textarea[aria-label="Exclusion reason for automatic AUTO-6"]')?.value)
+        .toBe("Edited after scrolling");
+    const json = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="API exclusions JSON"]')?.value;
+    expect(JSON.parse(json!)).toEqual({
+        ruleset: "default",
+        exclude_auto_rules: automatic.map((entry) => entry.rule_id === "AUTO-6" ? { ...entry, reason: "Edited after scrolling" } : entry),
+        exclude_issues: issues,
+    });
+});
+
+test("unmute and unmute-all operate on every row of the scrollable table", async () => {
+    const issues = Array.from({ length: 11 }, (_, index) => ({ rule_id: `RULE-${index + 1}`, line_number: index + 1 }));
+    function Harness() {
+        const [muted, setMuted] = React.useState(issues);
+        return React.createElement(ExclusionsExport, {
+            ruleset: "default", excludedRules: [], excludedIssues: muted,
+            onUnmute: (entry) => setMuted((previous) => previous.filter((issue) => issue.rule_id !== entry.rule_id)),
+            onUnmuteAll: () => setMuted([]),
+        });
+    }
+    await act(async () => root.render(React.createElement(Harness)));
+    expect(container.querySelectorAll(".mutedIssuesTable tbody tr")).toHaveLength(11);
+    const unmute = container.querySelector<HTMLButtonElement>('button[aria-label="Unmute RULE-11 on line 11"]');
+    if (!unmute) throw new Error("Missing final-row unmute action");
+    await act(async () => unmute.click());
+    expect(container.querySelectorAll(".mutedIssuesTable tbody tr")).toHaveLength(10);
+    await click("Unmute all issues");
+    expect(container.querySelector(".mutedIssuesTable")).toBeNull();
+    const json = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="API exclusions JSON"]')?.value;
+    expect(JSON.parse(json!).exclude_issues).toEqual([]);
 });
 
 test("invalid exclusions, unknown catalogs/rules and failed catalog loads preserve the current rules and mutes", async () => {

@@ -17,7 +17,8 @@ import { parseAllowedAbbreviations } from "@/lib/abbreviations";
 import { exportRobotFramework, exportPDF, exportReportPortal } from "@/utils/export";
 import { coverageLedger } from "@/tests/fixtures/dual-version/coverageLedger";
 import { flowExampleContent, readFixtureContent, type Dialect } from "@/tests/fixtures/dual-version/scenarios";
-import type { IssueExclusion } from "@/lib/linter/issueExclusions";
+import { parseApiExclusions, type ApiExclusions, type IssueExclusion, type RuleExclusion } from "@/lib/linter/issueExclusions";
+import type { ManualRule } from "@/lib/linter/manualCatalog";
 import { checkGiteaAvailability } from "@/lib/openapi/baseline";
 
 type LintResult = Awaited<ReturnType<ReturnType<typeof openApiLinter>>>;
@@ -26,13 +27,21 @@ let mockSelector: {
     onRulesLoaded: (rules: AutoRule[] | null) => void;
     onRulesetChange: (name: string) => void;
     onExclusionsImported: (issues: IssueExclusion[]) => void;
+    onRuleExclusionsImported: (exclusions: ApiExclusions) => void;
+};
+let mockManualSelector: {
+    onManualRulesChange: (rules: ManualRule[]) => void;
+    excludedRules: RuleExclusion[];
+    onExcludedRulesChange: (rules: RuleExclusion[]) => void;
 };
 jest.mock("@telekom/scale-components/dist/scale-components/scale-components.css", () => ({}));
 jest.mock("@telekom/scale-components/loader", () => ({
     applyPolyfills: jest.fn(async () => undefined), defineCustomElements: jest.fn(),
 }));
 jest.mock("@/components/AuthButtons", () => ({ __esModule: true, default: () => null }));
-jest.mock("@/components/ManualChecksSelector", () => ({ __esModule: true, default: () => null }));
+jest.mock("@/components/ManualChecksSelector", () => ({
+    __esModule: true, default: (props: typeof mockManualSelector) => { mockManualSelector = props; return null; },
+}));
 jest.mock("@/components/RulesetsSelector", () => ({
     __esModule: true, default: (props: typeof mockSelector) => { mockSelector = props; return null; },
 }));
@@ -307,11 +316,71 @@ test("issue exclusions imported during startup are matched after the final autom
     expect(container.textContent).not.toContain("Checking Gitea connection.");
 });
 
-function exclusionsJson(): { ruleset: string; exclude_auto_rules: string[]; exclude_issues: { rule_id: string; line_number: number }[] } {
+function exclusionsJson(): ApiExclusions {
     const textarea = container.querySelector<HTMLTextAreaElement>('textarea[aria-label="API exclusions JSON"]');
     if (!textarea) throw new Error("Missing API exclusions JSON");
     return JSON.parse(textarea.value);
 }
+async function editReason(label: string, value: string) {
+    const input = container.querySelector<HTMLTextAreaElement>(`textarea[aria-label="${label}"]`);
+    const setter = Object.getOwnPropertyDescriptor(HTMLTextAreaElement.prototype, "value")?.set;
+    if (!input || !setter) throw new Error(`Missing reason input ${label}`);
+    await act(async () => {
+        setter.call(input, value);
+        input.dispatchEvent(new Event("input", { bubbles: true }));
+    });
+}
+
+test("imported and edited exclusion reasons round-trip without revalidation or marking excluded manual checks passed", async () => {
+    const [first, second] = rules;
+    lint.mockImplementation(() => async () => ({ diagnostics: [{ ...finding(first.id), source: `Rule ${first.id}` }] }));
+    await select([first]);
+    await upload("openapi: 3.0.3\ninfo: {}\npaths: {}\n");
+    await loaded("openapi: 3.0.3\ninfo: {}\npaths: {}\n");
+    const imported: ApiExclusions = {
+        ruleset: "default",
+        exclude_auto_rules: [{ rule_id: second.id, reason: "Existing exception" }],
+        exclude_manual_rules: [{ rule_id: "MANUAL-1", reason: "Not applicable" }],
+        exclude_issues: [{ rule_id: first.id, line_number: 1, reason: "Intentional schema" }],
+    };
+    await act(async () => {
+        mockManualSelector.onManualRulesChange([{ id: "MANUAL-1", title: "Manual", message: "Manual", verified: true }]);
+        mockSelector.onRuleExclusionsImported(imported);
+        mockSelector.onExclusionsImported(imported.exclude_issues);
+        mockSelector.onSelectionChange([first]);
+    });
+    await waitFor(() => Boolean(container.textContent?.includes("Muted issues (1)")));
+    await act(async () => button("Muted issues (1)").click());
+    expect(mockManualSelector.excludedRules).toEqual(imported.exclude_manual_rules);
+    const calls = lint.mock.calls.length;
+    await editReason(`Exclusion reason for automatic ${second.id}`, "Service ");
+    expect(container.querySelector<HTMLTextAreaElement>(`textarea[aria-label="Exclusion reason for automatic ${second.id}"]`)?.value).toBe("Service ");
+    await editReason(`Exclusion reason for automatic ${second.id}`, "Service specific");
+    await editReason("Exclusion reason for manual MANUAL-1", "External checklist");
+    await editReason(`Exclusion reason for ${first.id} on line 1`, "Known false positive");
+    const json = exclusionsJson();
+    expect(json.exclude_auto_rules).toContainEqual({ rule_id: second.id, reason: "Service specific" });
+    expect(json.exclude_manual_rules).toEqual([{ rule_id: "MANUAL-1", reason: "External checklist" }]);
+    expect(json.exclude_issues).toEqual([{ rule_id: first.id, line_number: 1, reason: "Known false positive" }]);
+    expect(parseApiExclusions(JSON.stringify(json))).toEqual(json);
+    expect(lint).toHaveBeenCalledTimes(calls);
+    await closeDialog();
+    for (const [label, exporter] of [
+        ["Export to PDF", exportPDF], ["Export to Robot Framework", exportRobotFramework], ["Export to ReportPortal", exportReportPortal],
+    ] as const) {
+        await act(async () => button("Export").click());
+        await act(async () => button(label).click());
+        expect(jest.mocked(exporter).mock.calls.at(-1)?.[2]).toEqual([]);
+    }
+    await act(async () => mockSelector.onRuleExclusionsImported({
+        ruleset: "default", exclude_auto_rules: [], exclude_issues: [],
+    }));
+    expect(mockManualSelector.excludedRules).toEqual([{ rule_id: "MANUAL-1", reason: "External checklist" }]);
+    await act(async () => mockSelector.onRuleExclusionsImported({
+        ruleset: "default", exclude_auto_rules: [], exclude_manual_rules: [], exclude_issues: [],
+    }));
+    expect(mockManualSelector.excludedRules).toEqual([]);
+});
 async function closeDialog() {
     await act(async () => container.querySelector("scale-modal")?.dispatchEvent(new CustomEvent("scale-close")));
 }
@@ -342,7 +411,7 @@ test("imported issue mutes replace previous mutes and ignore absent findings aft
     expect(container.querySelector(".issuePreview")?.textContent).toBe(first.id);
     await act(async () => button("Muted issues (1)").click());
     expect(exclusionsJson()).toEqual({
-        ruleset: "imported", exclude_auto_rules: [], exclude_issues: [{ rule_id: second.id, line_number: 1 }],
+        ruleset: "imported", exclude_auto_rules: [], exclude_manual_rules: [], exclude_issues: [{ rule_id: second.id, line_number: 1 }],
     });
     await closeDialog();
     await act(async () => {
@@ -396,6 +465,7 @@ test("muting uses rule and line across UI, gutter and all reports; exports unche
     const config = exclusionsJson();
     expect(config).toEqual({
         ruleset: "default",
+        exclude_manual_rules: [],
         exclude_auto_rules: rules.filter((rule) => ![first.id, second.id].includes(rule.id)).map((rule) => rule.id),
         exclude_issues: [{ rule_id: first.id, line_number: 1 }, { rule_id: first.id, line_number: 2 }],
     });
