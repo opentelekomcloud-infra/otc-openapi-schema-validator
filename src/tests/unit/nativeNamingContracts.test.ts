@@ -152,6 +152,96 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s naming contracts
         }
     });
 
+    test.each(formats)("%s recognizes singleton subresources without identifiers and retains singular wrapper validation", async (format) => {
+        for (const [path, good, bad] of [
+            ["/v5/users/{user_id}/login-profile", "login_profile", "login_profiles"],
+            ["/v5/token-policy", "token_policy", "token_policies"],
+            ["/v5/service-linked-agencies/deletion-task/{task_id}", "deletion_task", "deletion_tasks"],
+        ]) {
+            for (const [name, count] of [[good, 0], [bad, 1]] as const) {
+                const schema = { properties: { [name]: { type: "object" } } };
+                const doc = document(dialect, { responses: { "200": response(dialect, reference(dialect, "Root")) } },
+                    "get", path, {}, definitions(dialect, { Root: schema }));
+                const { diagnostics } = await check(doc, root, {}, format);
+                expect(diagnostics).toHaveLength(count);
+                if (count) expect(diagnostics[0].message).toContain("should use singular resource name");
+            }
+        }
+    });
+
+    test("singleton detection can be disabled without disabling ordinary identifier-based single-resource checks", async () => {
+        const schema = { properties: { login_profile: { type: "object" } } };
+        const operation = { responses: { "200": response(dialect, schema) } };
+        expect((await check(document(dialect, operation, "get", "/v5/users/{id}/login-profile"),
+            root, { detectSingletonByPath: false })).diagnostics).toHaveLength(1);
+        expect((await check(document(dialect, operation, "get", "/v5/login-profiles/{id}"),
+            root, { detectSingletonByPath: false })).diagnostics).toEqual([]);
+    });
+
+    test.each(formats)("%s excludes non-CRUD action tails but not ancestor verbs, parameter names or partial words", async (format) => {
+        const schema = { properties: { wrong: { type: "object" } } };
+        for (const path of ["/v5/mfa-devices/enable", "/v5/groups/{id}/add-user", "/v5/groups/{id}/remove-user",
+            "/v5/policies/{id}/attach-agency", "/v5/policies/{id}/attached-entities",
+            "/v5/asymmetric-signature-switch"]) {
+            for (const method of ["post", "get"]) {
+                const operation = method === "post" ? request(dialect, schema)
+                    : { responses: { "200": response(dialect, schema) } };
+                expect((await check(document(dialect, operation, method, path), root, {}, format)).diagnostics).toEqual([]);
+            }
+        }
+        for (const path of ["/v5/enable/users/{id}", "/v5/users/{enable}", "/v5/enabled-users"]) {
+            const doc = document(dialect, { responses: { "200": response(dialect, schema) } }, "get", path);
+            expect((await check(doc, root, {}, format)).diagnostics).toHaveLength(1);
+        }
+    });
+
+    test("action exclusions happen before resolving Path Item refs, and remain configurable", async () => {
+        const doc = document(dialect, {});
+        doc.paths = { "/v5/users/enable": { $ref: "#/missing" } };
+        expect((await check(doc, root)).diagnostics).toEqual([]);
+        expect((await check(doc, root, { nonCrudActions: [] })).diagnostics[0].message).toContain("Local reference does not exist");
+        expect((await check(doc, root, { nonCrudActions: "enable" })).diagnostics[0].message)
+            .toContain("functionParams.nonCrudActions");
+    });
+
+    test.each(formats)("%s exempts unwrapped request and response DTOs while retaining CRUD envelope checks", async (format) => {
+        const fields = [
+            { status: { type: "string" } },
+            { name: { type: "string" }, enabled: { type: "boolean" } },
+            { version: { type: "string" }, actions: { type: "array", items: { type: "object" } } },
+            { thumbprints: { type: "array", items: { type: "string" } } },
+        ];
+        for (const method of ["post", "put", "patch", "get"]) {
+            for (const properties of fields) {
+                const schema = { properties };
+                const operation = method === "get" ? { responses: { "200": response(dialect, schema) } }
+                    : request(dialect, schema);
+                const doc = document(dialect, operation, method, "/v5/users/{id}");
+                expect((await check(doc, root, {}, format)).diagnostics).toEqual([]);
+                expect((await check(doc, root, { skipUnwrappedBodies: false }, format)).diagnostics).toHaveLength(1);
+            }
+            const schema = { properties: { wrong: { type: "object" } } };
+            const operation = method === "get" ? { responses: { "200": response(dialect, schema) } }
+                : request(dialect, schema);
+            expect((await check(document(dialect, operation, method, "/v5/users/{id}"), root, {}, format))
+                .diagnostics).toHaveLength(1);
+        }
+    });
+
+    test("envelope shape detection resolves field/item refs and does not silently exempt malformed schemas", async () => {
+        const doc = document(dialect, { responses: { "200": response(dialect, {
+            properties: { wrong: reference(dialect, "Values") },
+        }) } }, "get", "/v5/users", {}, definitions(dialect, {
+            Values: { type: "array", items: reference(dialect, "Item") }, Item: { type: "string" },
+        }));
+        expect((await check(doc, root)).diagnostics).toEqual([]);
+        const schemas = dialect === "swagger2" ? object(doc.definitions) : object(object(doc.components).schemas);
+        schemas.Item = { type: "object" };
+        expect((await check(doc, root)).diagnostics).toHaveLength(1);
+        schemas.Item = { $ref: "#/missing" };
+        expect((await check(doc, root)).diagnostics[0].message).toContain("Local reference does not exist");
+    });
+
     test.each(formats)("%s body properties work through escaped/chained schema references", async (format) => {
         for (const entry of bodyCases) {
             for (const valid of [true, false]) {
@@ -305,7 +395,8 @@ test("formData follows request-body toggles and all four native field policies",
     expect((await check(form("future_filter"), redundant)).diagnostics).toHaveLength(1);
     expect((await check(form("future_filter", { description: "Reserved.", "x-reserved": true }), redundant)).diagnostics).toEqual([]);
     expect((await check(form("user"), root)).diagnostics).toEqual([]);
-    expect((await check(form("users"), root)).diagnostics).toHaveLength(1);
+    expect((await check(form("users"), root)).diagnostics).toEqual([]);
+    expect((await check(form("users"), root, { skipUnwrappedBodies: false })).diagnostics).toHaveLength(1);
 });
 
 test.each(bodyCases)("reusable OpenAPI requestBody is checked by $id", async ({ id, bad, field }) => {

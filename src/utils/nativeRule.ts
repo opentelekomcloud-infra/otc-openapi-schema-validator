@@ -30,6 +30,12 @@ export function isRulePathExcluded(path: string, exceptions: readonly string[]):
         : path === pattern);
 }
 
+export function isRuleActionPath(path: string, actions: ReadonlySet<string>): boolean {
+    const tail = path.split("/").filter(Boolean).pop()?.toLowerCase() ?? "";
+    return !/^\{[^{}]+\}$/.test(tail) &&
+        (actions.has(tail) || tail.split(/[-_]+/).some((word) => actions.has(word)));
+}
+
 export function ruleDocument(spec: unknown): Record<string, unknown> {
     if (!isDocumentObject(spec)) throw new NativeAccessorError("INVALID_DECLARATION", "#", "Expected a specification object");
     if (spec.paths !== undefined && !isRecord(spec.paths)) {

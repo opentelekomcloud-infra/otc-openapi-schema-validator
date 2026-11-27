@@ -2,10 +2,11 @@ import { Diagnostic } from "@codemirror/lint";
 import { splitPathIntoTokens, looksLikeUnknownWord } from "@/utils/englishWords";
 import { dedupeDiagnostics, pushOperationDiagnostic } from "@/utils/diagnostic";
 import type { NativeOperation, NativeParameterSchema } from "@/types/openapi";
-import type { ReferenceCache } from "@/lib/openapi/references";
+import { appendPointer, resolveObjectReference, type ReferenceCache } from "@/lib/openapi/references";
+import { NativeAccessorError } from "@/lib/openapi/accessorError";
 import { namingSchemas, rootSchemaFields } from "@/utils/nativeNaming";
 import { responseFor, responseStatuses } from "@/utils/nativeResponse";
-import { ruleOperations, ruleRequest } from "@/utils/nativeRule";
+import { isRuleActionPath, ruleOperations, ruleRequest, ruleStrings } from "@/utils/nativeRule";
 
 type RootNodeConfig = {
     deriveResourceFromPath?: boolean;
@@ -20,6 +21,9 @@ type RootNodeConfig = {
     ignoreWrapperNames?: string[];
     allowedGenericCollectionWrappers?: string[];
     pluralizationMode?: string;
+    nonCrudActions?: string[];
+    detectSingletonByPath?: boolean;
+    skipUnwrappedBodies?: boolean;
 };
 
 type BodyExpectation = "collection" | "single" | "skip";
@@ -76,7 +80,7 @@ function pathLooksSingleResource(path: string): boolean {
 /**
  * Determines the response-body expectation for the operation.
  */
-function getResponseExpectation(path: string, method: string, cfg: RootNodeConfig): BodyExpectation {
+function getResponseExpectation(path: string, method: string, resourceName: string, cfg: RootNodeConfig): BodyExpectation {
     const collectionMethods = Array.isArray(cfg.collectionResponseMethods)
         ? cfg.collectionResponseMethods.map((m) => String(m).toLowerCase())
         : ["get"];
@@ -87,7 +91,8 @@ function getResponseExpectation(path: string, method: string, cfg: RootNodeConfi
         return cfg.enforcePluralForCollections === false ? "skip" : "collection";
     }
 
-    if (pathLooksSingleResource(path)) {
+    if (pathLooksSingleResource(path) || (cfg.detectSingletonByPath !== false &&
+        toSingular(resourceName, String(cfg.pluralizationMode ?? "simpleEnglish")) === resourceName)) {
         return cfg.enforceSingularForSingleResource === false ? "skip" : "single";
     }
 
@@ -148,6 +153,23 @@ function filterRelevantRootKeys(keys: string[], cfg: RootNodeConfig): string[] {
     return keys.filter((key) => !ignored.has(String(key).toLowerCase()));
 }
 
+function hasResourceEnvelope(schema: NativeParameterSchema, spec: unknown, cfg: RootNodeConfig, cache: ReferenceCache): boolean {
+    const fields = rootSchemaFields(schema, spec, cache);
+    const relevant = new Set(filterRelevantRootKeys(fields.map((field) => field.name), cfg));
+    if (relevant.size !== 1) return false;
+    const field = fields.find((entry) => relevant.has(entry.name))!;
+    const resolved = resolveObjectReference(field.node, spec, cache, field.pointer);
+    if (!resolved) throw new NativeAccessorError("INVALID_SCHEMA", field.pointer, "Expected a schema object");
+    const node = resolved.value;
+    if (node.type === "array" && node.items !== undefined) {
+        const pointer = appendPointer(resolved.pointer, "items");
+        const item = resolveObjectReference(node.items, spec, cache, pointer);
+        if (!item) throw new NativeAccessorError("INVALID_SCHEMA", pointer, "Expected an item schema object");
+        return item.value.type === undefined || item.value.type === "object";
+    }
+    return node.type === undefined || node.type === "object" || node.type === "array";
+}
+
 /**
  * Returns true when the word is safe to validate strictly with singular/plural checks.
  *
@@ -182,6 +204,8 @@ function validateRequestBody(
     const payload = ruleRequest(operation, spec, cache);
     const schema = namingSchemas(payload, spec, cache)[0];
     if (payload.kind !== "formData" && !schema) return problems;
+    if (cfg.skipUnwrappedBodies !== false &&
+        (payload.kind === "formData" || (schema && !hasResourceEnvelope(schema, spec, cfg, cache)))) return problems;
     const names = payload.kind === "formData" ? payload.fields.map((field) => field.name)
         : schema ? getRootPropertyNames(schema, spec, cache) : [];
     const rootKeys = filterRelevantRootKeys(names, cfg);
@@ -211,7 +235,7 @@ function validateResponses(
     cache: ReferenceCache,
 ): string[] {
     const problems: string[] = [];
-    const expectation = getResponseExpectation(path, method, cfg);
+    const expectation = getResponseExpectation(path, method, resourceName, cfg);
     if (expectation === "skip") return problems;
 
     const genericWrappers = new Set((cfg.allowedGenericCollectionWrappers ?? []).map((v) => String(v).toLowerCase()));
@@ -233,6 +257,7 @@ function validateResponses(
 
         const schema = namingSchemas(responseFor(operation, code, spec, cache), spec, cache)[0];
         if (!schema) continue;
+        if (cfg.skipUnwrappedBodies !== false && !hasResourceEnvelope(schema, spec, cfg, cache)) continue;
 
         const rootKeys = filterRelevantRootKeys(getRootPropertyNames(schema, spec, cache), cfg);
         if (rootKeys.length === 0) continue;
@@ -265,6 +290,7 @@ function validateResponses(
  * Checks that top-level request and response body field names align with the
  * resource derived from the path. Collection responses should use plural names,
  * while single-resource request/response bodies should use singular names.
+ * Configured action tails and unwrapped DTOs are excluded.
  */
 export function checkRootNodeMatchesResource(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -274,7 +300,9 @@ export function checkRootNodeMatchesResource(spec: any, content: string, rule: a
     }
 
     const cfg = (rule?.call?.functionParams ?? {}) as RootNodeConfig;
-    const operations = ruleOperations(spec, {});
+    const actions = new Set(ruleStrings(cfg.nonCrudActions ?? ["action", "actions"], "nonCrudActions")
+        .map((name) => name.trim().toLowerCase()).filter(Boolean));
+    const operations = ruleOperations(spec, {}, (path) => !isRuleActionPath(path, actions));
     const cache = new Map<string, unknown>();
 
     for (const op of operations) {

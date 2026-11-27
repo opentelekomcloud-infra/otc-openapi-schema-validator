@@ -2,7 +2,7 @@ import { Diagnostic } from "@codemirror/lint";
 import { mapSeverity } from "@/utils/mapSeverity";
 import {getSource} from "@/functions/common";
 import { pathRange } from "@/lib/openapi/sourceMap";
-import { isRulePathExcluded, ruleOperations, ruleStrings } from "@/utils/nativeRule";
+import { isRuleActionPath, isRulePathExcluded, ruleOperations, ruleStrings } from "@/utils/nativeRule";
 
 export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
     const diagnostics: Diagnostic[] = [];
@@ -19,9 +19,7 @@ export function checkCRUD(spec: any, content: string, rule: any): Diagnostic[] {
     ).map(name => name.trim().toLowerCase()).filter(Boolean));
 
     const operations = ruleOperations(spec, {}, (path) => {
-        const tail = path.split("/").filter(Boolean).pop()?.toLowerCase() ?? "";
-        if (!/^\{[^{}]+\}$/.test(tail) &&
-            (nonCrudActions.has(tail) || tail.split(/[-_]+/).some(word => nonCrudActions.has(word)))) return false;
+        if (isRuleActionPath(path, nonCrudActions)) return false;
         return !isRulePathExcluded(path, exceptionPaths);
     });
     const methodsByPath = new Map<string, Set<string>>();
