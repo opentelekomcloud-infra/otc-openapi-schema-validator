@@ -11,6 +11,7 @@ export function checkResponseIncludesCount(spec: unknown, content: string, rule:
     const method = configuredString(params.method, "method", "get").toLowerCase();
     const status = configuredStatus(params.responseCode);
     const noPathParams = configuredBoolean(params.pathMustNotContainPathParams, "pathMustNotContainPathParams", false);
+    const skipDetails = configuredBoolean(params.skipSingleResourceQueries, "skipSingleResourceQueries", true);
     const containsArray = configuredBoolean(params.responseContainArray, "responseContainArray", false);
     const required = configuredBoolean(params.required, "required", true);
     const fieldName = configuredString(params.fieldName, "fieldName", "count");
@@ -39,7 +40,8 @@ export function checkResponseIncludesCount(spec: unknown, content: string, rule:
         }
         return { ok: false };
     };
-    const pathMatches = (path: string) => !noPathParams || !/\{[^}]+\}/.test(path);
+    const pathMatches = (path: string) => (!noPathParams || !/\{[^}]+\}/.test(path)) &&
+        (!skipDetails || !/\/\{[^/{}]+\}\/?$/.test(path));
     for (const op of ruleOperations(spec, { methods: [method] }, pathMatches)) {
         const response = responseFor(op, status, spec, cache);
         if (!response?.hasBody) continue;

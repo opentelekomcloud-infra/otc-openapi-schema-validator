@@ -3,7 +3,7 @@ rules:
     title: "The total number of resources that meet the query conditions is returned when the resource list is queried."
     message: The API response must include the total number of matching resources using the field 'count'.
     option: Mandatory
-    description: Check native response schemas for the configured method and status, preferring exact application/json then the first media. Retain array and field-name/type policies; no-body responses are skipped, but a declared body without a selected schema cannot verify count.
+    description: Require count for collection queries, not resource details. Skip paths ending in an identifier parameter before resolving references, even if the resource DTO contains embedded arrays. Parent/project parameters do not exclude nested collection paths. Set skipSingleResourceQueries to false to restore checks on detail paths. Check native response schemas for the configured method and status, preferring exact application/json then the first media. Retain array and field-name/type policies; no-body responses are skipped, but a declared body without a selected schema cannot verify count.
     location: paths
     element: responses
     call:
@@ -11,6 +11,7 @@ rules:
       functionParams:
         method: "get"
         pathMustNotContainPathParams: false
+        skipSingleResourceQueries: true
         responseCode: "200"
         responseContainArray: true
         fieldName: "count"

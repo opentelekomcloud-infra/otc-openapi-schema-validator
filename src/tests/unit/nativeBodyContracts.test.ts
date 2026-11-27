@@ -227,6 +227,35 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         expect((await check(noArray, count)).diagnostics).toEqual([]);
     });
 
+    test.each(formats)("%s detail queries with embedded arrays do not require collection count", async (format) => {
+        for (const [path, properties] of [
+            [deletionTask, { status: { type: "string" }, agency_usage_list: { type: "array", items: { type: "object" } } }],
+            ["/v5/authorization-schemas/services/{service_code}", {
+                version: { type: "string" }, actions: { type: "array", items: { type: "object" } },
+            }],
+        ] satisfies [string, Doc][]) {
+            const schema = { type: "object", properties };
+            const doc = document(dialect, path, "get", operation(dialect, schemaRef(dialect, "Detail")),
+                definitions(dialect, { Detail: schema }));
+            const item = object(object(doc.paths)[path]);
+            doc["x-path-items"] = { Detail: item };
+            object(doc.paths)[path] = { $ref: "#/x-path-items/Detail" };
+            expect((await check(doc, count, {}, format)).diagnostics).toEqual([]);
+            expect((await check(doc, count, { skipSingleResourceQueries: false }, format)).diagnostics).toHaveLength(1);
+        }
+    });
+
+    test.each(formats)("%s nested collection queries retain count checks despite parent or project identifiers", async (format) => {
+        for (const path of ["/v1/{project_id}/users", "/v1/users/{user_id}/groups", "/v1/policies/{policy_id}/versions"]) {
+            const doc = document(dialect, path, "get", operation(dialect, wrapper(false)));
+            expect((await check(doc, count, {}, format)).diagnostics).toHaveLength(1);
+            object(object(object(doc.paths)[path]).get).responses = operation(dialect, wrapper()).responses;
+            expect((await check(doc, count, {}, format)).diagnostics).toEqual([]);
+        }
+        const trailing = document(dialect, "/v1/users/{user_id}/", "get", operation(dialect, wrapper(false)));
+        expect((await check(trailing, count, {}, format)).diagnostics).toEqual([]);
+    });
+
     test("unknown MIME still permits structural schema checks without assuming JSON", async () => {
         const op = operation(dialect, wrapper(false), dialect === "swagger2" ? [] : ["application/xml"]);
         const doc = document(dialect, "/items", "get", op);
@@ -489,7 +518,9 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         doc.paths = { "/status": { $ref: "#/missing" } };
         expect((await check(doc, list)).diagnostics).toEqual([]);
         doc.paths = { "/items/{id}": { $ref: "#/missing" } };
+        expect((await check(doc, count)).diagnostics).toEqual([]);
         expect((await check(doc, count, { pathMustNotContainPathParams: true })).diagnostics).toEqual([]);
+        expect((await check(doc, count, { skipSingleResourceQueries: false })).diagnostics[0].message).toContain("execution failed");
         expect((await check(doc, detail)).diagnostics[0].message).toContain("execution failed");
     });
 
@@ -497,7 +528,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s body contracts",
         const doc = document(dialect, "/items/{id}", "get", operation(dialect, { $ref: ref }),
             { "x-cycle": { $ref: "#/x-cycle" } });
         for (const id of [detail, count, time]) {
-            const { diagnostics } = await check(doc, id);
+            const { diagnostics } = await check(doc, id, id === count ? { skipSingleResourceQueries: false } : {});
             expect(diagnostics).toHaveLength(1);
             expect(diagnostics[0].message).toContain("execution failed");
         }
