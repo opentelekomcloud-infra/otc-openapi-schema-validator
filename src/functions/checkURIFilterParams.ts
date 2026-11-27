@@ -2,7 +2,7 @@ import { Diagnostic } from "@codemirror/lint";
 import { getSource } from "@/functions/common";
 import { mapSeverity } from "@/utils/mapSeverity";
 import { findMethodParametersPositionInYaml } from "@/utils/pos";
-import { schemaHasPropertyDeep } from "@/utils/schema";
+import { findSchemaPropertyDeep } from "@/utils/schema";
 import type { NativeOperation } from "@/types/openapi";
 import { selectPayloadSchema } from "@/lib/openapi/payloads";
 import { responseFor } from "@/utils/nativeResponse";
@@ -25,9 +25,10 @@ function collectFilterParamNames(op: NativeOperation, spec: any, refCache: Map<s
  * FIL-010-01-2507-2507-O
  * Filter Parameter Check.
  *
- * For selected HTTP methods (default GET), query filters must be represented in
- * the successful 200 response schema. URI parameters and standard pagination/
- * sorting controls are not filters.
+ * For selected HTTP methods (default GET), response fields representing query
+ * filters must use the same names. Absent fields are allowed; only case and
+ * underscore/hyphen spelling variants are recognized as equivalent fields.
+ * URI parameters and standard pagination/sorting controls are not filters.
  *
  * The 200 response schema may be inline or referenced via `$ref`. The rule resolves
  * references and traverses nested objects/arrays/composition (`allOf`/`oneOf`/`anyOf`).
@@ -54,15 +55,22 @@ export function checkURIFilterParams(spec: any, content: string, rule: any): Dia
     const schemaResp = selectPayloadSchema(responseFor(op, "200", spec, refCache),
       ["application/json", "application/problem+json"], spec, refCache);
     if (!schemaResp) continue;
-    const missing = filterParamNames.filter((name) =>
-      !schemaHasPropertyDeep(schemaResp.node, name, spec, refCache, new Set<object>()));
-    if (missing.length === 0) continue;
+    const mismatches: string[] = [];
+    for (const name of filterParamNames) {
+      const exact = findSchemaPropertyDeep(schemaResp.node, (field) => field === name, spec, refCache, new Set<object>());
+      if (exact !== undefined) continue;
+      const normalized = name.replace(/[_-]/g, "").toLowerCase();
+      const variant = findSchemaPropertyDeep(schemaResp.node,
+        (field) => field.replace(/[_-]/g, "").toLowerCase() === normalized, spec, refCache, new Set<object>());
+      if (variant !== undefined) mismatches.push(`'${variant}' must be named '${name}'`);
+    }
+    if (mismatches.length === 0) continue;
     const { start, end } = findMethodParametersPositionInYaml(content, path, method);
     diagnostics.push({
       from: start,
       to: end,
       severity: mapSeverity(rule.severity),
-      message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message}. Missing in response schema: ${missing.join(", ")}.`,
+      message: `Issue in path: "${path}" (${method.toUpperCase()}): ${rule.message} Response field naming mismatch: ${mismatches.join("; ")}.`,
       source: getSource(rule),
     });
   }

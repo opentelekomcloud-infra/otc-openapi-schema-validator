@@ -94,22 +94,59 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s native query con
                 parameters: [...controls, parameter(dialect, "er_id", {}, "path"),
                     parameter(dialect, "X-Request-Id", {}, "header"), parameter(dialect, "status")],
                 responses: { "200": response(dialect, { type: "object", properties: {
-                    [valid ? "STATUS" : "other"]: { type: "string" },
+                    [valid ? "status" : "Status"]: { type: "string" },
                 } }) },
             });
             const { diagnostics } = await check(spec, filter, {}, format);
             expect(diagnostics).toHaveLength(valid ? 0 : 1);
-            if (!valid) expect(diagnostics[0].message).toMatch(/Missing in response schema: status\.$/);
+            if (!valid) expect(diagnostics[0].message).toContain("'Status' must be named 'status'");
         }
     });
-    test("a query filter is still checked when a URI parameter has the same name", async () => {
+    test("an absent response field is allowed even when a URI parameter shares the query name", async () => {
         const spec = document(dialect, {
             parameters: [parameter(dialect, "er_id")],
             responses: { "200": response(dialect, { type: "object" }) },
         }, { parameters: [parameter(dialect, "er_id", {}, "path")] });
         const { diagnostics } = await check(spec, filter);
+        expect(diagnostics).toEqual([]);
+    });
+    test.each(formats)("%s only flags spelling variants of a represented filter, not missing or semantically related fields", async (format) => {
+        for (const name of ["group_id", "groupId", "groupID", "group-id", "groupid", "GROUP_ID",
+            "user_id", "group_name", "group_ids", "groups", "group_identifier"]) {
+            const mismatch = ["groupId", "groupID", "group-id", "groupid", "GROUP_ID"].includes(name);
+            const spec = document(dialect, {
+                parameters: [parameter(dialect, "group_id")],
+                responses: { "200": response(dialect, { type: "object", properties: {
+                    users: { type: "array", items: { type: "object", properties: {
+                        [name]: { type: "string" },
+                        group: { type: "object", properties: { id: { type: "string" } } },
+                    } } },
+                } }) },
+            });
+            const { diagnostics } = await check(spec, filter, {}, format);
+            expect(diagnostics).toHaveLength(mismatch ? 1 : 0);
+            if (mismatch) {
+                expect(diagnostics[0].message).toContain(`'${name}' must be named 'group_id'`);
+                expect(diagnostics[0].message).not.toContain("Missing in response");
+            }
+        }
+    });
+    test("nested referenced and composed spelling variants are checked with cycle protection and aggregated", async () => {
+        const namespace = dialect === "swagger2" ? "definitions" : "components/schemas";
+        const schemas = {
+            Resource: { properties: { child: { $ref: `#/${namespace}/Resource` } },
+                additionalProperties: { oneOf: [{ properties: { groupId: { type: "string" } } },
+                    { allOf: [{ properties: { userId: { type: "string" } } }] }] } },
+        };
+        const extra = dialect === "swagger2" ? { definitions: schemas } : { components: { schemas } };
+        const spec = document(dialect, {
+            parameters: [parameter(dialect, "group_id"), parameter(dialect, "user_id")],
+            responses: { "200": response(dialect, { $ref: `#/${namespace}/Resource` }) },
+        }, {}, extra);
+        const { diagnostics } = await check(spec, filter);
         expect(diagnostics).toHaveLength(1);
-        expect(diagnostics[0].message).toContain("Missing in response schema: er_id.");
+        expect(diagnostics[0].message).toContain("'groupId' must be named 'group_id'");
+        expect(diagnostics[0].message).toContain("'userId' must be named 'user_id'");
     });
     test.each(formats)("%s checks inherited native limit default and string-equivalent configuration", async (format) => {
         for (const value of [1000, "1000", 25, null, undefined]) {
@@ -137,7 +174,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s native query con
     test.each(formats)("%s filters effective query parameters against native response 200", async (format) => {
         for (const valid of [true, false]) {
             const schema = { type: "object", properties: { items: { type: "array", items: {
-                type: "object", properties: { [valid ? "USER_ID" : "other_id"]: { type: "string" } },
+                type: "object", properties: { [valid ? "user_id" : "userId"]: { type: "string" } },
             } } } };
             const spec = document(dialect, { responses: { "200": response(dialect, schema) } },
                 { parameters: [parameter(dialect, "user_id")] });
@@ -213,7 +250,7 @@ describe.each(["swagger2", "openapi3"] satisfies Dialect[])("%s native query con
                 : parameter(dialect, "user_id");
             const parameters = { Shared: shared };
             const schemas = { Shared: { type: "object", properties: {
-                [valid ? "USER_ID" : "other_id"]: { type: "string" },
+                [valid ? "user_id" : "userId"]: { type: "string" },
             } } };
             const schemaNamespace = dialect === "swagger2" ? "definitions" : "components/schemas";
             const responses = { Shared: response(dialect, { $ref: `#/${schemaNamespace}/Shared` }) };

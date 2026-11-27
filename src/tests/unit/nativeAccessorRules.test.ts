@@ -236,7 +236,7 @@ describe.each<Dialect>(["swagger2", "openapi3"])("%s filter response reuse", (di
         }
         const diagnostics = await check(spec, rule);
         expect(diagnostics).toHaveLength(variant === "positive" ? 0 : 1);
-        if (variant === "negative") expect(diagnostics[0].message).toContain("Missing in response schema: resource_id");
+        if (variant === "negative") expect(diagnostics[0].message).toContain("'resourceId' must be named 'resource_id'");
     });
 });
 
