@@ -318,13 +318,15 @@ export const scenarios = {
     },
     filterField: {
         positive: "query resource_id filter is present in response schema",
-        negative: "query resource_id filter is absent from response schema",
-        message: "Missing in response schema: resource_id", detail: true,
+        negative: "query resource_id filter is spelled resourceId in response schema",
+        message: "'resourceId' must be named 'resource_id'", detail: true,
         prepare: ({ definitions, operation, dialect, variant }) => {
             operation.parameters = [...array(operation.parameters), parameter(dialect, "resource_id", "query")];
             if (variant === "negative") {
-                delete object(object(definitions.Resource).properties).resource_id;
-                object(definitions.Resource).required = ["name"];
+                const properties = object(object(definitions.Resource).properties);
+                properties.resourceId = properties.resource_id;
+                delete properties.resource_id;
+                object(definitions.Resource).required = ["resourceId", "name"];
             }
         },
     },

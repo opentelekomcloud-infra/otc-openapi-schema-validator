@@ -1,13 +1,13 @@
 rules:
   - id: "FIL-010-01-2507-2507-O"
     title: "Filter Parameter Check"
-    message: Filter parameters must be the same if represented in response.
+    message: When a filtered field appears in the response, its name must match the query parameter.
     option: optional
     location: query
     call:
       function: checkURIFilterParams
       functionParams:
         methods: ["get"]
-    description: Check effective native query filters against response 200 only, including Path Item, parameter, response and schema refs. URI path, header, cookie and body parameters are not filters; offset, limit, marker, sort_key and sort_dir are pagination/sorting controls and are excluded. Preserve JSON/problem+json then first-media selection, nested objects/items/maps/compositions, case-insensitive fallback and no-schema skip.
+    description: Check effective native query filter naming against response 200 only, including Path Item, parameter, response and schema refs. Response fields are optional; report only differently spelled equivalents identified by ignoring case, underscores and hyphens. Exact names pass. Do not infer semantic aliases, plural fields or nested group.id equivalence to group_id. URI path, header, cookie and body parameters are not filters; offset, limit, marker, sort_key and sort_dir are pagination/sorting controls and are excluded. Preserve JSON/problem+json then first-media selection, nested objects/items/maps/compositions and no-schema skip.
     status: implemented
     severity: medium

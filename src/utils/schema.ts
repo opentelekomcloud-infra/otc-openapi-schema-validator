@@ -281,39 +281,49 @@ export function schemaHasPropertyDeep(
   refCache: Map<string, any>,
   visited: Set<any>
 ): boolean {
-    if (!schema || typeof schema !== "object") return false;
+    return findSchemaPropertyDeep(schema, (name) => name.toLowerCase() === propName.toLowerCase(),
+        spec, refCache, visited) !== undefined;
+}
+
+export function findSchemaPropertyDeep(
+    schema: any,
+    matches: (name: string) => boolean,
+    spec: any,
+    refCache: Map<string, any>,
+    visited: Set<any>,
+): string | undefined {
+    if (!schema || typeof schema !== "object") return undefined;
 
     const resolved = resolveRefDeep(schema, refCache, spec);
-    if (!resolved || typeof resolved !== "object") return false;
+    if (!resolved || typeof resolved !== "object") return undefined;
 
-    if (visited.has(resolved)) return false;
+    if (visited.has(resolved)) return undefined;
     visited.add(resolved);
 
     const props = (resolved as any).properties;
     if (props && typeof props === "object") {
-        if (Object.prototype.hasOwnProperty.call(props, propName)) return true;
-        // also consider case-insensitive match in case of style differences
-        const lower = propName.toLowerCase();
-        for (const k of Object.keys(props)) {
-            if (k.toLowerCase() === lower) return true;
-        }
+        const matching = Object.keys(props).find(matches);
+        if (matching !== undefined) return matching;
 
         // Dive into properties
         for (const v of Object.values(props)) {
-            if (schemaHasPropertyDeep(v, propName, spec, refCache, visited)) return true;
+            const matching = findSchemaPropertyDeep(v, matches, spec, refCache, visited);
+            if (matching !== undefined) return matching;
         }
     }
 
     // Arrays
     const items = (resolved as any).items;
     if (items) {
-        if (schemaHasPropertyDeep(items, propName, spec, refCache, visited)) return true;
+        const matching = findSchemaPropertyDeep(items, matches, spec, refCache, visited);
+        if (matching !== undefined) return matching;
     }
 
     // additionalProperties may be a schema
     const addl = (resolved as any).additionalProperties;
     if (addl && typeof addl === "object") {
-        if (schemaHasPropertyDeep(addl, propName, spec, refCache, visited)) return true;
+        const matching = findSchemaPropertyDeep(addl, matches, spec, refCache, visited);
+        if (matching !== undefined) return matching;
     }
 
     // Composition
@@ -321,13 +331,14 @@ export function schemaHasPropertyDeep(
         const arr = (resolved as any)[key];
         if (Array.isArray(arr)) {
             for (const s of arr) {
-                if (schemaHasPropertyDeep(s, propName, spec, refCache, visited)) return true;
+                const matching = findSchemaPropertyDeep(s, matches, spec, refCache, visited);
+                if (matching !== undefined) return matching;
             }
         }
     }
 
     // Not found
-    return false;
+    return undefined;
 }
 
 /**
